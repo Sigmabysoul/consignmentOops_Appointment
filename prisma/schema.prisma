@@ -1,0 +1,547 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String              @id @default(uuid())
+  username     String              @unique
+  name         String
+  passwordHash String
+  role         Role                @default(STAFF)
+  department   String?
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  auditLogs    AuditLog[]
+  permissions  ChannelPermission[]
+  preferences  UserPreference[]
+}
+
+model ChannelPermission {
+  id                    String   @id @default(uuid())
+  userId                String
+  channel               String
+  canView               Boolean  @default(true)
+  canCreate             Boolean  @default(false)
+  canEdit               Boolean  @default(false)
+  canDelete             Boolean  @default(false)
+  allowedFields         String[] @default([])
+  canChangeStatus       Boolean? @default(false)
+  canManageIntegrations Boolean? @default(false)
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  Platform              Platform @relation(fields: [channel], references: [code], onDelete: Cascade, map: "fk_perm_platform")
+
+  @@unique([userId, channel])
+}
+
+model ChannelTab {
+  id             String   @id @default(uuid())
+  channel        String
+  name           String
+  slug           String
+  position       Int      @default(0)
+  filterRules    Json     @default("{}")
+  visibleColumns String[] @default([])
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  Platform       Platform @relation(fields: [channel], references: [code], onDelete: Cascade, map: "fk_tab_platform")
+
+  @@unique([channel, slug])
+}
+
+model ConsignmentOrder {
+  id                String        @id @default(uuid())
+  channel           String
+  roPoNumber        String
+  warehouseName     String?
+  itemId            String?
+  itemName          String?
+  productUpc        String?
+  invoiceNo         String?
+  appointmentId     String?
+  soStatus          String?
+  status            String?
+  boxDimensions     String?
+  logisticsPortal   String?
+  trackingId        String?
+  courierPartner    String?
+  courierStatus     String?
+  puc               Boolean       @default(false)
+  asn               Boolean       @default(false)
+  clearBagNo        String?
+  comment           String?
+  pickupDone        Boolean       @default(false)
+  grnStatus         String?
+  grnReport         String?
+  docsPrinted       Boolean       @default(false)
+  boxesPacked       Boolean       @default(false)
+  customData        Json          @default("{}")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  appointmentShared String?
+  pouchNo           String?
+  trackingStatus    String?
+  colorTag          String?
+  clientId          String?
+  orderDate         DateTime?
+  shipDate          DateTime?
+  appointmentDate   DateTime?
+  deliveryDate      DateTime?
+  pickupDate        DateTime?
+  roExpiryDate      DateTime?
+  trackingLink      String?
+  appointmentSlot   String?
+  appointmentRaw    String?
+  boxCount          Int?
+  boxName           String?
+  lengthCm          Float?
+  widthCm           Float?
+  heightCm          Float?
+  dimensionUnit     String?       @default("cm")
+  weightKg          Float?
+  weightUnit        String?       @default("kg")
+  remainderQty      Int?
+  remainderLengthCm Float?
+  remainderWidthCm  Float?
+  remainderHeightCm Float?
+  remainderWeightKg Float?
+  totalQty          Int?
+  dimensionConfirmed Boolean       @default(false)
+  dimensionConfirmedBy String?
+  dimensionConfirmedAt DateTime?
+  isArchived        Boolean?      @default(false)
+  isDeleted         Boolean?      @default(false)
+  roDocumentUrl     String?
+  roDocumentName    String?
+  documents         OrderDocument[]
+  auditLogs         AuditLog[]
+  client            ClientPreset? @relation(fields: [clientId], references: [id])
+  Platform          Platform      @relation(fields: [channel], references: [code], map: "fk_order_platform")
+  items             OrderItem[]
+  boxes             ConsignmentBox[]
+  statusHistory     OrderStatusHistory[]
+
+  @@index([channel, status])
+  @@index([roPoNumber])
+  @@index([clientId])
+  @@index([trackingId])
+  @@index([channel, orderDate])
+  @@index([channel, createdAt])
+}
+
+model OrderItem {
+  id                String           @id @default(uuid())
+  orderId           String
+  itemId            String?
+  itemName          String?
+  productUpc        String?
+  boxDimensions     String?
+  multiplier        String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  totalQty          Int?
+  boxCount          Int?
+  boxName           String?
+  lengthCm          Float?
+  widthCm           Float?
+  heightCm          Float?
+  dimensionUnit     String?          @default("cm")
+  weightKg          Float?
+  weightUnit        String?          @default("kg")
+  remainderQty      Int?
+  remainderLengthCm Float?
+  remainderWidthCm  Float?
+  remainderHeightCm Float?
+  remainderWeightKg Float?
+  dimensionConfirmed Boolean         @default(false)
+  isPrinted         Boolean          @default(false)
+  printedBy         String?
+  printedAt         DateTime?
+  department        String?
+  order             ConsignmentOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([department])
+}
+
+model ConsignmentBox {
+  id            String           @id @default(uuid())
+  orderId       String
+  boxNumber     Int
+  externalBoxId String?
+  currentStatus String           @default("CREATED")
+  linkedAt      DateTime         @default(now())
+  unlinkedAt    DateTime?
+  lastSyncedAt  DateTime?
+  metadata      Json?            @default("{}")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  order         ConsignmentOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, boxNumber])
+  @@index([orderId])
+  @@index([externalBoxId])
+}
+
+model MasterProduct {
+  id           String   @id @default(uuid())
+  channel      String
+  upcOrFsn     String
+  sku          String?
+  name         String
+  boxName      String?
+  multiplier   String?
+  weightKg     String?
+  labelStatus  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+  department   String?
+  lengthCm     Float?
+  widthCm      Float?
+  heightCm     Float?
+  isActive     Boolean  @default(true)
+  piecesPerBox Int?
+  weightKgVal  Float?
+  Platform     Platform @relation(fields: [channel], references: [code], map: "fk_product_platform")
+
+  @@unique([channel, upcOrFsn])
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  colorTag    String?  @default("#e8f0fe")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BoxPreset {
+  id            String   @id @default(uuid())
+  channel       String
+  productUpcFsn String
+  sku           String?
+  productName   String
+  boxName       String?
+  unitsPerBox   Int
+  lengthCm      Int
+  widthCm       Int
+  heightCm      Int
+  weightKg      Float
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  dimensionUnit String?  @default("cm")
+  weightUnit    String?  @default("kg")
+  department    String?
+  isActive      Boolean  @default(true)
+  Platform      Platform @relation(fields: [channel], references: [code], map: "fk_box_platform")
+
+  @@index([channel, productUpcFsn])
+  @@index([channel, sku])
+}
+
+model ClientPreset {
+  id            String             @id @default(uuid())
+  code          String             @unique
+  name          String
+  channel       String
+  contactPerson String?
+  contactPhone  String?
+  contactEmail  String?
+  warehouseCode String?
+  city          String?
+  address       String?
+  gstin         String?
+  notes         String?
+  isImportant   Boolean            @default(true)
+  isActive      Boolean            @default(true)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  Platform      Platform           @relation(fields: [channel], references: [code], map: "fk_client_platform")
+  orders        ConsignmentOrder[]
+
+  @@index([channel])
+}
+
+model CourierPreset {
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  urlName            String   // The slug used in the tracking URL e.g. "om-logistics"
+  trackingUrlPattern String?  @default("https://trackcourier.io/track-and-trace/{urlName}/{trackingId}")
+  isActive           Boolean  @default(true)
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model AuditLog {
+  id           String            @id @default(uuid())
+  orderId      String?
+  userId       String?
+  action       String
+  fieldChanged String?
+  oldValue     String?
+  newValue     String?
+  timestamp    DateTime          @default(now())
+  orderNumber  String?
+  platformCode String?
+  userName     String?
+  userRole     String?
+  metadata     Json?
+  order        ConsignmentOrder? @relation(fields: [orderId], references: [id])
+  user         User?             @relation(fields: [userId], references: [id])
+}
+
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model FieldDefinition {
+  id               String   @id @default(uuid())
+  platformCode     String?
+  key              String
+  label            String
+  type             String
+  category         String
+  options          Json?
+  isRequired       Boolean  @default(false)
+  isSearchable     Boolean  @default(true)
+  isSortable       Boolean  @default(true)
+  isEditable       Boolean  @default(true)
+  isVisibleDefault Boolean  @default(true)
+  defaultWidth     String?  @default("150px")
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now())
+}
+
+model Platform {
+  id                String              @id @default(uuid())
+  code              String              @unique
+  name              String
+  description       String?
+  colorTag          String?             @default("#e8f0fe")
+  icon              String?             @default("Package")
+  isActive          Boolean             @default(true)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @default(now())
+  BoxPreset         BoxPreset[]
+  ChannelPermission ChannelPermission[]
+  ChannelTab        ChannelTab[]
+  ClientPreset      ClientPreset[]
+  ConsignmentOrder  ConsignmentOrder[]
+  MasterProduct     MasterProduct[]
+  SheetIntegration  SheetIntegration[]
+}
+
+model PlatformStatus {
+  id           String   @id @default(uuid())
+  platformCode String?
+  name         String
+  slug         String   @unique
+  category     String   @default("PROCESSING")
+  description  String?
+  colorHex     String   @default("#e8f0fe")
+  badgeClass   String?
+  sortOrder    Int      @default(0)
+  isStart      Boolean  @default(false)
+  isTerminal   Boolean  @default(false)
+  isRework     Boolean  @default(false)
+  queueType    String   @default("DEFAULT")
+  positionX    Float?   @default(100)
+  positionY    Float?   @default(100)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+}
+
+model Workflow {
+  id           String               @id @default(uuid())
+  platformCode String?
+  name         String               @default("Default Operations Workflow")
+  description  String?
+  isPublished  Boolean              @default(true)
+  isDefault    Boolean              @default(false)
+  draftData    Json?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  nodes        WorkflowStatusNode[]
+  transitions  StatusTransition[]
+}
+
+model WorkflowStatusNode {
+  id         String   @id @default(uuid())
+  workflowId String
+  statusSlug String
+  positionX  Float    @default(100)
+  positionY  Float    @default(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, statusSlug])
+}
+
+model StatusTransition {
+  id              String            @id @default(uuid())
+  workflowId      String?
+  fromStatusSlug  String
+  toStatusSlug    String
+  actionLabel     String?
+  description     String?
+  requiresComment Boolean           @default(false)
+  isRework        Boolean           @default(false)
+  sortOrder       Int               @default(0)
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  workflow        Workflow?         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  allowedActors   TransitionActor[]
+
+  @@unique([workflowId, fromStatusSlug, toStatusSlug])
+  @@index([fromStatusSlug])
+  @@index([toStatusSlug])
+}
+
+model TransitionActor {
+  id           String           @id @default(uuid())
+  transitionId String
+  actorType    String
+  actorValue   String
+  createdAt    DateTime         @default(now())
+  transition   StatusTransition @relation(fields: [transitionId], references: [id], onDelete: Cascade)
+
+  @@index([transitionId])
+}
+
+model OrderStatusHistory {
+  id         String           @id @default(uuid())
+  orderId    String
+  fromStatus String?
+  toStatus   String
+  userId     String?
+  userName   String?
+  userRole   String?
+  department String?
+  reason     String?
+  metadata   Json?
+  timestamp  DateTime         @default(now())
+  order      ConsignmentOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([timestamp])
+}
+
+model SheetIntegration {
+  id             String    @id @default(uuid())
+  platformCode   String
+  spreadsheetId  String
+  spreadsheetUrl String?
+  worksheetName  String
+  headerRow      Int       @default(1)
+  syncDirection  String    @default("IMPORT")
+  defaultStatus  String?
+  isActive       Boolean   @default(true)
+  autoSync       Boolean   @default(false)
+  lastSyncAt     DateTime?
+  lastSyncStatus String?
+  lastSyncError  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now())
+  Platform       Platform  @relation(fields: [platformCode], references: [code], onDelete: Cascade, map: "fk_sheet_platform")
+
+  @@unique([platformCode, worksheetName], map: "SheetIntegration_platformCode_worksheetName_unique")
+}
+
+model SheetMapping {
+  id            String   @id @default(uuid())
+  integrationId String
+  sheetColumn   String
+  appField      String
+  defaultValue  String?
+  transformRule String?
+  isRequired    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now())
+
+  @@unique([integrationId, sheetColumn], map: "SheetMapping_integrationId_sheetColumn_unique")
+}
+
+model SheetSyncLog {
+  id             String   @id @default(uuid())
+  integrationId  String?
+  platformCode   String
+  action         String
+  status         String
+  totalRows      Int      @default(0)
+  importedCount  Int      @default(0)
+  updatedCount   Int      @default(0)
+  skippedCount   Int      @default(0)
+  errorCount     Int      @default(0)
+  details        Json?
+  executedById   String?
+  executedByName String?
+  createdAt      DateTime @default(now())
+}
+
+model UserPreference {
+  id        String   @id @default(uuid())
+  userId    String
+  key       String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model OrderDocument {
+  id             String            @id @default(uuid())
+  orderId        String?
+  roPoNumber     String?
+  channel        String?
+  docType        String            @default("RO_PO")
+  fileName       String
+  fileUrl        String
+  fileSize       Int?
+  mimeType       String?
+  extractedData  Json?
+  uploadedById   String?
+  uploadedByName String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  order          ConsignmentOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([roPoNumber])
+  @@index([channel])
+  @@index([docType])
+}
+
+model RolePreset {
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  description        String?
+  department         String?
+  baseRole           Role     @default(STAFF)
+  capabilities       Json     @default("{}")
+  channelPermissions Json     @default("[]")
+  isSystem           Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([name])
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+  TL
+}

@@ -1,0 +1,23 @@
+services:
+  appointment:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: appointment-app:latest
+    container_name: appointment-app
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=${DATABASE_URL}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - JWT_SECRET=${AUTH_SECRET}
+      - APP_URL=${APP_URL:-https://appointment.averretail.com}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
