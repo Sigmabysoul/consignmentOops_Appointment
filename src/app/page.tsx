@@ -33,6 +33,10 @@ export default function AppointmentDashboard() {
   const [selectedChannel, setSelectedChannel] = useState<string>("ALL");
   const [selectedCourier, setSelectedCourier] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
+  const [selectedDeliveryStatus, setSelectedDeliveryStatus] = useState<string>("ALL");
+  const [dateType, setDateType] = useState<string>("appointmentDate");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -96,6 +100,10 @@ export default function AppointmentDashboard() {
       channel: selectedChannel,
       courier: selectedCourier,
       courierStatus: selectedStatus,
+      deliveryStatus: selectedDeliveryStatus,
+      dateType,
+      startDate,
+      endDate,
       sortBy,
       sortDir,
     });
@@ -123,6 +131,10 @@ export default function AppointmentDashboard() {
     selectedChannel,
     selectedCourier,
     selectedStatus,
+    selectedDeliveryStatus,
+    dateType,
+    startDate,
+    endDate,
     sortBy,
     sortDir,
   ]);
@@ -224,6 +236,26 @@ export default function AppointmentDashboard() {
               setSelectedStatus(st);
               setPage(1);
             }}
+            selectedDeliveryStatus={selectedDeliveryStatus}
+            onDeliveryStatusChange={(ds) => {
+              setSelectedDeliveryStatus(ds);
+              setPage(1);
+            }}
+            dateType={dateType}
+            onDateTypeChange={(dt) => {
+              setDateType(dt);
+              setPage(1);
+            }}
+            startDate={startDate}
+            onStartDateChange={(sd) => {
+              setStartDate(sd);
+              setPage(1);
+            }}
+            endDate={endDate}
+            onEndDateChange={(ed) => {
+              setEndDate(ed);
+              setPage(1);
+            }}
             sortBy={sortBy}
             sortDir={sortDir}
             onSortChange={handleSortChange}
@@ -245,3 +277,4 @@ export default function AppointmentDashboard() {
     </div>
   );
 }
+

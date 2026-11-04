@@ -8,11 +8,15 @@ import {
   verifySessionToken,
 } from "../src/lib/auth";
 import { resolveTrackingUrl } from "../src/lib/tracking-utils";
+import { NextRequest } from "next/server";
+import { PATCH, GET as getOrderById } from "../src/app/api/orders/[id]/route";
+import { GET as getOrders } from "../src/app/api/orders/route";
 
 describe("Appointment Management Application — Comprehensive Verification Suite", () => {
   let adminUserId = "";
   let dispatchUserId = "";
   let printingUserId = "";
+  let adminToken = "";
   let testOrderId = "";
 
   it("1. Database Connection & Schema Alignment", async () => {
@@ -30,18 +34,42 @@ describe("Appointment Management Application — Comprehensive Verification Suit
       "Admin must be allowed"
     );
 
-    // Iqbal user
+    // Iqbal user by username
     assert.strictEqual(
       isAllowedAppointmentUser({ role: "MANAGER", username: "iqbal", name: "Iqbal" }),
       true,
       "Iqbal must be allowed"
     );
 
+    // Iqbal user by name
+    assert.strictEqual(
+      isAllowedAppointmentUser({ role: "STAFF", username: "iqbal_logistics", name: "Mohammad Iqbal" }),
+      true,
+      "Iqbal by name must be allowed"
+    );
+
     // Dispatch Logistics Desk
     assert.strictEqual(
-      isAllowedAppointmentUser({ role: "STAFF", username: "dispatch", name: "Dispatch & Logistics Desk", department: "Dispatch" }),
+      isAllowedAppointmentUser({
+        role: "STAFF",
+        username: "dispatch",
+        name: "Dispatch & Logistics Desk",
+        department: "Dispatch",
+      }),
       true,
       "Dispatch desk must be allowed"
+    );
+
+    // Other dispatcher user (NOT Iqbal and NOT dispatch) — MUST BE STRICTLY DENIED
+    assert.strictEqual(
+      isAllowedAppointmentUser({
+        role: "STAFF",
+        username: "dispatcher-user-01",
+        name: "Logistics Dispatcher",
+        department: "Dispatch",
+      }),
+      false,
+      "General dispatch staff accounts must be strictly denied"
     );
 
     // Printing operator — MUST BE DENIED
@@ -93,7 +121,7 @@ describe("Appointment Management Application — Comprehensive Verification Suit
 
   it("4. Session Creation & Token Verification with RBAC Authority", async () => {
     // Admin session token
-    const adminToken = await createSession(adminUserId);
+    adminToken = await createSession(adminUserId);
     const adminSession = await verifySessionToken(adminToken);
     assert(adminSession, "Admin session should verify");
     assert.strictEqual(adminSession?.role, "ADMIN");
@@ -109,7 +137,11 @@ describe("Appointment Management Application — Comprehensive Verification Suit
     const printingToken = await createSession(printingUserId);
     const printingSession = await verifySessionToken(printingToken);
     assert(printingSession, "Printing user exists");
-    assert.strictEqual(printingSession?.isLogisticsAuthorized, false, "Printing user must NOT be authorized for Appointment app");
+    assert.strictEqual(
+      printingSession?.isLogisticsAuthorized,
+      false,
+      "Printing user must NOT be authorized for Appointment app"
+    );
   });
 
   it("5. Tracking Link Resolver Logic", async () => {
@@ -129,7 +161,6 @@ describe("Appointment Management Application — Comprehensive Verification Suit
   });
 
   it("6. Order Creation & Baseline Isolation Verification", async () => {
-    // Create an explicit test consignment order
     const order = await db.consignmentOrder.create({
       data: {
         roPoNumber: `TEST-APPT-${Date.now()}`,
@@ -140,6 +171,7 @@ describe("Appointment Management Application — Comprehensive Verification Suit
         grnStatus: "GRN Intact - No Issues",
         grnReport: "Initial GRN received 100 units intact",
         comment: "Initial consignment note",
+        appointmentDate: new Date("2026-11-15T10:00:00.000Z"),
       },
     });
 
@@ -147,100 +179,169 @@ describe("Appointment Management Application — Comprehensive Verification Suit
     testOrderId = order.id;
   });
 
-  it("7. Transaction-Safe Mutation: Tracking, Courier & Appointment Information", async () => {
-    // Simulate updating tracking and courier from Appointment app
-    const apptDate = new Date("2026-11-10T10:00:00.000Z");
-    const updated = await db.$transaction(async (tx) => {
-      const res = await tx.consignmentOrder.update({
-        where: { id: testOrderId },
-        data: {
-          courierPartner: "OM Logistics",
-          trackingId: "OML-BANGALORE-98765",
-          appointmentId: "APPT-BLR-00123",
-          appointmentDate: apptDate,
-          appointmentSlot: "10:00 AM - 01:00 PM",
-          courierStatus: "In Transit",
-          comment: "Dispatched via OM Logistics direct truck",
-        },
-      });
+  it("7. Server-Side Input Validation: PATCH /api/orders/[id] rejects invalid inputs with HTTP 400", async () => {
+    // A: Invalid shipment status
+    const reqInvalidStatus = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ courierStatus: "BogusUnknownStatus" }),
+    });
+    const resStatus = await PATCH(reqInvalidStatus, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(resStatus.status, 400, "Should return 400 for invalid shipment status");
+    const jsonStatus = await resStatus.json();
+    assert(jsonStatus.error?.includes("Invalid shipment status"), "Error must explain invalid status");
 
-      // Status history record
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId: testOrderId,
-          fromStatus: "Pending",
-          toStatus: "In Transit",
-          userName: "Iqbal (Logistics Manager)",
-          userRole: "STAFF",
-          department: "Dispatch",
-          reason: "AWB Assigned & loaded on truck",
-        },
-      });
+    // B: Invalid tracking URL (malicious protocol)
+    const reqInvalidUrl = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ trackingLink: "javascript:alert(1)" }),
+    });
+    const resUrl = await PATCH(reqInvalidUrl, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(resUrl.status, 400, "Should return 400 for unsafe tracking URL");
 
-      // Audit log entry
-      await tx.auditLog.create({
-        data: {
-          orderId: testOrderId,
-          action: "UPDATE",
-          fieldChanged: "trackingId",
-          oldValue: "(none)",
-          newValue: "OML-BANGALORE-98765",
-          userName: "Iqbal",
-          userRole: "STAFF",
-        },
-      });
+    // C: Invalid date format
+    const reqInvalidDate = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ appointmentDate: "this-is-not-a-valid-date" }),
+    });
+    const resDate = await PATCH(reqInvalidDate, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(resDate.status, 400, "Should return 400 for invalid date format");
+  });
 
-      return res;
+  it("8. Transaction-Safe Mutation & Critical Status Isolation (No Status Overwrite)", async () => {
+    // Iqbal / Dispatch updates courierStatus to "Delivered" via PATCH route
+    const reqUpdate = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        courierPartner: "OM Logistics",
+        trackingId: "OML-BANGALORE-98765",
+        appointmentId: "APPT-BLR-00123",
+        appointmentDate: "2026-11-10T10:00:00.000Z",
+        appointmentSlot: "10:00 AM - 01:00 PM",
+        courierStatus: "Delivered",
+        comment: "Consignment handed over to hub",
+        remarks: "Delivered to Swiggy Bangalore gate",
+      }),
     });
 
-    assert.strictEqual(updated.trackingId, "OML-BANGALORE-98765");
-    assert.strictEqual(updated.courierPartner, "OM Logistics");
-    assert.strictEqual(updated.appointmentId, "APPT-BLR-00123");
-    assert.strictEqual(updated.appointmentSlot, "10:00 AM - 01:00 PM");
-    assert.strictEqual(updated.courierStatus, "In Transit");
+    const res = await PATCH(reqUpdate, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(res.status, 200, "Update must succeed");
+    const json = await res.json();
+    assert.strictEqual(json.success, true);
 
-    // CRITICAL ISOLATION CHECK: GRN Status must NOT be touched!
+    // Verify in database
+    const saved = await db.consignmentOrder.findUnique({ where: { id: testOrderId } });
+    assert(saved, "Order must exist");
+    assert.strictEqual(saved?.trackingId, "OML-BANGALORE-98765");
+    assert.strictEqual(saved?.courierPartner, "OM Logistics");
+    assert.strictEqual(saved?.appointmentId, "APPT-BLR-00123");
+    assert.strictEqual(saved?.appointmentSlot, "10:00 AM - 01:00 PM");
+    assert.strictEqual(saved?.courierStatus, "Delivered");
+    assert.strictEqual(saved?.pickupDone, true, "pickupDone must be true when Delivered");
+    assert(saved?.deliveryDate, "deliveryDate should be set when Delivered");
+
+    // CRITICAL REQUIREMENT 5 VERIFICATION:
+    // Main Consignment order status MUST NOT be overwritten to "Delivered"!
     assert.strictEqual(
-      updated.grnStatus,
+      saved?.status,
+      "In Progress",
+      "Main consignment status must NOT be overwritten by logistics shipment update!"
+    );
+
+    // GRN status MUST NOT be touched!
+    assert.strictEqual(
+      saved?.grnStatus,
       "GRN Intact - No Issues",
-      "GRN Status must NOT be modified or overwritten!"
+      "GRN Status must NOT be overwritten!"
     );
     assert.strictEqual(
-      updated.grnReport,
+      saved?.grnReport,
       "Initial GRN received 100 units intact",
       "GRN Report must remain intact!"
     );
   });
 
-  it("8. Audit Trail & Status History Verification", async () => {
+  it("9. Audit Trail & Status History Verification", async () => {
     const history = await db.orderStatusHistory.findMany({
       where: { orderId: testOrderId },
     });
     assert(history.length >= 1, "Status history must record transition");
     const latest = history[history.length - 1];
-    assert.strictEqual(latest.toStatus, "In Transit");
-    assert(latest.userName?.includes("Iqbal"));
+    assert.strictEqual(latest.toStatus, "Delivered");
 
     const logs = await db.auditLog.findMany({
       where: { orderId: testOrderId },
     });
-    assert(logs.length >= 1, "Audit logs must record field change");
+    assert(logs.length >= 1, "Audit logs must record field changes");
   });
 
-  it("9. Bidirectional Visibility: Main Consignment DB sees the changes immediately", async () => {
-    // Query directly from database as Consignment app would do
-    const queriedFromConsignment = await db.consignmentOrder.findUnique({
-      where: { id: testOrderId },
-    });
+  it("10. Server-Side GET /api/orders: Date Range & Delivery Status Filters & lastUpdatedBy", async () => {
+    // A: Query with matching date range
+    const reqDateMatch = new NextRequest(
+      `http://localhost:3001/api/orders?dateType=appointmentDate&startDate=2026-11-09&endDate=2026-11-11`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }
+    );
+    const resDateMatch = await getOrders(reqDateMatch);
+    assert.strictEqual(resDateMatch.status, 200);
+    const jsonDateMatch = await resDateMatch.json();
+    assert(
+      jsonDateMatch.orders.some((o: any) => o.id === testOrderId),
+      "Test order must be included within matching date range"
+    );
 
-    assert(queriedFromConsignment, "Order must be found");
-    assert.strictEqual(queriedFromConsignment?.trackingId, "OML-BANGALORE-98765");
-    assert.strictEqual(queriedFromConsignment?.courierPartner, "OM Logistics");
-    assert.strictEqual(queriedFromConsignment?.appointmentId, "APPT-BLR-00123");
-    assert.strictEqual(queriedFromConsignment?.courierStatus, "In Transit");
+    // B: Query with non-matching date range
+    const reqDateMiss = new NextRequest(
+      `http://localhost:3001/api/orders?dateType=appointmentDate&startDate=2025-01-01&endDate=2025-01-02`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }
+    );
+    const resDateMiss = await getOrders(reqDateMiss);
+    const jsonDateMiss = await resDateMiss.json();
+    assert(
+      !jsonDateMiss.orders.some((o: any) => o.id === testOrderId),
+      "Test order must not be included outside date range"
+    );
+
+    // C: Query with deliveryStatus=DELIVERED
+    const reqDelivered = new NextRequest(
+      `http://localhost:3001/api/orders?deliveryStatus=DELIVERED`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }
+    );
+    const resDelivered = await getOrders(reqDelivered);
+    const jsonDelivered = await resDelivered.json();
+    assert(
+      jsonDelivered.orders.some((o: any) => o.id === testOrderId),
+      "Test order must match deliveryStatus=DELIVERED"
+    );
+
+    // D: Verify lastUpdatedBy is populated
+    const foundOrder = jsonDateMatch.orders.find((o: any) => o.id === testOrderId);
+    assert(foundOrder, "Found test order");
+    assert(foundOrder.lastUpdatedBy, "lastUpdatedBy must be populated on order");
+    assert.strictEqual(foundOrder.deliveryStatus, "Delivered");
   });
 
-  it("10. Bidirectional Visibility: Consignment update is immediately visible in Appointment", async () => {
+  it("11. Bidirectional Visibility: Consignment update is immediately visible in Appointment", async () => {
     // Admin updates order remarks in Consignment app
     await db.consignmentOrder.update({
       where: { id: testOrderId },
@@ -249,19 +350,22 @@ describe("Appointment Management Application — Comprehensive Verification Suit
       },
     });
 
-    // Appointment reads the order
-    const readInAppointment = await db.consignmentOrder.findUnique({
-      where: { id: testOrderId },
+    // Appointment reads the order via GET endpoint
+    const req = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
     });
+    const res = await getOrderById(req, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(res.status, 200);
+    const json = await res.json();
 
     assert.strictEqual(
-      readInAppointment?.comment,
+      json.order.comment,
       "Admin confirmed slot with Swiggy Bangalore warehouse manager",
       "Appointment must instantly reflect changes made in Consignment"
     );
   });
 
-  it("11. Clean Up Test Order", async () => {
+  it("12. Clean Up Test Order", async () => {
     // Delete test order and related audit entries
     await db.orderStatusHistory.deleteMany({ where: { orderId: testOrderId } });
     await db.auditLog.deleteMany({ where: { orderId: testOrderId } });

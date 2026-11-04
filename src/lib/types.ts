@@ -45,6 +45,8 @@ export interface AppointmentOrder {
   orderDate: string | null;
   createdAt: string;
   updatedAt: string;
+  lastUpdatedBy?: string | null;
+  deliveryStatus?: string | null;
   client?: {
     id: string;
     name: string;
@@ -97,3 +99,4 @@ export interface DashboardStats {
   pending: number;
   cancelled: number;
 }
+

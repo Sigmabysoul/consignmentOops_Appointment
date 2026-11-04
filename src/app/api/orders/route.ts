@@ -23,6 +23,10 @@ export async function GET(req: NextRequest) {
     const channel = searchParams.get("channel")?.trim();
     const courier = searchParams.get("courier")?.trim();
     const statusFilter = searchParams.get("courierStatus")?.trim();
+    const deliveryFilter = searchParams.get("deliveryStatus")?.trim();
+    const dateType = (searchParams.get("dateType") || "appointmentDate").trim();
+    const startDate = searchParams.get("startDate")?.trim();
+    const endDate = searchParams.get("endDate")?.trim();
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortDir = (searchParams.get("sortDir") || "desc").toLowerCase() === "asc" ? "asc" : "desc";
 
@@ -123,6 +127,58 @@ export async function GET(req: NextRequest) {
       whereConditions.courierStatus = { equals: statusFilter, mode: "insensitive" };
     }
 
+    // Delivery Status filter
+    if (deliveryFilter && deliveryFilter !== "ALL") {
+      const df = deliveryFilter.toUpperCase();
+      if (df === "DELIVERED") {
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+          OR: [
+            { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
+            { deliveryDate: { not: null } },
+          ],
+        });
+      } else if (df === "IN_TRANSIT" || df === "IN TRANSIT") {
+        whereConditions.courierStatus = { in: ["In Transit", "in transit", "IN TRANSIT"] };
+      } else if (df === "PENDING") {
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+          NOT: {
+            OR: [
+              { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
+              { deliveryDate: { not: null } },
+            ],
+          },
+        });
+      }
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      const validDateFields = ["orderDate", "appointmentDate", "pickupDate", "deliveryDate", "createdAt"];
+      const targetDateField = validDateFields.includes(dateType) ? dateType : "appointmentDate";
+      const dateRange: { gte?: Date; lte?: Date } = {};
+
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        if (!isNaN(start.getTime())) {
+          dateRange.gte = start;
+        }
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        if (!isNaN(end.getTime())) {
+          dateRange.lte = end;
+        }
+      }
+
+      if (dateRange.gte || dateRange.lte) {
+        whereConditions[targetDateField] = dateRange;
+      }
+    }
+
     // Text Search
     if (search) {
       whereConditions.OR = [
@@ -175,6 +231,16 @@ export async function GET(req: NextRequest) {
               boxCount: true,
             },
           },
+          auditLogs: {
+            orderBy: { timestamp: "desc" },
+            take: 1,
+            select: { userName: true, timestamp: true },
+          },
+          statusHistory: {
+            orderBy: { timestamp: "desc" },
+            take: 1,
+            select: { userName: true, timestamp: true },
+          },
         },
       }),
       db.courierPreset.findMany({
@@ -183,15 +249,25 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    // Enrich orders with generated trackingLink if missing
+    // Enrich orders with generated trackingLink and audit info
     const enrichedOrders = orders.map((order) => {
       const computedLink =
         order.trackingLink ||
         resolveTrackingUrl(order.courierPartner, order.trackingId, null, courierPresets);
 
+      const latestUser =
+        order.auditLogs?.[0]?.userName || order.statusHistory?.[0]?.userName || null;
+
+      const isDelivered =
+        (order.courierStatus || "").toLowerCase() === "delivered" || !!order.deliveryDate;
+      const isInTransit = (order.courierStatus || "").toLowerCase() === "in transit";
+      const computedDeliveryStatus = isDelivered ? "Delivered" : isInTransit ? "In Transit" : "Pending";
+
       return {
         ...order,
         trackingLink: computedLink,
+        lastUpdatedBy: latestUser,
+        deliveryStatus: computedDeliveryStatus,
       };
     });
 

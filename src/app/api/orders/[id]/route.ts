@@ -89,6 +89,82 @@ export async function PATCH(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    // Input Validation
+    const ALLOWED_SHIPMENT_STATUSES = [
+      "Pending",
+      "Tracking Assigned",
+      "In Transit",
+      "Appointment Scheduled",
+      "Delivered",
+      "GRN Issue",
+      "Cancelled",
+    ];
+
+    if (body.courierStatus !== undefined && body.courierStatus !== null) {
+      const trimmedStatus = String(body.courierStatus).trim();
+      const matched = ALLOWED_SHIPMENT_STATUSES.find(
+        (s) => s.toLowerCase() === trimmedStatus.toLowerCase()
+      );
+      if (!matched) {
+        return NextResponse.json(
+          {
+            error: `Invalid shipment status "${trimmedStatus}". Allowed: ${ALLOWED_SHIPMENT_STATUSES.join(
+              ", "
+            )}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.trackingLink !== undefined && body.trackingLink !== null && String(body.trackingLink).trim() !== "") {
+      const trimmedLink = String(body.trackingLink).trim();
+      try {
+        const parsedUrl = new URL(trimmedLink);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+          return NextResponse.json(
+            { error: "Tracking URL must start with http:// or https://" },
+            { status: 400 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { error: "Invalid tracking URL structure. Please enter a valid web URL." },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.appointmentDate !== undefined && body.appointmentDate !== null && String(body.appointmentDate).trim() !== "") {
+      const parsedDate = parseDateInput(body.appointmentDate);
+      if (!parsedDate) {
+        return NextResponse.json(
+          { error: "Invalid appointment date format. Expected valid ISO or YYYY-MM-DD date." },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.deliveryDate !== undefined && body.deliveryDate !== null && String(body.deliveryDate).trim() !== "") {
+      const parsedDate = parseDateInput(body.deliveryDate);
+      if (!parsedDate) {
+        return NextResponse.json(
+          { error: "Invalid delivery date format. Expected valid ISO or YYYY-MM-DD date." },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.pickupDate !== undefined && body.pickupDate !== null && String(body.pickupDate).trim() !== "") {
+      const parsedDate = parseDateInput(body.pickupDate);
+      if (!parsedDate) {
+        return NextResponse.json(
+          { error: "Invalid pickup date format. Expected valid ISO or YYYY-MM-DD date." },
+          { status: 400 }
+        );
+      }
+    }
+
     // Prepare update data payload — strictly protecting GRN and core fields
     const dataToUpdate: Record<string, any> = {};
     const auditEntries: Array<{ field: string; oldVal: string; newVal: string }> = [];
@@ -232,32 +308,30 @@ export async function PATCH(
     let toCourierStatus = existing.courierStatus;
 
     if (body.courierStatus !== undefined) {
-      const trimmed = body.courierStatus ? String(body.courierStatus).trim() : null;
-      if (trimmed && trimmed !== existing.courierStatus) {
-        dataToUpdate.courierStatus = trimmed;
+      const raw = body.courierStatus ? String(body.courierStatus).trim() : null;
+      const matched = ALLOWED_SHIPMENT_STATUSES.find(
+        (s) => s.toLowerCase() === (raw || "").toLowerCase()
+      );
+      const canonicalStatus = matched || raw;
+
+      if (canonicalStatus && canonicalStatus !== existing.courierStatus) {
+        dataToUpdate.courierStatus = canonicalStatus;
         courierStatusChanged = true;
-        toCourierStatus = trimmed;
+        toCourierStatus = canonicalStatus;
         auditEntries.push({
           field: "courierStatus",
           oldVal: existing.courierStatus || "(none)",
-          newVal: trimmed,
+          newVal: canonicalStatus,
         });
 
-        // Safe Status Interoperability:
         // When courier status is set to Delivered, sync deliveryDate and pickupDone
-        if (trimmed.toLowerCase() === "delivered") {
+        if (canonicalStatus.toLowerCase() === "delivered") {
           dataToUpdate.pickupDone = true;
           if (!dataToUpdate.deliveryDate && !existing.deliveryDate) {
             dataToUpdate.deliveryDate = new Date();
           }
-          // Main status also syncs to Delivered for consistency
-          dataToUpdate.status = "Delivered";
-        } else if (trimmed.toLowerCase() === "in transit") {
+        } else if (canonicalStatus.toLowerCase() === "in transit") {
           dataToUpdate.pickupDone = true;
-          // Keep main status in sync if not already completed
-          if (!existing.status || ["New", "Scheduled", "In Progress"].includes(existing.status)) {
-            dataToUpdate.status = "In Transit";
-          }
         }
       }
     }
@@ -273,8 +347,9 @@ export async function PATCH(
       }
     }
 
-    // Ensure GRN status is NOT modified:
-    // Any grnStatus present in payload is explicitly ignored to safeguard separation of concerns
+    // ISOLATION GUARANTEE:
+    // Strictly protect main Consignment order status and GRN status from being overwritten
+    delete dataToUpdate.status;
     delete dataToUpdate.grnStatus;
     delete dataToUpdate.grnReport;
 
@@ -360,3 +435,4 @@ export async function PATCH(
     );
   }
 }
+

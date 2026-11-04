@@ -36,31 +36,17 @@ export function isAllowedAppointmentUser(user: {
   const name = (user.name || "").toLowerCase().trim();
   const dept = (user.department || "").toLowerCase().trim();
 
-  // Explicit check for Iqbal or existing Dispatch Logistics account
+  // Explicit check for Iqbal or existing Dispatch Logistics Manager account
   if (uname === "iqbal" || name.includes("iqbal")) {
     return true;
   }
 
-  if (uname === "dispatch" || uname === "dispatcher" || uname === "dispatcher-user-01") {
+  // The existing single Consignment Logistics & Dispatch Desk account
+  if (uname === "dispatch") {
     return true;
   }
 
-  if (dept === "dispatch" || dept === "logistics") {
-    return true;
-  }
-
-  // Check if permissions contain logistics fields
-  if (user.permissions && Array.isArray(user.permissions)) {
-    const hasLogisticsFields = user.permissions.some((p) =>
-      p.allowedFields?.some((f) =>
-        ["trackingId", "courierPartner", "courierStatus", "pickupDone", "appointmentId"].includes(f)
-      )
-    );
-    if (hasLogisticsFields && (user.role === "MANAGER" || user.role === "STAFF")) {
-      return true;
-    }
-  }
-
+  // All other employees (including other dispatch staff, pack workers, printing operators) are strictly denied
   return false;
 }
 

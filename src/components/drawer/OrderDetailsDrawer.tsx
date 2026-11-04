@@ -20,6 +20,8 @@ import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+
 interface OrderDetailsDrawerProps {
   order: AppointmentOrder | null;
   onClose: () => void;
@@ -39,6 +41,8 @@ export function OrderDetailsDrawer({
   const [isSaving, setIsSaving] = useState(false);
   const [detailedOrder, setDetailedOrder] = useState<AppointmentOrder | null>(order);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   // Form Fields
   const [trackingId, setTrackingId] = useState("");
@@ -66,6 +70,7 @@ export function OrderDetailsDrawer({
     setDeliveryDate(formatDateInputValue(order.deliveryDate));
     setComment(order.comment || "");
     setStatusRemarks("");
+    setValidationError(null);
 
     // Fetch complete history
     setIsLoadingDetails(true);
@@ -82,9 +87,9 @@ export function OrderDetailsDrawer({
 
   if (!order) return null;
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performSave = async () => {
     setIsSaving(true);
+    setValidationError(null);
 
     try {
       const payload: Record<string, any> = {
@@ -108,7 +113,9 @@ export function OrderDetailsDrawer({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to update order");
+        const errorMsg = data.error || "Failed to update order";
+        setValidationError(errorMsg);
+        throw new Error(errorMsg);
       }
 
       showToast("Logistics information updated successfully", "success");
@@ -118,11 +125,27 @@ export function OrderDetailsDrawer({
       if (data.order) {
         setDetailedOrder(data.order);
       }
+      setIsConfirmOpen(false);
     } catch (err: any) {
       showToast(err.message || "Failed to save updates", "error");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setValidationError(null);
+
+    // If changing to critical status (Delivered, Cancelled, GRN Issue), require confirmation
+    const oldStatus = (order.courierStatus || "Pending").toLowerCase();
+    const newStatus = courierStatus.toLowerCase();
+    if (newStatus !== oldStatus && ["delivered", "cancelled", "grn issue"].includes(newStatus)) {
+      setIsConfirmOpen(true);
+      return;
+    }
+
+    await performSave();
   };
 
   const availableStatuses = [
@@ -196,6 +219,17 @@ export function OrderDetailsDrawer({
         <div className="flex-1 overflow-y-auto p-5">
           {activeTab === "edit" ? (
             <form onSubmit={handleSave} className="space-y-5">
+              {/* Validation Error Banner */}
+              {validationError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-800 text-xs animate-shake">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold">Validation Error: </span>
+                    <span>{validationError}</span>
+                  </div>
+                </div>
+              )}
+
               {/* SECTION 1: Order Information (Read-only reference) */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
                 <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
@@ -205,15 +239,27 @@ export function OrderDetailsDrawer({
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-slate-400">Warehouse:</span>{" "}
+                    <span className="text-slate-400">Client / Customer:</span>{" "}
                     <span className="font-semibold text-slate-800">
-                      {order.warehouseName || (order.client?.name ? order.client.name : "—")}
+                      {order.client?.name ? `${order.client.name} (${order.client.code})` : "—"}
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400">Order / Pickup Date:</span>{" "}
+                    <span className="text-slate-400">Destination Warehouse:</span>{" "}
                     <span className="font-semibold text-slate-800">
-                      {formatDateDisplay(order.pickupDate || order.orderDate)}
+                      {order.warehouseName || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Order Date:</span>{" "}
+                    <span className="font-semibold text-slate-800">
+                      {formatDateDisplay(order.orderDate)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Pickup Date:</span>{" "}
+                    <span className="font-semibold text-slate-800">
+                      {formatDateDisplay(order.pickupDate)}
                     </span>
                   </div>
                   <div>
@@ -512,6 +558,27 @@ export function OrderDetailsDrawer({
           )}
         </div>
       </div>
+
+      {/* Confirmation Dialog for Important Status Transitions */}
+      {isConfirmOpen && (
+        <ConfirmationDialog
+          isOpen={true}
+          title={`Confirm Shipment Status: ${courierStatus}`}
+          message={`Are you sure you want to transition order "${order.roPoNumber}" to "${courierStatus}"? This update will be recorded in the shared consignment database and audit logs.`}
+          confirmLabel={`Confirm & Set to ${courierStatus}`}
+          variant={
+            courierStatus.toLowerCase() === "cancelled"
+              ? "danger"
+              : courierStatus.toLowerCase() === "grn issue"
+              ? "warning"
+              : "primary"
+          }
+          isLoading={isSaving}
+          onConfirm={performSave}
+          onCancel={() => setIsConfirmOpen(false)}
+        />
+      )}
     </div>
   );
 }
+
