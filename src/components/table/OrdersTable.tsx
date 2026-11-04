@@ -70,6 +70,8 @@ interface OrdersTableProps {
   onOpenOrderDrawer: (order: AppointmentOrder) => void;
   onOrderUpdated: () => void;
   onResetFilters?: () => void;
+  onQuickNoteClick?: (order: AppointmentOrder) => void;
+  includeToolbar?: boolean;
 }
 
 export function OrdersTable({
@@ -110,6 +112,8 @@ export function OrdersTable({
   onOpenOrderDrawer,
   onOrderUpdated,
   onResetFilters,
+  onQuickNoteClick,
+  includeToolbar = false,
 }: OrdersTableProps) {
   const { showToast } = useToast();
 
@@ -281,10 +285,22 @@ export function OrdersTable({
     startDate !== "" ||
     endDate !== "";
 
+  const renderSortIndicator = (field: string) => {
+    if (sortBy !== field) {
+      return <ArrowUpDown className="w-3 h-3 text-slate-400 shrink-0" />;
+    }
+    return sortDir === "asc" ? (
+      <ArrowUp className="w-3 h-3 text-violet-600 shrink-0" />
+    ) : (
+      <ArrowDown className="w-3 h-3 text-violet-600 shrink-0" />
+    );
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
       {/* ── Table Toolbar (Search, Quick Dates, Sorting, Filters) ── */}
-      <div className="p-3 sm:p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-3">
+      {includeToolbar && (
+        <div className="p-3 sm:p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-3">
         {/* ROW 1: Search Bar & Primary Dropdowns */}
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           {/* Search Input */}
@@ -500,6 +516,7 @@ export function OrdersTable({
           </div>
         </div>
       </div>
+      )}
 
       {/* ── High Density Spreadsheet Table ── */}
       <div className="overflow-x-auto relative min-h-[380px]">
@@ -521,7 +538,7 @@ export function OrdersTable({
               >
                 <div className="flex items-center gap-1">
                   <span>RO / PO</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("roPoNumber")}
                 </div>
               </th>
               <th
@@ -530,7 +547,7 @@ export function OrdersTable({
               >
                 <div className="flex items-center gap-1">
                   <span>Order Date</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("orderDate")}
                 </div>
               </th>
               <th className="py-2.5 px-3 whitespace-nowrap">Platform</th>
@@ -540,7 +557,7 @@ export function OrdersTable({
               >
                 <div className="flex items-center gap-1">
                   <span>Destination / Warehouse</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("warehouseName")}
                 </div>
               </th>
               <th
@@ -549,28 +566,52 @@ export function OrdersTable({
               >
                 <div className="flex items-center gap-1">
                   <span>Pickup Date</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("pickupDate")}
                 </div>
               </th>
-              <th className="py-2.5 px-3 whitespace-nowrap text-center">Boxes</th>
+              <th
+                onClick={() => onSortChange("boxCount")}
+                className="py-2.5 px-3 whitespace-nowrap text-center cursor-pointer hover:bg-slate-200/70 transition"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span>Boxes</span>
+                  {renderSortIndicator("boxCount")}
+                </div>
+              </th>
               <th
                 onClick={() => onSortChange("courierPartner")}
                 className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
               >
                 <div className="flex items-center gap-1">
                   <span>Courier Partner</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("courierPartner")}
                 </div>
               </th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Tracking / AWB</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Appointment ID</th>
+              <th
+                onClick={() => onSortChange("trackingId")}
+                className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Tracking / AWB</span>
+                  {renderSortIndicator("trackingId")}
+                </div>
+              </th>
+              <th
+                onClick={() => onSortChange("appointmentId")}
+                className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Appointment ID</span>
+                  {renderSortIndicator("appointmentId")}
+                </div>
+              </th>
               <th
                 onClick={() => onSortChange("appointmentDate")}
                 className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
               >
                 <div className="flex items-center gap-1">
                   <span>Appointment Date & Slot</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("appointmentDate")}
                 </div>
               </th>
               <th
@@ -579,7 +620,7 @@ export function OrdersTable({
               >
                 <div className="flex items-center gap-1">
                   <span>Shipment Status</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("courierStatus")}
                 </div>
               </th>
               <th
@@ -588,7 +629,7 @@ export function OrdersTable({
               >
                 <div className="flex items-center gap-1">
                   <span>Delivery Date</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("deliveryDate")}
                 </div>
               </th>
               {/* 🔒 PERSONAL INTERNAL NOTE COLUMN */}
@@ -604,7 +645,7 @@ export function OrdersTable({
               >
                 <div className="flex items-center gap-1">
                   <span>Last Updated</span>
-                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                  {renderSortIndicator("updatedAt")}
                 </div>
               </th>
               <th className="py-2.5 px-3 whitespace-nowrap text-right">Actions</th>
@@ -1131,12 +1172,16 @@ export function OrdersTable({
                     <td className="py-2.5 px-3 bg-amber-50/20 border-l border-amber-200/40 max-w-[200px]">
                       {order.personalNote ? (
                         <div
-                          onClick={() =>
-                            setActiveNoteModal({
-                              order,
-                              noteText: order.personalNote || "",
-                            })
-                          }
+                          onClick={() => {
+                            if (onQuickNoteClick) {
+                              onQuickNoteClick(order);
+                            } else {
+                              setActiveNoteModal({
+                                order,
+                                noteText: order.personalNote || "",
+                              });
+                            }
+                          }}
                           className="p-1.5 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-950 text-[11px] cursor-pointer hover:bg-amber-100/90 hover:border-amber-300 transition flex items-start gap-1 group/note"
                           title="Click to view/edit private note (Hidden from Consignment)"
                         >
@@ -1146,12 +1191,17 @@ export function OrdersTable({
                         </div>
                       ) : (
                         <button
-                          onClick={() =>
-                            setActiveNoteModal({
-                              order,
-                              noteText: "",
-                            })
-                          }
+                          type="button"
+                          onClick={() => {
+                            if (onQuickNoteClick) {
+                              onQuickNoteClick(order);
+                            } else {
+                              setActiveNoteModal({
+                                order,
+                                noteText: "",
+                              });
+                            }
+                          }}
                           className="text-[11px] text-slate-400 hover:text-amber-700 hover:bg-amber-50 px-2 py-1 rounded-md border border-dashed border-slate-200 hover:border-amber-300 transition flex items-center gap-1 cursor-pointer"
                           title="Add private note (visible only to Appointment team)"
                         >

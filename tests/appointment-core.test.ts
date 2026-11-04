@@ -490,7 +490,156 @@ describe("Appointment Management Application — Comprehensive Verification Suit
     );
   });
 
-  it("14. Clean Up Test Order & Personal Notes", async () => {
+  it("14. Quick Dates Presets (Today's All, Tomorrow's All) & Server-Side Sorting by Courier, Warehouse, Box Count", async () => {
+    const today = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const orderAlpha = await db.consignmentOrder.create({
+      data: {
+        roPoNumber: `TEST-SORT-A-${Date.now()}`,
+        channel: "SWIGGY",
+        warehouseName: "AAA-Bangalore-Depot",
+        courierPartner: "AAA Logistics Express",
+        boxCount: 5,
+        status: "In Progress",
+        courierStatus: "In Transit",
+        pickupDate: today,
+        appointmentDate: today,
+      },
+    });
+
+    const orderOmega = await db.consignmentOrder.create({
+      data: {
+        roPoNumber: `TEST-SORT-Z-${Date.now()}`,
+        channel: "SWIGGY",
+        warehouseName: "ZZZ-Bangalore-Depot",
+        courierPartner: "ZZZ Logistics Express",
+        boxCount: 99,
+        status: "In Progress",
+        courierStatus: "In Transit",
+        pickupDate: tomorrow,
+        appointmentDate: tomorrow,
+      },
+    });
+
+    try {
+      // 1. Sort by courierPartner asc
+      const reqSortCourierAsc = new NextRequest(
+        `http://localhost:3001/api/orders?sortBy=courierPartner&sortDir=asc&search=TEST-SORT-`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const resCourierAsc = await getOrders(reqSortCourierAsc);
+      assert.strictEqual(resCourierAsc.status, 200);
+      const jsonCourierAsc = await resCourierAsc.json();
+      assert.strictEqual(jsonCourierAsc.orders[0].id, orderAlpha.id);
+      assert.strictEqual(jsonCourierAsc.orders[1].id, orderOmega.id);
+
+      // 2. Sort by courierPartner desc
+      const reqSortCourierDesc = new NextRequest(
+        `http://localhost:3001/api/orders?sortBy=courierPartner&sortDir=desc&search=TEST-SORT-`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const resCourierDesc = await getOrders(reqSortCourierDesc);
+      const jsonCourierDesc = await resCourierDesc.json();
+      assert.strictEqual(jsonCourierDesc.orders[0].id, orderOmega.id);
+      assert.strictEqual(jsonCourierDesc.orders[1].id, orderAlpha.id);
+
+      // 3. Sort by warehouseName asc
+      const reqSortWhAsc = new NextRequest(
+        `http://localhost:3001/api/orders?sortBy=warehouseName&sortDir=asc&search=TEST-SORT-`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const resWhAsc = await getOrders(reqSortWhAsc);
+      const jsonWhAsc = await resWhAsc.json();
+      assert.strictEqual(jsonWhAsc.orders[0].id, orderAlpha.id);
+      assert.strictEqual(jsonWhAsc.orders[1].id, orderOmega.id);
+
+      // 4. Sort by boxCount desc
+      const reqSortBoxDesc = new NextRequest(
+        `http://localhost:3001/api/orders?sortBy=boxCount&sortDir=desc&search=TEST-SORT-`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const resBoxDesc = await getOrders(reqSortBoxDesc);
+      const jsonBoxDesc = await resBoxDesc.json();
+      assert.strictEqual(jsonBoxDesc.orders[0].id, orderOmega.id);
+      assert.strictEqual(jsonBoxDesc.orders[1].id, orderAlpha.id);
+
+      // 5. Quick Date: "today" must match orderAlpha and NOT orderOmega
+      const reqQuickToday = new NextRequest(
+        `http://localhost:3001/api/orders?quickDate=today&search=TEST-SORT-`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const resQuickToday = await getOrders(reqQuickToday);
+      const jsonQuickToday = await resQuickToday.json();
+      assert(
+        jsonQuickToday.orders.some((o: any) => o.id === orderAlpha.id),
+        "quickDate=today must include order scheduled/picked up today"
+      );
+      assert(
+        !jsonQuickToday.orders.some((o: any) => o.id === orderOmega.id),
+        "quickDate=today must NOT include order scheduled tomorrow"
+      );
+
+      // 6. Quick Date: "tomorrow" must match orderOmega and NOT orderAlpha
+      const reqQuickTomorrow = new NextRequest(
+        `http://localhost:3001/api/orders?quickDate=tomorrow&search=TEST-SORT-`,
+        { headers: { Authorization: `Bearer ${adminToken}` } }
+      );
+      const resQuickTomorrow = await getOrders(reqQuickTomorrow);
+      const jsonQuickTomorrow = await resQuickTomorrow.json();
+      assert(
+        jsonQuickTomorrow.orders.some((o: any) => o.id === orderOmega.id),
+        "quickDate=tomorrow must include order scheduled/picked up tomorrow"
+      );
+      assert(
+        !jsonQuickTomorrow.orders.some((o: any) => o.id === orderAlpha.id),
+        "quickDate=tomorrow must NOT include order scheduled today"
+      );
+    } finally {
+      await db.consignmentOrder.deleteMany({
+        where: { id: { in: [orderAlpha.id, orderOmega.id] } },
+      });
+    }
+  });
+
+  it("15. Isolated Personal Notes: Multi-line Unicode, Emoji & Zero Contamination of Consignment Data", async () => {
+    const emojiNote = "⚡ URGENT REMINDER:\n- Driver Ramesh (📞 +91-9876543210)\n- Reserved Dock #4 🚛\n- Special QC seal required! 🔒";
+
+    // Save emoji note
+    const reqNote = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}/note`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ note: emojiNote }),
+    });
+    const resNote = await saveNote(reqNote, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(resNote.status, 200);
+
+    // Read back via table list
+    const reqList = new NextRequest(`http://localhost:3001/api/orders?search=${testOrderId}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const resList = await getOrders(reqList);
+    const jsonList = await resList.json();
+    const found = jsonList.orders.find((o: any) => o.id === testOrderId);
+    assert.strictEqual(found?.personalNote, emojiNote, "Personal note must preserve Unicode and emoji");
+
+    // Verify ConsignmentOrder.comment is still isolated and untouched
+    const orderInDb = await db.consignmentOrder.findUnique({ where: { id: testOrderId } });
+    assert.strictEqual(
+      orderInDb?.comment,
+      "Admin confirmed slot with Swiggy Bangalore warehouse manager",
+      "Consignment comment must be completely untouched by unicode/emoji note"
+    );
+
+    // Clean up note
+    await db.appointmentNote.deleteMany({ where: { orderId: testOrderId } });
+  });
+
+  it("16. Clean Up Test Order & Personal Notes", async () => {
     // Delete test order and related audit entries
     await db.appointmentNote.deleteMany({ where: { orderId: testOrderId } });
     await db.orderStatusHistory.deleteMany({ where: { orderId: testOrderId } });

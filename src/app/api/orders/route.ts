@@ -172,17 +172,20 @@ export async function GET(req: NextRequest) {
           OR: [
             { appointmentDate: { gte: todayStart, lte: todayEnd } },
             { deliveryDate: { gte: todayStart, lte: todayEnd } },
+            { pickupDate: { gte: todayStart, lte: todayEnd } },
             { orderDate: { gte: todayStart, lte: todayEnd } },
           ],
         });
       } else if (quickDate === "tomorrow") {
-        const tomorrowStart = new Date(todayStart.getTime() + 86400000);
-        const tomorrowEnd = new Date(todayEnd.getTime() + 86400000);
+        const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+        const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59, 999);
         whereConditions.AND = whereConditions.AND || [];
         whereConditions.AND.push({
           OR: [
             { appointmentDate: { gte: tomorrowStart, lte: tomorrowEnd } },
             { deliveryDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+            { pickupDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+            { orderDate: { gte: tomorrowStart, lte: tomorrowEnd } },
           ],
         });
       } else if (quickDate === "this_week") {
@@ -194,6 +197,8 @@ export async function GET(req: NextRequest) {
           OR: [
             { appointmentDate: { gte: weekStart, lte: weekEnd } },
             { deliveryDate: { gte: weekStart, lte: weekEnd } },
+            { pickupDate: { gte: weekStart, lte: weekEnd } },
+            { orderDate: { gte: weekStart, lte: weekEnd } },
           ],
         });
       } else if (quickDate === "overdue") {
@@ -246,7 +251,7 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    // Sorting definition
+    // Sorting definition: include all sortable columns
     const validSortFields = [
       "createdAt",
       "updatedAt",
@@ -256,6 +261,12 @@ export async function GET(req: NextRequest) {
       "deliveryDate",
       "pickupDate",
       "channel",
+      "courierPartner",
+      "warehouseName",
+      "trackingId",
+      "appointmentId",
+      "invoiceNo",
+      "boxCount",
       "courierStatus",
       "status",
     ];

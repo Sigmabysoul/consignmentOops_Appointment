@@ -8,6 +8,9 @@ import { OrdersTable } from "@/components/table/OrdersTable";
 import { KanbanView } from "@/components/views/KanbanView";
 import { TimelineView } from "@/components/views/TimelineView";
 import { OrderDetailsDrawer } from "@/components/drawer/OrderDetailsDrawer";
+import { FilterToolbar } from "@/components/toolbar/FilterToolbar";
+import { useToast } from "@/components/ui/Toast";
+import { Lock, X } from "lucide-react";
 import {
   SessionUser,
   AppointmentOrder,
@@ -18,6 +21,7 @@ import {
 
 export default function AppointmentDashboard() {
   const router = useRouter();
+  const { showToast } = useToast();
 
   // Authentication State
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
@@ -53,6 +57,61 @@ export default function AppointmentDashboard() {
 
   // Selected Order for Drawer
   const [selectedDrawerOrder, setSelectedDrawerOrder] = useState<AppointmentOrder | null>(null);
+
+  // Private Personal Note Quick Editor Modal State
+  const [activeNoteModal, setActiveNoteModal] = useState<{
+    order: AppointmentOrder;
+    noteText: string;
+  } | null>(null);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
+  // Save isolated personal note from hoisted modal
+  const handleSavePersonalNote = async () => {
+    if (!activeNoteModal) return;
+
+    setIsSavingNote(true);
+    try {
+      const res = await fetch(`/api/orders/${activeNoteModal.order.id}/note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: activeNoteModal.noteText }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save private note");
+      }
+
+      showToast("Private note saved (isolated to Appointment desk)", "success");
+      setActiveNoteModal(null);
+      handleRefresh();
+    } catch (err: any) {
+      showToast(err.message || "Failed to save note", "error");
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
+  // Global Keyboard Shortcuts (Alt+1 to Alt+4 for view switching)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === "1") {
+        e.preventDefault();
+        setActiveView("sheet");
+      } else if (e.altKey && e.key === "2") {
+        e.preventDefault();
+        setActiveView("kanban");
+      } else if (e.altKey && e.key === "3") {
+        e.preventDefault();
+        setActiveView("timeline");
+      } else if (e.altKey && e.key === "4") {
+        e.preventDefault();
+        setActiveView("analytics");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   // 1. Check Authentication on Mount
   useEffect(() => {
@@ -103,9 +162,12 @@ export default function AppointmentDashboard() {
     if (!currentUser) return;
     setIsLoadingOrders(true);
 
+    const effectivePageSize =
+      activeView === "kanban" || activeView === "timeline" ? 100 : pageSize;
+
     const params = new URLSearchParams({
       page: String(page),
-      pageSize: String(pageSize),
+      pageSize: String(effectivePageSize),
       search: searchTerm,
       channel: selectedChannel,
       courier: selectedCourier,
@@ -136,6 +198,7 @@ export default function AppointmentDashboard() {
       });
   }, [
     currentUser,
+    activeView,
     page,
     pageSize,
     searchTerm,
@@ -307,6 +370,64 @@ export default function AppointmentDashboard() {
           </div>
         ) : null}
 
+        {/* ── Operational Views: Sheet, Kanban, Timeline with Universal Filter & Sorting Toolbar ── */}
+        {activeView !== "analytics" && (
+          <FilterToolbar
+            searchTerm={searchTerm}
+            onSearchChange={(val) => {
+              setSearchTerm(val);
+              setPage(1);
+            }}
+            selectedCourier={selectedCourier}
+            onCourierChange={(cr) => {
+              setSelectedCourier(cr);
+              setPage(1);
+            }}
+            courierPresets={courierPresets}
+            selectedWarehouse={selectedWarehouse}
+            onWarehouseChange={(wh) => {
+              setSelectedWarehouse(wh);
+              setPage(1);
+            }}
+            warehouses={stats?.warehouses || []}
+            selectedStatus={selectedStatus}
+            onStatusChange={(st) => {
+              setSelectedStatus(st);
+              setPage(1);
+            }}
+            selectedDeliveryStatus={selectedDeliveryStatus}
+            onDeliveryStatusChange={(ds) => {
+              setSelectedDeliveryStatus(ds);
+              setPage(1);
+            }}
+            quickDate={quickDate}
+            onQuickDateChange={(qd) => {
+              setQuickDate(qd);
+              setPage(1);
+            }}
+            dateType={dateType}
+            onDateTypeChange={(dt) => {
+              setDateType(dt);
+              setPage(1);
+            }}
+            startDate={startDate}
+            onStartDateChange={(sd) => {
+              setStartDate(sd);
+              setPage(1);
+            }}
+            endDate={endDate}
+            onEndDateChange={(ed) => {
+              setEndDate(ed);
+              setPage(1);
+            }}
+            sortBy={sortBy}
+            sortDir={sortDir}
+            onSortChange={handleSortChange}
+            onSortDirToggle={handleSortDirToggle}
+            onResetFilters={handleResetFilters}
+          />
+        )}
+
         {/* View 1: Spreadsheet Table (Primary Operational View) */}
         {activeView === "sheet" && (
           <div className="flex-1">
@@ -381,6 +502,13 @@ export default function AppointmentDashboard() {
               onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
               onOrderUpdated={handleRefresh}
               onResetFilters={handleResetFilters}
+              onQuickNoteClick={(order) =>
+                setActiveNoteModal({
+                  order,
+                  noteText: order.personalNote || "",
+                })
+              }
+              includeToolbar={false}
             />
           </div>
         )}
@@ -392,7 +520,12 @@ export default function AppointmentDashboard() {
               orders={orders}
               isLoading={isLoadingOrders}
               onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
-              onQuickNoteClick={(order) => setSelectedDrawerOrder(order)}
+              onQuickNoteClick={(order) =>
+                setActiveNoteModal({
+                  order,
+                  noteText: order.personalNote || "",
+                })
+              }
             />
           </div>
         )}
@@ -404,7 +537,12 @@ export default function AppointmentDashboard() {
               orders={orders}
               isLoading={isLoadingOrders}
               onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
-              onQuickNoteClick={(order) => setSelectedDrawerOrder(order)}
+              onQuickNoteClick={(order) =>
+                setActiveNoteModal({
+                  order,
+                  noteText: order.personalNote || "",
+                })
+              }
             />
           </div>
         )}
@@ -418,6 +556,107 @@ export default function AppointmentDashboard() {
           courierPresets={courierPresets}
           onOrderUpdated={handleRefresh}
         />
+      )}
+
+      {/* ── Personal Private Note Quick Editor Modal (Hoisted & Universal) ── */}
+      {activeNoteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setActiveNoteModal(null)}
+          />
+
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 z-10 animate-scale-in text-slate-800">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Lock className="w-4 h-4 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    Private Note: {activeNoteModal.order.roPoNumber}
+                  </h3>
+                  <p className="text-[10px] text-amber-700 font-semibold">
+                    🔒 Visible ONLY to Appointment Desk — Never sent to Consignment
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveNoteModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Note Textarea */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Internal Operational Reminder / Note
+              </label>
+              <textarea
+                rows={4}
+                value={activeNoteModal.noteText}
+                onChange={(e) =>
+                  setActiveNoteModal({
+                    ...activeNoteModal,
+                    noteText: e.target.value,
+                  })
+                }
+                placeholder="Write personal notes about this order so you remember it (e.g. called driver Ramesh, gate pass number, dock 4 reserved, special handling required)..."
+                className="w-full text-xs bg-amber-50/30 border border-amber-200 rounded-xl p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white resize-none"
+                autoFocus
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                This note is stored in dedicated isolated storage. Other applications and consignment portals cannot see it.
+              </p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              {activeNoteModal.noteText && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveNoteModal({
+                      ...activeNoteModal,
+                      noteText: "",
+                    })
+                  }
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer"
+                >
+                  Clear Note
+                </button>
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setActiveNoteModal(null)}
+                  className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingNote}
+                  onClick={handleSavePersonalNote}
+                  className="px-4 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs hover:shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingNote ? (
+                    <span>Saving...</span>
+                  ) : (
+                    <>
+                      <Lock className="w-3 h-3" />
+                      <span>Save Private Note</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

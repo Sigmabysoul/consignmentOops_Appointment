@@ -142,6 +142,9 @@ export function AppHeader({
     .substring(0, 2)
     .toUpperCase();
 
+  const activePlatformDef =
+    PLATFORMS.find((p) => p.code === selectedPlatform) || PLATFORMS[0];
+
   return (
     <header className="sticky top-0 z-30 select-none shadow-md">
       {/* ── ROW 1: Purple Gradient Navigation Bar (ConsignmentOps Brand Bar) ── */}
@@ -152,7 +155,7 @@ export function AppHeader({
         }}
       >
         <div className="flex items-center justify-between h-14 gap-2 sm:gap-4">
-          {/* LEFT: Branding + Live Indicator */}
+          {/* LEFT: Branding + Active Platform Pill + Live DB */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg">
@@ -168,10 +171,22 @@ export function AppHeader({
               </div>
             </div>
 
-            {/* Live DB Indicator */}
+            {/* Active Platform Pill (ConsignmentOps aesthetic) */}
             <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/25">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  activePlatformDef?.dotColor || "bg-white"
+                } shadow-sm shrink-0`}
+              />
+              <span className="text-white text-[11px] sm:text-xs font-bold truncate max-w-[90px] sm:max-w-none">
+                {activePlatformDef?.name || "All Channels"}
+              </span>
+            </div>
+
+            {/* Live DB Indicator */}
+            <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/25">
               <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shrink-0 animate-pulse" />
-              <span className="text-white text-[11px] sm:text-xs font-bold truncate">
+              <span className="text-white text-[10px] font-bold tracking-wider">
                 LIVE DB
               </span>
             </div>
