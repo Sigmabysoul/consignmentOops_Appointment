@@ -19,6 +19,11 @@ import {
   Eye,
   Building,
   UserCheck,
+  Lock,
+  StickyNote,
+  ArrowUp,
+  ArrowDown,
+  RotateCcw,
 } from "lucide-react";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -31,21 +36,27 @@ interface OrdersTableProps {
   orders: AppointmentOrder[];
   isLoading: boolean;
   courierPresets: CourierPresetItem[];
+  warehouses?: string[];
   page: number;
   pageSize: number;
   totalOrders: number;
   totalPages: number;
   onPageChange: (newPage: number) => void;
+  onPageSizeChange?: (newPageSize: number) => void;
   searchTerm: string;
   onSearchChange: (search: string) => void;
   selectedChannel: string;
   onChannelChange: (channel: string) => void;
   selectedCourier: string;
   onCourierChange: (courier: string) => void;
+  selectedWarehouse?: string;
+  onWarehouseChange?: (warehouse: string) => void;
   selectedStatus: string;
   onStatusChange: (status: string) => void;
   selectedDeliveryStatus?: string;
   onDeliveryStatusChange?: (status: string) => void;
+  quickDate?: string;
+  onQuickDateChange?: (preset: string) => void;
   dateType?: string;
   onDateTypeChange?: (dt: string) => void;
   startDate?: string;
@@ -55,29 +66,37 @@ interface OrdersTableProps {
   sortBy: string;
   sortDir: "asc" | "desc";
   onSortChange: (field: string) => void;
+  onSortDirToggle?: () => void;
   onOpenOrderDrawer: (order: AppointmentOrder) => void;
   onOrderUpdated: () => void;
+  onResetFilters?: () => void;
 }
 
 export function OrdersTable({
   orders,
   isLoading,
   courierPresets,
+  warehouses = [],
   page,
   pageSize,
   totalOrders,
   totalPages,
   onPageChange,
+  onPageSizeChange,
   searchTerm,
   onSearchChange,
   selectedChannel,
   onChannelChange,
   selectedCourier,
   onCourierChange,
+  selectedWarehouse = "ALL",
+  onWarehouseChange,
   selectedStatus,
   onStatusChange,
   selectedDeliveryStatus = "ALL",
   onDeliveryStatusChange,
+  quickDate = "all",
+  onQuickDateChange,
   dateType = "appointmentDate",
   onDateTypeChange,
   startDate = "",
@@ -87,8 +106,10 @@ export function OrdersTable({
   sortBy,
   sortDir,
   onSortChange,
+  onSortDirToggle,
   onOpenOrderDrawer,
   onOrderUpdated,
+  onResetFilters,
 }: OrdersTableProps) {
   const { showToast } = useToast();
 
@@ -106,6 +127,13 @@ export function OrdersTable({
     roPoNumber: string;
     newStatus: string;
   } | null>(null);
+
+  // Private Personal Note Quick Editor Modal State
+  const [activeNoteModal, setActiveNoteModal] = useState<{
+    order: AppointmentOrder;
+    noteText: string;
+  } | null>(null);
+  const [isSavingNote, setIsSavingNote] = useState(false);
 
   const startInlineEdit = (order: AppointmentOrder, field: string, currentValue: string | null) => {
     let initialVal = currentValue || "";
@@ -151,23 +179,9 @@ export function OrdersTable({
     }
   };
 
-  const handleStatusSelectChange = (order: AppointmentOrder, newStatus: string) => {
-    // Critical transitions require confirmation
-    if (["Delivered", "Cancelled", "GRN Issue"].includes(newStatus)) {
-      setConfirmStatusModal({
-        orderId: order.id,
-        roPoNumber: order.roPoNumber,
-        newStatus,
-      });
-    } else {
-      executeStatusUpdate(order.id, newStatus);
-    }
-  };
-
   const saveInlineEdit = async () => {
     if (!inlineEditing) return;
 
-    // If editing courierStatus to critical, prompt confirmation
     if (
       inlineEditing.field === "courierStatus" &&
       ["Delivered", "Cancelled", "GRN Issue"].includes(inlineEditing.value)
@@ -208,6 +222,33 @@ export function OrdersTable({
     }
   };
 
+  // Save isolated personal note
+  const savePersonalNote = async () => {
+    if (!activeNoteModal) return;
+
+    setIsSavingNote(true);
+    try {
+      const res = await fetch(`/api/orders/${activeNoteModal.order.id}/note`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: activeNoteModal.noteText }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save private note");
+      }
+
+      showToast("Private note saved (isolated to Appointment desk)", "success");
+      setActiveNoteModal(null);
+      onOrderUpdated();
+    } catch (err: any) {
+      showToast(err.message || "Failed to save note", "error");
+    } finally {
+      setIsSavingNote(false);
+    }
+  };
+
   const availableStatuses = [
     "Pending",
     "Tracking Assigned",
@@ -218,48 +259,83 @@ export function OrdersTable({
     "Cancelled",
   ];
 
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col">
-      {/* ── Table Toolbar (Search & Filters) ── */}
-      <div className="p-3 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-2.5">
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
-          {/* Main search and selectors */}
-          <div className="flex flex-wrap items-center gap-2 flex-1">
-            {/* Search Input */}
-            <div className="relative min-w-[220px] max-w-sm flex-1">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search RO, tracking ID, appointment ID..."
-                value={searchTerm}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-violet-500 focus:border-violet-500 text-slate-800 placeholder-slate-400"
-              />
-            </div>
+  const sortOptions = [
+    { value: "appointmentDate", label: "Appointment Date" },
+    { value: "deliveryDate", label: "Delivery Date" },
+    { value: "orderDate", label: "Order Date" },
+    { value: "createdAt", label: "Created Date" },
+    { value: "roPoNumber", label: "RO / PO Number" },
+    { value: "courierPartner", label: "Courier Partner" },
+    { value: "warehouseName", label: "Warehouse" },
+    { value: "courierStatus", label: "Shipment Status" },
+  ];
 
-            {/* Marketplace Channel Filter */}
-            <div className="flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <select
-                value={selectedChannel}
-                onChange={(e) => onChannelChange(e.target.value)}
-                className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500"
+  const isAnyFilterActive =
+    searchTerm !== "" ||
+    selectedChannel !== "ALL" ||
+    selectedCourier !== "ALL" ||
+    selectedWarehouse !== "ALL" ||
+    selectedStatus !== "ALL" ||
+    selectedDeliveryStatus !== "ALL" ||
+    quickDate !== "all" ||
+    startDate !== "" ||
+    endDate !== "";
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
+      {/* ── Table Toolbar (Search, Quick Dates, Sorting, Filters) ── */}
+      <div className="p-3 sm:p-4 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-3">
+        {/* ROW 1: Search Bar & Primary Dropdowns */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          {/* Search Input */}
+          <div className="relative min-w-[260px] sm:min-w-[320px] flex-1">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search RO/PO, AWB / tracking, warehouse, SKU, client..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 text-slate-800 placeholder-slate-400 shadow-2xs"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => onSearchChange("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                title="Clear search"
               >
-                <option value="ALL">All Marketplaces</option>
-                <option value="SWIGGY">Swiggy</option>
-                <option value="BLINKIT_STO">Blinkit</option>
-                <option value="FLIPKART_MINUTES">Flipkart Minutes</option>
-                <option value="FLIPKART_FBF">Flipkart FBF</option>
-                <option value="AMAZON_VC">Amazon VC</option>
-                <option value="AMAZON_FBA">Amazon FBA</option>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Warehouse Filter */}
+          {onWarehouseChange && (
+            <div className="flex items-center gap-1.5">
+              <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <select
+                value={selectedWarehouse}
+                onChange={(e) => onWarehouseChange(e.target.value)}
+                className="text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 max-w-[170px] truncate cursor-pointer shadow-2xs"
+                title="Filter by destination warehouse"
+              >
+                <option value="ALL">All Warehouses</option>
+                {warehouses.map((wh) => (
+                  <option key={wh} value={wh}>
+                    {wh}
+                  </option>
+                ))}
               </select>
             </div>
+          )}
 
-            {/* Courier Filter */}
+          {/* Courier Partner Filter */}
+          <div className="flex items-center gap-1.5">
+            <Truck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <select
               value={selectedCourier}
               onChange={(e) => onCourierChange(e.target.value)}
-              className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500 max-w-[140px] truncate"
+              className="text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 max-w-[160px] truncate cursor-pointer shadow-2xs"
+              title="Filter by carrier"
             >
               <option value="ALL">All Couriers</option>
               {courierPresets.map((cp) => (
@@ -268,105 +344,170 @@ export function OrdersTable({
                 </option>
               ))}
             </select>
+          </div>
 
-            {/* Shipment Status Filter */}
+          {/* Shipment Status Filter */}
+          <select
+            value={selectedStatus}
+            onChange={(e) => onStatusChange(e.target.value)}
+            className="text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 cursor-pointer shadow-2xs"
+          >
+            <option value="ALL">All Shipment Statuses</option>
+            {availableStatuses.map((st) => (
+              <option key={st} value={st}>
+                {st}
+              </option>
+            ))}
+          </select>
+
+          {/* Delivery State Filter */}
+          {onDeliveryStatusChange && (
             <select
-              value={selectedStatus}
-              onChange={(e) => onStatusChange(e.target.value)}
-              className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              value={selectedDeliveryStatus}
+              onChange={(e) => onDeliveryStatusChange(e.target.value)}
+              className="text-xs bg-white border border-slate-200 rounded-xl px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 cursor-pointer shadow-2xs"
             >
-              <option value="ALL">All Shipment Statuses</option>
-              {availableStatuses.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
+              <option value="ALL">All Delivery States</option>
+              <option value="DELIVERED">Delivered Only</option>
+              <option value="IN_TRANSIT">In Transit Only</option>
+              <option value="PENDING">Pending Delivery</option>
             </select>
+          )}
 
-            {/* Delivery Status Filter */}
-            {onDeliveryStatusChange && (
-              <select
-                value={selectedDeliveryStatus}
-                onChange={(e) => onDeliveryStatusChange(e.target.value)}
-                className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-500"
-              >
-                <option value="ALL">All Delivery States</option>
-                <option value="DELIVERED">Delivered Only</option>
-                <option value="IN_TRANSIT">In Transit Only</option>
-                <option value="PENDING">Pending Delivery</option>
-              </select>
-            )}
-          </div>
-
-          {/* Counter Summary */}
-          <div className="text-xs text-slate-500 font-medium shrink-0">
-            Showing <span className="font-bold text-slate-900">{orders.length}</span> of{" "}
-            <span className="font-bold text-slate-900">{totalOrders}</span> consignments
-          </div>
+          {/* Reset Filters Button */}
+          {isAnyFilterActive && onResetFilters && (
+            <button
+              onClick={onResetFilters}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+              title="Clear all active search and filter parameters"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
 
-        {/* Date Filter Row */}
-        {onDateTypeChange && onStartDateChange && onEndDateChange && (
-          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 text-xs text-slate-600">
-            <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-              <Calendar className="w-3 h-3 text-violet-600" />
-              <span>Date Filter:</span>
-            </span>
-
-            <select
-              value={dateType}
-              onChange={(e) => onDateTypeChange(e.target.value)}
-              className="text-xs bg-white border border-slate-200 rounded px-2 py-1 text-slate-700 focus:outline-none"
-            >
-              <option value="appointmentDate">Appointment Date</option>
-              <option value="pickupDate">Pickup Date</option>
-              <option value="orderDate">Order Date</option>
-              <option value="deliveryDate">Delivery Date</option>
-              <option value="createdAt">Created Date</option>
-            </select>
-
-            <div className="flex items-center gap-1">
-              <span className="text-slate-400 text-[11px]">From:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => onStartDateChange(e.target.value)}
-                className="text-xs bg-white border border-slate-200 rounded px-2 py-0.5 text-slate-700"
-              />
+        {/* ROW 2: Quick Date Presets, Sort Dropdown & Date Picker */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80">
+          {/* Quick Date Pills */}
+          {onQuickDateChange && (
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                Quick Dates:
+              </span>
+              {[
+                { id: "all", label: "All Dates" },
+                { id: "today", label: "Today's All" },
+                { id: "tomorrow", label: "Tomorrow's All" },
+                { id: "this_week", label: "This Week" },
+                { id: "overdue", label: "Past Due" },
+              ].map((pill) => {
+                const isActive = quickDate === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    onClick={() => onQuickDateChange(pill.id)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? "bg-violet-600 text-white shadow-xs"
+                        : "bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {pill.label}
+                  </button>
+                );
+              })}
             </div>
+          )}
 
+          {/* Sorting and Custom Date Range */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Sort Options */}
             <div className="flex items-center gap-1">
-              <span className="text-slate-400 text-[11px]">To:</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => onEndDateChange(e.target.value)}
-                className="text-xs bg-white border border-slate-200 rounded px-2 py-0.5 text-slate-700"
-              />
-            </div>
-
-            {(startDate || endDate) && (
-              <button
-                onClick={() => {
-                  onStartDateChange("");
-                  onEndDateChange("");
-                }}
-                className="text-[11px] text-violet-600 hover:text-violet-800 font-medium ml-1 cursor-pointer"
+              <span className="text-[11px] font-semibold text-slate-500">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => onSortChange(e.target.value)}
+                className="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-slate-700 focus:outline-none"
               >
-                Clear Dates
+                {sortOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={onSortDirToggle ? onSortDirToggle : () => onSortChange(sortBy)}
+                className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+                title={`Sort ${sortDir === "asc" ? "Ascending" : "Descending"} (Click to flip)`}
+              >
+                {sortDir === "asc" ? (
+                  <ArrowUp className="w-3.5 h-3.5 text-violet-600" />
+                ) : (
+                  <ArrowDown className="w-3.5 h-3.5 text-violet-600" />
+                )}
               </button>
+            </div>
+
+            {/* Custom Date Range Picker */}
+            {onDateTypeChange && onStartDateChange && onEndDateChange && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 pl-2 border-l border-slate-200">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => onStartDateChange(e.target.value)}
+                  className="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700"
+                  title="From Date"
+                />
+                <span className="text-slate-400 text-[10px]">to</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => onEndDateChange(e.target.value)}
+                  className="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700"
+                  title="To Date"
+                />
+                {(startDate || endDate) && (
+                  <button
+                    onClick={() => {
+                      onStartDateChange("");
+                      onEndDateChange("");
+                    }}
+                    className="text-[11px] text-violet-600 hover:text-violet-800 font-semibold cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Rows Per Page */}
+            {onPageSizeChange && (
+              <div className="flex items-center gap-1 pl-2 border-l border-slate-200">
+                <span className="text-[11px] text-slate-500">Rows:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
+                  className="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
             )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── High Density Spreadsheet Table ── */}
-      <div className="overflow-x-auto relative min-h-[340px]">
+      <div className="overflow-x-auto relative min-h-[380px]">
         {isLoading && (
           <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] flex items-center justify-center z-20">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-lg">
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-xl">
               <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Loading Logistics Records...</span>
+              <span>Refreshing Consignments...</span>
             </div>
           </div>
         )}
@@ -392,8 +533,16 @@ export function OrdersTable({
                   <ArrowUpDown className="w-3 h-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Marketplace</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Client / Destination</th>
+              <th className="py-2.5 px-3 whitespace-nowrap">Platform</th>
+              <th
+                onClick={() => onSortChange("warehouseName")}
+                className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Destination / Warehouse</span>
+                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                </div>
+              </th>
               <th
                 onClick={() => onSortChange("pickupDate")}
                 className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
@@ -404,7 +553,15 @@ export function OrdersTable({
                 </div>
               </th>
               <th className="py-2.5 px-3 whitespace-nowrap text-center">Boxes</th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Courier Partner</th>
+              <th
+                onClick={() => onSortChange("courierPartner")}
+                className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Courier Partner</span>
+                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                </div>
+              </th>
               <th className="py-2.5 px-3 whitespace-nowrap">Tracking / AWB</th>
               <th className="py-2.5 px-3 whitespace-nowrap">Appointment ID</th>
               <th
@@ -416,14 +573,29 @@ export function OrdersTable({
                   <ArrowUpDown className="w-3 h-3 text-slate-400" />
                 </div>
               </th>
-              <th className="py-2.5 px-3 whitespace-nowrap">Shipment Status</th>
+              <th
+                onClick={() => onSortChange("courierStatus")}
+                className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Shipment Status</span>
+                  <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                </div>
+              </th>
               <th
                 onClick={() => onSortChange("deliveryDate")}
                 className="py-2.5 px-3 whitespace-nowrap cursor-pointer hover:bg-slate-200/70 transition"
               >
                 <div className="flex items-center gap-1">
-                  <span>Delivery Status</span>
+                  <span>Delivery Date</span>
                   <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                </div>
+              </th>
+              {/* 🔒 PERSONAL INTERNAL NOTE COLUMN */}
+              <th className="py-2.5 px-3 whitespace-nowrap bg-amber-50/60 text-amber-900 border-l border-amber-200/60">
+                <div className="flex items-center gap-1" title="Private note visible only to Appointment Desk">
+                  <Lock className="w-3 h-3 text-amber-600" />
+                  <span>Private Note</span>
                 </div>
               </th>
               <th
@@ -441,12 +613,12 @@ export function OrdersTable({
           <tbody className="divide-y divide-slate-100">
             {orders.length === 0 && !isLoading ? (
               <tr>
-                <td colSpan={14} className="py-12 text-center text-slate-400">
+                <td colSpan={15} className="py-14 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Truck className="w-8 h-8 text-slate-300 stroke-[1.5]" />
-                    <p className="font-semibold text-slate-600">No consignment orders match your filter</p>
+                    <p className="font-semibold text-slate-600">No consignment orders match your criteria</p>
                     <p className="text-[11px] text-slate-400">
-                      Try clearing search queries or switching navigation tabs.
+                      Try clearing filters, searching for a different RO/AWB, or switching channels.
                     </p>
                   </div>
                 </td>
@@ -479,7 +651,7 @@ export function OrdersTable({
                     className="hover:bg-violet-50/30 transition-colors group text-slate-800"
                   >
                     {/* RO / PO Number */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => onOpenOrderDrawer(order)}
@@ -496,17 +668,20 @@ export function OrdersTable({
                     </td>
 
                     {/* Order Date */}
-                    <td className="py-2 px-3 whitespace-nowrap text-slate-600 text-[11px]">
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-600 text-[11px]">
                       {formatDateDisplay(order.orderDate)}
                     </td>
 
-                    {/* Marketplace */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    {/* Marketplace Platform */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <ChannelBadge channel={order.channel} />
                     </td>
 
-                    {/* Client / Destination Warehouse */}
-                    <td className="py-2 px-3 max-w-[170px]" title={order.warehouseName || order.client?.name || "—"}>
+                    {/* Destination Warehouse */}
+                    <td
+                      className="py-2.5 px-3 max-w-[180px]"
+                      title={order.warehouseName || order.client?.name || "—"}
+                    >
                       <div className="flex flex-col truncate">
                         <span className="font-medium text-slate-800 truncate">
                           {order.warehouseName || "—"}
@@ -521,19 +696,19 @@ export function OrdersTable({
                     </td>
 
                     {/* Pickup Date */}
-                    <td className="py-2 px-3 whitespace-nowrap text-slate-600">
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-600">
                       {formatDateDisplay(order.pickupDate || order.orderDate)}
                     </td>
 
                     {/* Boxes */}
-                    <td className="py-2 px-3 whitespace-nowrap text-center">
+                    <td className="py-2.5 px-3 whitespace-nowrap text-center">
                       <span className="font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-800">
                         {order.boxCount ?? 1}
                       </span>
                     </td>
 
-                    {/* 1. Courier Partner (Inline Editable) */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    {/* Courier Partner (Inline Editable) */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingCourier ? (
                         <div className="flex items-center gap-1">
                           <select
@@ -581,8 +756,8 @@ export function OrdersTable({
                       )}
                     </td>
 
-                    {/* 2 & 3. Tracking ID & Link (Inline Editable) */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    {/* Tracking ID & Link (Inline Editable) */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingTracking ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -591,7 +766,7 @@ export function OrdersTable({
                             onChange={(e) =>
                               setInlineEditing({ ...inlineEditing, value: e.target.value })
                             }
-                            placeholder="Enter AWB / Tracking ID"
+                            placeholder="Enter AWB"
                             className="text-xs bg-white border border-violet-400 rounded px-2 py-0.5 focus:outline-none w-32 font-mono"
                             autoFocus
                             onKeyDown={(e) => {
@@ -677,7 +852,7 @@ export function OrdersTable({
                           <button
                             onClick={() => startInlineEdit(order, "trackingLink", order.trackingLink)}
                             className="opacity-0 group-hover/field:opacity-100 p-0.5 text-slate-400 hover:text-indigo-600 rounded transition cursor-pointer"
-                            title="Edit custom tracking URL"
+                            title="Edit tracking URL"
                           >
                             <ExternalLink className="w-2.5 h-2.5" />
                           </button>
@@ -685,8 +860,8 @@ export function OrdersTable({
                       )}
                     </td>
 
-                    {/* 4. Appointment ID (Inline Editable) */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    {/* Appointment ID (Inline Editable) */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingAppointmentId ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -735,8 +910,8 @@ export function OrdersTable({
                       )}
                     </td>
 
-                    {/* 5 & 6. Appointment Date & Slot (Inline Editable) */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    {/* Appointment Date & Slot (Inline Editable) */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingAppointmentDate ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -840,8 +1015,8 @@ export function OrdersTable({
                       )}
                     </td>
 
-                    {/* 7. Courier / Shipment Status (Inline Editable with Confirm) */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    {/* Shipment Status (Inline Editable with Confirm) */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingStatus ? (
                         <div className="flex items-center gap-1">
                           <select
@@ -892,8 +1067,8 @@ export function OrdersTable({
                       )}
                     </td>
 
-                    {/* 8. Delivery Status & Date (Inline Editable) */}
-                    <td className="py-2 px-3 whitespace-nowrap">
+                    {/* Delivery Date (Inline Editable) */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingDeliveryDate ? (
                         <div className="flex items-center gap-1">
                           <input
@@ -944,7 +1119,7 @@ export function OrdersTable({
                               startInlineEdit(order, "deliveryDate", order.deliveryDate)
                             }
                             className="opacity-0 group-hover/field:opacity-100 p-0.5 text-slate-400 hover:text-violet-600 rounded transition cursor-pointer"
-                            title="Set or update delivery date"
+                            title="Set delivery date"
                           >
                             <Edit2 className="w-2.5 h-2.5" />
                           </button>
@@ -952,8 +1127,42 @@ export function OrdersTable({
                       )}
                     </td>
 
-                    {/* Last Updated (By & Time) */}
-                    <td className="py-2 px-3 whitespace-nowrap text-slate-500 text-[11px]">
+                    {/* 🔒 13. PRIVATE DESK NOTE (Strictly Isolated to Appointment App) */}
+                    <td className="py-2.5 px-3 bg-amber-50/20 border-l border-amber-200/40 max-w-[200px]">
+                      {order.personalNote ? (
+                        <div
+                          onClick={() =>
+                            setActiveNoteModal({
+                              order,
+                              noteText: order.personalNote || "",
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-950 text-[11px] cursor-pointer hover:bg-amber-100/90 hover:border-amber-300 transition flex items-start gap-1 group/note"
+                          title="Click to view/edit private note (Hidden from Consignment)"
+                        >
+                          <Lock className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                          <span className="truncate flex-1 font-medium">{order.personalNote}</span>
+                          <Edit2 className="w-2.5 h-2.5 text-amber-500 opacity-0 group-hover/note:opacity-100 shrink-0 mt-0.5" />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            setActiveNoteModal({
+                              order,
+                              noteText: "",
+                            })
+                          }
+                          className="text-[11px] text-slate-400 hover:text-amber-700 hover:bg-amber-50 px-2 py-1 rounded-md border border-dashed border-slate-200 hover:border-amber-300 transition flex items-center gap-1 cursor-pointer"
+                          title="Add private note (visible only to Appointment team)"
+                        >
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>+ Note</span>
+                        </button>
+                      )}
+                    </td>
+
+                    {/* Last Updated */}
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-500 text-[11px]">
                       <div className="flex flex-col">
                         <span className="text-slate-700 font-medium flex items-center gap-1">
                           <UserCheck className="w-3 h-3 text-slate-400" />
@@ -966,7 +1175,7 @@ export function OrdersTable({
                     </td>
 
                     {/* Actions */}
-                    <td className="py-2 px-3 whitespace-nowrap text-right">
+                    <td className="py-2.5 px-3 whitespace-nowrap text-right">
                       <button
                         onClick={() => onOpenOrderDrawer(order)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition cursor-pointer"
@@ -984,17 +1193,19 @@ export function OrdersTable({
       </div>
 
       {/* ── Server-Side Pagination Footer ── */}
-      <div className="p-3 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between">
+      <div className="p-3 sm:p-4 border-t border-slate-200 bg-slate-50/70 flex items-center justify-between">
         <div className="text-xs text-slate-500 font-medium">
-          Page <span className="font-bold text-slate-900">{page}</span> of{" "}
-          <span className="font-bold text-slate-900">{Math.max(1, totalPages)}</span>
+          Showing <span className="font-bold text-slate-900">{orders.length}</span> of{" "}
+          <span className="font-bold text-slate-900">{totalOrders}</span> consignments (Page{" "}
+          <span className="font-bold text-slate-900">{page}</span> of{" "}
+          <span className="font-bold text-slate-900">{Math.max(1, totalPages)}</span>)
         </div>
 
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => onPageChange(page - 1)}
             disabled={page <= 1}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
             <span>Previous</span>
@@ -1003,7 +1214,7 @@ export function OrdersTable({
           <button
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-2xs"
           >
             <span>Next</span>
             <ChevronRight className="w-3.5 h-3.5" />
@@ -1031,6 +1242,106 @@ export function OrdersTable({
           }
           onCancel={() => setConfirmStatusModal(null)}
         />
+      )}
+
+      {/* ── 🔒 Isolated Personal Note Quick Editor Modal ── */}
+      {activeNoteModal && (
+        <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setActiveNoteModal(null)}
+          />
+
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 z-10 animate-scale-in text-slate-800">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Lock className="w-4 h-4 text-amber-700" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    Private Note: {activeNoteModal.order.roPoNumber}
+                  </h3>
+                  <p className="text-[10px] text-amber-700 font-semibold">
+                    🔒 Visible ONLY to Appointment Desk — Never sent to Consignment
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveNoteModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Note Textarea */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Internal Operational Reminder / Note
+              </label>
+              <textarea
+                rows={4}
+                value={activeNoteModal.noteText}
+                onChange={(e) =>
+                  setActiveNoteModal({
+                    ...activeNoteModal,
+                    noteText: e.target.value,
+                  })
+                }
+                placeholder="Write personal notes about this order so you remember it (e.g. called driver Ramesh, gate pass number, dock 4 reserved, special handling required)..."
+                className="w-full text-xs bg-amber-50/30 border border-amber-200 rounded-xl p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white resize-none"
+                autoFocus
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                This note is stored in dedicated isolated storage. Other applications and consignment portals cannot see it.
+              </p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              {activeNoteModal.noteText && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveNoteModal({
+                      ...activeNoteModal,
+                      noteText: "",
+                    })
+                  }
+                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer"
+                >
+                  Clear Note
+                </button>
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setActiveNoteModal(null)}
+                  className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingNote}
+                  onClick={savePersonalNote}
+                  className="px-4 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs hover:shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isSavingNote ? (
+                    <span>Saving...</span>
+                  ) : (
+                    <>
+                      <Lock className="w-3 h-3" />
+                      <span>Save Private Note</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

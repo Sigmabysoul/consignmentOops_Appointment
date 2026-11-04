@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     const tab = (searchParams.get("tab") || "all").toLowerCase().trim();
     const channel = searchParams.get("channel")?.trim();
     const courier = searchParams.get("courier")?.trim();
+    const warehouse = searchParams.get("warehouse")?.trim();
+    const quickDate = searchParams.get("quickDate")?.trim();
     const statusFilter = searchParams.get("courierStatus")?.trim();
     const deliveryFilter = searchParams.get("deliveryStatus")?.trim();
     const dateType = (searchParams.get("dateType") || "appointmentDate").trim();
@@ -122,6 +124,11 @@ export async function GET(req: NextRequest) {
       whereConditions.courierPartner = { equals: courier, mode: "insensitive" };
     }
 
+    // Warehouse filter
+    if (warehouse && warehouse !== "ALL") {
+      whereConditions.warehouseName = { contains: warehouse, mode: "insensitive" };
+    }
+
     // Specific Status filter
     if (statusFilter && statusFilter !== "ALL") {
       whereConditions.courierStatus = { equals: statusFilter, mode: "insensitive" };
@@ -148,6 +155,53 @@ export async function GET(req: NextRequest) {
               { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
               { deliveryDate: { not: null } },
             ],
+          },
+        });
+      }
+    }
+
+    // Quick Date presets (Today's All, Tomorrow's All, This Week, Overdue)
+    if (quickDate && quickDate !== "all") {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+      if (quickDate === "today") {
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+          OR: [
+            { appointmentDate: { gte: todayStart, lte: todayEnd } },
+            { deliveryDate: { gte: todayStart, lte: todayEnd } },
+            { orderDate: { gte: todayStart, lte: todayEnd } },
+          ],
+        });
+      } else if (quickDate === "tomorrow") {
+        const tomorrowStart = new Date(todayStart.getTime() + 86400000);
+        const tomorrowEnd = new Date(todayEnd.getTime() + 86400000);
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+          OR: [
+            { appointmentDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+            { deliveryDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+          ],
+        });
+      } else if (quickDate === "this_week") {
+        const weekStart = new Date(todayStart);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+          OR: [
+            { appointmentDate: { gte: weekStart, lte: weekEnd } },
+            { deliveryDate: { gte: weekStart, lte: weekEnd } },
+          ],
+        });
+      } else if (quickDate === "overdue") {
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+          appointmentDate: { lt: todayStart },
+          NOT: {
+            courierStatus: { in: ["Delivered", "delivered", "DELIVERED", "Cancelled", "cancelled"] },
           },
         });
       }
@@ -182,6 +236,7 @@ export async function GET(req: NextRequest) {
     // Text Search
     if (search) {
       whereConditions.OR = [
+        { id: { equals: search } },
         { roPoNumber: { contains: search, mode: "insensitive" } },
         { trackingId: { contains: search, mode: "insensitive" } },
         { appointmentId: { contains: search, mode: "insensitive" } },
@@ -249,7 +304,15 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    // Enrich orders with generated trackingLink and audit info
+    // Fetch personal internal notes isolated to Appointment application
+    const orderIds = orders.map((o) => o.id);
+    const personalNotes =
+      orderIds.length > 0
+        ? await db.appointmentNote.findMany({ where: { orderId: { in: orderIds } } })
+        : [];
+    const notesMap = new Map(personalNotes.map((n) => [n.orderId, n]));
+
+    // Enrich orders with generated trackingLink, audit info, and isolated personal notes
     const enrichedOrders = orders.map((order) => {
       const computedLink =
         order.trackingLink ||
@@ -263,11 +326,16 @@ export async function GET(req: NextRequest) {
       const isInTransit = (order.courierStatus || "").toLowerCase() === "in transit";
       const computedDeliveryStatus = isDelivered ? "Delivered" : isInTransit ? "In Transit" : "Pending";
 
+      const noteItem = notesMap.get(order.id);
+
       return {
         ...order,
         trackingLink: computedLink,
         lastUpdatedBy: latestUser,
         deliveryStatus: computedDeliveryStatus,
+        personalNote: noteItem?.note || null,
+        personalNoteUpdatedAt: noteItem?.updatedAt ? noteItem.updatedAt.toISOString() : null,
+        personalNoteUpdatedBy: noteItem?.updatedBy || null,
       };
     });
 

@@ -545,3 +545,12 @@ enum Role {
   STAFF
   TL
 }
+
+model AppointmentNote {
+  orderId   String   @id
+  note      String
+  updatedBy String?
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("AppointmentNote")
+}

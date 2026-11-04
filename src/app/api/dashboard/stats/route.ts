@@ -34,6 +34,8 @@ export async function GET(req: NextRequest) {
       grnIssues,
       pending,
       cancelled,
+      channelGroups,
+      warehousesRaw,
     ] = await Promise.all([
       // Total orders
       db.consignmentOrder.count({
@@ -154,7 +156,33 @@ export async function GET(req: NextRequest) {
           ],
         },
       }),
+
+      // Channels breakdown
+      db.consignmentOrder.groupBy({
+        by: ["channel"],
+        where: baseWhere,
+        _count: { id: true },
+      }),
+
+      // Distinct warehouse names
+      db.consignmentOrder.findMany({
+        where: { ...baseWhere, warehouseName: { not: null } },
+        select: { warehouseName: true },
+        distinct: ["warehouseName"],
+      }),
     ]);
+
+    const channelCounts: Record<string, number> = {};
+    for (const g of (channelGroups as Array<{ channel: string; _count: { id: number } }>)) {
+      if (g.channel) {
+        channelCounts[g.channel.toUpperCase()] = g._count.id;
+      }
+    }
+
+    const warehouseList = (warehousesRaw as Array<{ warehouseName: string | null }>)
+      .map((w) => w.warehouseName?.trim())
+      .filter((w): w is string => Boolean(w && w.length > 0))
+      .sort();
 
     return NextResponse.json({
       stats: {
@@ -167,6 +195,8 @@ export async function GET(req: NextRequest) {
         grnIssues,
         pending,
         cancelled,
+        channelCounts,
+        warehouses: Array.from(new Set(warehouseList)),
       },
     });
   } catch (error: any) {

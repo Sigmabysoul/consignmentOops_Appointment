@@ -10,6 +10,7 @@ import {
 import { resolveTrackingUrl } from "../src/lib/tracking-utils";
 import { NextRequest } from "next/server";
 import { PATCH, GET as getOrderById } from "../src/app/api/orders/[id]/route";
+import { POST as saveNote, GET as getNote, DELETE as deleteNote } from "../src/app/api/orders/[id]/note/route";
 import { GET as getOrders } from "../src/app/api/orders/route";
 
 describe("Appointment Management Application — Comprehensive Verification Suite", () => {
@@ -365,8 +366,133 @@ describe("Appointment Management Application — Comprehensive Verification Suit
     );
   });
 
-  it("12. Clean Up Test Order", async () => {
+  it("12. Isolated Personal Notes: Stored exclusively in AppointmentNote table, never leaking to Consignment", async () => {
+    const personalNoteText = "Internal reminder: Called security guard Ramesh at gate 2, permit code 998877";
+
+    // 1. Save personal note via dedicated POST /api/orders/[id]/note
+    const reqNote = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}/note`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ note: personalNoteText }),
+    });
+    const resNote = await saveNote(reqNote, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(resNote.status, 200, "Saving personal note must succeed");
+    const jsonNote = await resNote.json();
+    assert.strictEqual(jsonNote.note, personalNoteText);
+
+    // 2. Verify stored in dedicated AppointmentNote table
+    const dbNote = await db.appointmentNote.findUnique({ where: { orderId: testOrderId } });
+    assert(dbNote, "Personal note must exist in AppointmentNote table");
+    assert.strictEqual(dbNote?.note, personalNoteText);
+
+    // 3. ISOLATION CHECK: Verify ConsignmentOrder.comment was NOT overwritten by personal note!
+    const consignmentOrder = await db.consignmentOrder.findUnique({ where: { id: testOrderId } });
+    assert.strictEqual(
+      consignmentOrder?.comment,
+      "Admin confirmed slot with Swiggy Bangalore warehouse manager",
+      "ConsignmentOrder comment MUST NOT be overwritten by internal Appointment note!"
+    );
+
+    // 4. Read back via GET /api/orders/[id]
+    const reqGet = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const resGet = await getOrderById(reqGet, { params: Promise.resolve({ id: testOrderId }) });
+    const jsonGet = await resGet.json();
+    assert.strictEqual(
+      jsonGet.order.personalNote,
+      personalNoteText,
+      "GET /api/orders/[id] must return isolated personalNote"
+    );
+
+    // 5. Read back via GET /api/orders (table list view enrichment)
+    const reqList = new NextRequest(`http://localhost:3001/api/orders?search=${testOrderId}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const resList = await getOrders(reqList);
+    const jsonList = await resList.json();
+    const orderInList = jsonList.orders.find((o: any) => o.id === testOrderId);
+    assert(orderInList, "Order must be in list");
+    assert.strictEqual(
+      orderInList.personalNote,
+      personalNoteText,
+      "GET /api/orders must enrich orders with isolated personalNote"
+    );
+
+    // 6. Update personal note via PATCH /api/orders/[id]
+    const updatedNoteText = "Updated reminder: Gate 2 approved, unloading at Dock 4";
+    const reqPatch = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ personalNote: updatedNoteText }),
+    });
+    const resPatch = await PATCH(reqPatch, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(resPatch.status, 200);
+    const jsonPatch = await resPatch.json();
+    assert.strictEqual(jsonPatch.order.personalNote, updatedNoteText);
+
+    // 7. Clear personal note via DELETE /api/orders/[id]/note
+    const reqDelete = new NextRequest(`http://localhost:3001/api/orders/${testOrderId}/note`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const resDelete = await deleteNote(reqDelete, { params: Promise.resolve({ id: testOrderId }) });
+    assert.strictEqual(resDelete.status, 200);
+    const deletedDbNote = await db.appointmentNote.findUnique({ where: { orderId: testOrderId } });
+    assert.strictEqual(deletedDbNote, null, "AppointmentNote must be cleared");
+  });
+
+  it("13. Warehouse & Platform Channel Filtering", async () => {
+    // A: Warehouse exact/contains matching
+    const reqWarehouseMatch = new NextRequest(
+      `http://localhost:3001/api/orders?warehouse=Bangalore`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }
+    );
+    const resMatch = await getOrders(reqWarehouseMatch);
+    assert.strictEqual(resMatch.status, 200);
+    const jsonMatch = await resMatch.json();
+    assert(
+      jsonMatch.orders.some((o: any) => o.id === testOrderId),
+      "Warehouse filter must match warehouseName containing Bangalore"
+    );
+
+    // B: Warehouse non-matching
+    const reqWarehouseMiss = new NextRequest(
+      `http://localhost:3001/api/orders?warehouse=KolkataNonExistentFC`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }
+    );
+    const resMiss = await getOrders(reqWarehouseMiss);
+    const jsonMiss = await resMiss.json();
+    assert(
+      !jsonMiss.orders.some((o: any) => o.id === testOrderId),
+      "Warehouse filter must exclude non-matching orders"
+    );
+
+    // C: Channel/Platform filter
+    const reqChannel = new NextRequest(`http://localhost:3001/api/orders?channel=SWIGGY`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    const resChannel = await getOrders(reqChannel);
+    const jsonChannel = await resChannel.json();
+    assert(
+      jsonChannel.orders.some((o: any) => o.id === testOrderId),
+      "Channel filter must match SWIGGY"
+    );
+  });
+
+  it("14. Clean Up Test Order & Personal Notes", async () => {
     // Delete test order and related audit entries
+    await db.appointmentNote.deleteMany({ where: { orderId: testOrderId } });
     await db.orderStatusHistory.deleteMany({ where: { orderId: testOrderId } });
     await db.auditLog.deleteMany({ where: { orderId: testOrderId } });
     await db.consignmentOrder.delete({ where: { id: testOrderId } });

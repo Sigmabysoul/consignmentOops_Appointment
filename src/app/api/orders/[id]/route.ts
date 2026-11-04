@@ -21,7 +21,7 @@ export async function GET(
 
     const { id } = await params;
 
-    const [order, courierPresets] = await Promise.all([
+    const [order, courierPresets, personalNoteItem] = await Promise.all([
       db.consignmentOrder.findUnique({
         where: { id },
         include: {
@@ -41,6 +41,9 @@ export async function GET(
         where: { isActive: true },
         select: { name: true, urlName: true, trackingUrlPattern: true },
       }),
+      db.appointmentNote.findUnique({
+        where: { orderId: id },
+      }),
     ]);
 
     if (!order) {
@@ -55,6 +58,9 @@ export async function GET(
       order: {
         ...order,
         trackingLink: computedTrackingLink,
+        personalNote: personalNoteItem?.note || null,
+        personalNoteUpdatedAt: personalNoteItem?.updatedAt ? personalNoteItem.updatedAt.toISOString() : null,
+        personalNoteUpdatedBy: personalNoteItem?.updatedBy || null,
       },
     });
   } catch (error: any) {
@@ -353,30 +359,78 @@ export async function PATCH(
     delete dataToUpdate.grnStatus;
     delete dataToUpdate.grnReport;
 
-    if (Object.keys(dataToUpdate).length === 0) {
+    const hasPersonalNoteUpdate = body.personalNote !== undefined;
+
+    if (Object.keys(dataToUpdate).length === 0 && !hasPersonalNoteUpdate) {
       return NextResponse.json({ order: existing, message: "No changes detected" });
     }
 
-    dataToUpdate.updatedAt = new Date();
+    if (Object.keys(dataToUpdate).length > 0) {
+      dataToUpdate.updatedAt = new Date();
+    }
 
     // Execute atomic transaction
     const updatedOrder = await db.$transaction(async (tx) => {
-      const updated = await tx.consignmentOrder.update({
-        where: { id },
-        data: dataToUpdate,
-        include: {
-          client: true,
-          items: true,
-          statusHistory: {
-            orderBy: { timestamp: "desc" },
-            take: 20,
+      let updated;
+      if (Object.keys(dataToUpdate).length > 0) {
+        updated = await tx.consignmentOrder.update({
+          where: { id },
+          data: dataToUpdate,
+          include: {
+            client: true,
+            items: true,
+            statusHistory: {
+              orderBy: { timestamp: "desc" },
+              take: 20,
+            },
+            auditLogs: {
+              orderBy: { timestamp: "desc" },
+              take: 20,
+            },
           },
-          auditLogs: {
-            orderBy: { timestamp: "desc" },
-            take: 20,
+        });
+      } else {
+        updated = await tx.consignmentOrder.findUniqueOrThrow({
+          where: { id },
+          include: {
+            client: true,
+            items: true,
+            statusHistory: {
+              orderBy: { timestamp: "desc" },
+              take: 20,
+            },
+            auditLogs: {
+              orderBy: { timestamp: "desc" },
+              take: 20,
+            },
           },
-        },
-      });
+        });
+      }
+
+      // Handle isolated personal notes (stored strictly in AppointmentNote table)
+      let activePersonalNote: any = null;
+      if (hasPersonalNoteUpdate) {
+        const noteStr = body.personalNote ? String(body.personalNote).trim() : "";
+        if (noteStr) {
+          activePersonalNote = await tx.appointmentNote.upsert({
+            where: { orderId: id },
+            create: {
+              orderId: id,
+              note: noteStr,
+              updatedBy: user.name || user.username,
+            },
+            update: {
+              note: noteStr,
+              updatedBy: user.name || user.username,
+              updatedAt: new Date(),
+            },
+          });
+        } else {
+          await tx.appointmentNote.deleteMany({ where: { orderId: id } });
+        }
+      } else {
+        activePersonalNote = await tx.appointmentNote.findUnique({ where: { orderId: id } });
+      }
 
       // Record OrderStatusHistory if shipment status changed
       if (courierStatusChanged && toCourierStatus) {
@@ -420,7 +474,14 @@ export async function PATCH(
         });
       }
 
-      return updated;
+      return {
+        ...updated,
+        personalNote: activePersonalNote?.note || null,
+        personalNoteUpdatedAt: activePersonalNote?.updatedAt
+          ? activePersonalNote.updatedAt.toISOString()
+          : null,
+        personalNoteUpdatedBy: activePersonalNote?.updatedBy || null,
+      };
     });
 
     return NextResponse.json({

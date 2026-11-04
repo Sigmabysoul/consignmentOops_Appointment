@@ -3,11 +3,18 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
-import { StatusTabs } from "@/components/layout/StatusTabs";
 import { MetricCards } from "@/components/dashboard/MetricCards";
 import { OrdersTable } from "@/components/table/OrdersTable";
+import { KanbanView } from "@/components/views/KanbanView";
+import { TimelineView } from "@/components/views/TimelineView";
 import { OrderDetailsDrawer } from "@/components/drawer/OrderDetailsDrawer";
-import { SessionUser, AppointmentOrder, CourierPresetItem, DashboardStats } from "@/lib/types";
+import {
+  SessionUser,
+  AppointmentOrder,
+  CourierPresetItem,
+  DashboardStats,
+  ActiveView,
+} from "@/lib/types";
 
 export default function AppointmentDashboard() {
   const router = useRouter();
@@ -15,6 +22,9 @@ export default function AppointmentDashboard() {
   // Authentication State
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  // View Mode: Sheet, Kanban, Timeline, Analytics
+  const [activeView, setActiveView] = useState<ActiveView>("sheet");
 
   // Data States
   const [orders, setOrders] = useState<AppointmentOrder[]>([]);
@@ -24,7 +34,6 @@ export default function AppointmentDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Filter & Pagination States
-  const [activeTab, setActiveTab] = useState<string>("all");
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
   const [totalOrders, setTotalOrders] = useState<number>(0);
@@ -32,8 +41,10 @@ export default function AppointmentDashboard() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedChannel, setSelectedChannel] = useState<string>("ALL");
   const [selectedCourier, setSelectedCourier] = useState<string>("ALL");
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("ALL");
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedDeliveryStatus, setSelectedDeliveryStatus] = useState<string>("ALL");
+  const [quickDate, setQuickDate] = useState<string>("all");
   const [dateType, setDateType] = useState<string>("appointmentDate");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -75,7 +86,7 @@ export default function AppointmentDashboard() {
       .catch(() => {});
   }, [currentUser]);
 
-  // 3. Fetch Dashboard Stats
+  // 3. Fetch Dashboard Stats (Includes channel counts & warehouses)
   const fetchStats = useCallback(() => {
     fetch("/api/dashboard/stats")
       .then((res) => res.json())
@@ -95,12 +106,13 @@ export default function AppointmentDashboard() {
     const params = new URLSearchParams({
       page: String(page),
       pageSize: String(pageSize),
-      tab: activeTab,
       search: searchTerm,
       channel: selectedChannel,
       courier: selectedCourier,
+      warehouse: selectedWarehouse,
       courierStatus: selectedStatus,
       deliveryStatus: selectedDeliveryStatus,
+      quickDate,
       dateType,
       startDate,
       endDate,
@@ -126,12 +138,13 @@ export default function AppointmentDashboard() {
     currentUser,
     page,
     pageSize,
-    activeTab,
     searchTerm,
     selectedChannel,
     selectedCourier,
+    selectedWarehouse,
     selectedStatus,
     selectedDeliveryStatus,
+    quickDate,
     dateType,
     startDate,
     endDate,
@@ -153,11 +166,6 @@ export default function AppointmentDashboard() {
     fetchStats();
   };
 
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    setPage(1);
-  };
-
   const handleSortChange = (field: string) => {
     if (sortBy === field) {
       setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -165,6 +173,25 @@ export default function AppointmentDashboard() {
       setSortBy(field);
       setSortDir("desc");
     }
+  };
+
+  const handleSortDirToggle = () => {
+    setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+  };
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setSelectedChannel("ALL");
+    setSelectedCourier("ALL");
+    setSelectedWarehouse("ALL");
+    setSelectedStatus("ALL");
+    setSelectedDeliveryStatus("ALL");
+    setQuickDate("all");
+    setStartDate("");
+    setEndDate("");
+    setSortBy("createdAt");
+    setSortDir("desc");
+    setPage(1);
   };
 
   if (isAuthLoading) {
@@ -183,86 +210,204 @@ export default function AppointmentDashboard() {
   if (!currentUser) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f8f9fc]">
-      {/* ── App Header (ConsignmentOps Purple Navigation) ── */}
+    <div className="min-h-screen flex flex-col bg-[#f4f6fa]">
+      {/* ── ConsignmentOps Purple Header with Top Views & Platform Bar ── */}
       <AppHeader
         user={currentUser}
-        activeNavTab={activeTab}
-        onSelectNavTab={handleTabChange}
+        activeView={activeView}
+        onSelectView={setActiveView}
+        selectedPlatform={selectedChannel}
+        onSelectPlatform={(platform) => {
+          setSelectedChannel(platform);
+          setPage(1);
+        }}
+        channelCounts={stats?.channelCounts || {}}
+        totalOrdersCount={stats?.totalOrders || totalOrders}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
       />
 
-      {/* ── Status Tabs (Live Counters) ── */}
-      <StatusTabs
-        activeTab={activeTab}
-        onSelectTab={handleTabChange}
-        stats={stats}
-      />
-
       {/* ── Main Workspace ── */}
-      <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-[1700px] mx-auto flex flex-col">
-        {/* Metric Summary Indicators */}
-        <MetricCards stats={stats} onSelectMetric={handleTabChange} />
+      <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-[1700px] mx-auto flex flex-col gap-4">
+        {/* Metric Overview (when in Analytics view or summary mode) */}
+        {activeView === "analytics" ? (
+          <div className="space-y-6">
+            <MetricCards
+              stats={stats}
+              onSelectMetric={(statusKey) => {
+                if (statusKey === "delivered") setSelectedDeliveryStatus("DELIVERED");
+                else if (statusKey === "in_transit") setSelectedDeliveryStatus("IN_TRANSIT");
+                else if (statusKey === "pending") setSelectedStatus("Pending");
+                else if (statusKey === "appointments") setQuickDate("today");
+                setActiveView("sheet");
+              }}
+            />
 
-        {/* Operational Orders Table */}
-        <div className="flex-1">
-          <OrdersTable
-            orders={orders}
-            isLoading={isLoadingOrders}
-            courierPresets={courierPresets}
-            page={page}
-            pageSize={pageSize}
-            totalOrders={totalOrders}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            searchTerm={searchTerm}
-            onSearchChange={(val) => {
-              setSearchTerm(val);
-              setPage(1);
-            }}
-            selectedChannel={selectedChannel}
-            onChannelChange={(ch) => {
-              setSelectedChannel(ch);
-              setPage(1);
-            }}
-            selectedCourier={selectedCourier}
-            onCourierChange={(cr) => {
-              setSelectedCourier(cr);
-              setPage(1);
-            }}
-            selectedStatus={selectedStatus}
-            onStatusChange={(st) => {
-              setSelectedStatus(st);
-              setPage(1);
-            }}
-            selectedDeliveryStatus={selectedDeliveryStatus}
-            onDeliveryStatusChange={(ds) => {
-              setSelectedDeliveryStatus(ds);
-              setPage(1);
-            }}
-            dateType={dateType}
-            onDateTypeChange={(dt) => {
-              setDateType(dt);
-              setPage(1);
-            }}
-            startDate={startDate}
-            onStartDateChange={(sd) => {
-              setStartDate(sd);
-              setPage(1);
-            }}
-            endDate={endDate}
-            onEndDateChange={(ed) => {
-              setEndDate(ed);
-              setPage(1);
-            }}
-            sortBy={sortBy}
-            sortDir={sortDir}
-            onSortChange={handleSortChange}
-            onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
-            onOrderUpdated={handleRefresh}
-          />
-        </div>
+            {/* Detailed Analytics Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider mb-3">
+                  Channel Volume Distribution
+                </h4>
+                <div className="space-y-2">
+                  {Object.entries(stats?.channelCounts || {}).map(([channel, count]) => (
+                    <div key={channel} className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">{channel}</span>
+                      <span className="font-bold bg-slate-100 text-slate-800 px-2 py-0.5 rounded-full">
+                        {count} consignments
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider mb-3">
+                  Active Destinations & Warehouses
+                </h4>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {(stats?.warehouses || []).map((wh) => (
+                    <div
+                      key={wh}
+                      onClick={() => {
+                        setSelectedWarehouse(wh);
+                        setActiveView("sheet");
+                      }}
+                      className="text-xs text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer flex items-center justify-between"
+                    >
+                      <span className="truncate">{wh}</span>
+                      <span className="text-[10px] text-violet-600 font-semibold">Filter ➔</span>
+                    </div>
+                  ))}
+                  {(stats?.warehouses || []).length === 0 && (
+                    <div className="text-xs text-slate-400">No warehouse records logged yet.</div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider mb-3">
+                  Appointment Desk Isolation Status
+                </h4>
+                <div className="space-y-2 text-xs text-slate-600">
+                  <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-semibold">Shared Consignment DB Connected</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-amber-900 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="font-semibold">Private Notes Table (100% Isolated)</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 pt-1">
+                    Logistics modifications (AWB, appointment dates, slots) update live DB without overwriting consignment status. Personal notes remain strictly confidential to appointment operators.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* View 1: Spreadsheet Table (Primary Operational View) */}
+        {activeView === "sheet" && (
+          <div className="flex-1">
+            <OrdersTable
+              orders={orders}
+              isLoading={isLoadingOrders}
+              courierPresets={courierPresets}
+              warehouses={stats?.warehouses || []}
+              page={page}
+              pageSize={pageSize}
+              totalOrders={totalOrders}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setPage(1);
+              }}
+              searchTerm={searchTerm}
+              onSearchChange={(val) => {
+                setSearchTerm(val);
+                setPage(1);
+              }}
+              selectedChannel={selectedChannel}
+              onChannelChange={(ch) => {
+                setSelectedChannel(ch);
+                setPage(1);
+              }}
+              selectedCourier={selectedCourier}
+              onCourierChange={(cr) => {
+                setSelectedCourier(cr);
+                setPage(1);
+              }}
+              selectedWarehouse={selectedWarehouse}
+              onWarehouseChange={(wh) => {
+                setSelectedWarehouse(wh);
+                setPage(1);
+              }}
+              selectedStatus={selectedStatus}
+              onStatusChange={(st) => {
+                setSelectedStatus(st);
+                setPage(1);
+              }}
+              selectedDeliveryStatus={selectedDeliveryStatus}
+              onDeliveryStatusChange={(ds) => {
+                setSelectedDeliveryStatus(ds);
+                setPage(1);
+              }}
+              quickDate={quickDate}
+              onQuickDateChange={(qd) => {
+                setQuickDate(qd);
+                setPage(1);
+              }}
+              dateType={dateType}
+              onDateTypeChange={(dt) => {
+                setDateType(dt);
+                setPage(1);
+              }}
+              startDate={startDate}
+              onStartDateChange={(sd) => {
+                setStartDate(sd);
+                setPage(1);
+              }}
+              endDate={endDate}
+              onEndDateChange={(ed) => {
+                setEndDate(ed);
+                setPage(1);
+              }}
+              sortBy={sortBy}
+              sortDir={sortDir}
+              onSortChange={handleSortChange}
+              onSortDirToggle={handleSortDirToggle}
+              onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
+              onOrderUpdated={handleRefresh}
+              onResetFilters={handleResetFilters}
+            />
+          </div>
+        )}
+
+        {/* View 2: Kanban Pipeline View */}
+        {activeView === "kanban" && (
+          <div className="flex-1">
+            <KanbanView
+              orders={orders}
+              isLoading={isLoadingOrders}
+              onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
+              onQuickNoteClick={(order) => setSelectedDrawerOrder(order)}
+            />
+          </div>
+        )}
+
+        {/* View 3: Schedule Timeline View */}
+        {activeView === "timeline" && (
+          <div className="flex-1">
+            <TimelineView
+              orders={orders}
+              isLoading={isLoadingOrders}
+              onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
+              onQuickNoteClick={(order) => setSelectedDrawerOrder(order)}
+            />
+          </div>
+        )}
       </main>
 
       {/* ── Order Details Slide-Out Drawer ── */}
@@ -277,4 +422,3 @@ export default function AppointmentDashboard() {
     </div>
   );
 }
-

@@ -47,6 +47,9 @@ export interface AppointmentOrder {
   updatedAt: string;
   lastUpdatedBy?: string | null;
   deliveryStatus?: string | null;
+  personalNote?: string | null;
+  personalNoteUpdatedAt?: string | null;
+  personalNoteUpdatedBy?: string | null;
   client?: {
     id: string;
     name: string;
@@ -98,5 +101,10 @@ export interface DashboardStats {
   grnIssues: number;
   pending: number;
   cancelled: number;
+  channelCounts?: Record<string, number>;
+  warehouses?: string[];
 }
+
+export type ActiveView = "sheet" | "kanban" | "timeline" | "analytics";
+export type QuickDatePreset = "all" | "today" | "tomorrow" | "this_week" | "overdue";
 

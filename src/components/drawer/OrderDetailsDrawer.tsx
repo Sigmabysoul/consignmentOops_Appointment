@@ -13,6 +13,7 @@ import {
   Shield,
   CheckCircle2,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -55,6 +56,11 @@ export function OrderDetailsDrawer({
   const [deliveryDate, setDeliveryDate] = useState("");
   const [comment, setComment] = useState("");
   const [statusRemarks, setStatusRemarks] = useState("");
+  const [personalNote, setPersonalNote] = useState("");
+  const [personalNoteInfo, setPersonalNoteInfo] = useState<{
+    updatedAt: string | null;
+    updatedBy: string | null;
+  }>({ updatedAt: null, updatedBy: null });
 
   // Sync state when order changes & fetch full details (including history and audit logs)
   useEffect(() => {
@@ -70,15 +76,27 @@ export function OrderDetailsDrawer({
     setDeliveryDate(formatDateInputValue(order.deliveryDate));
     setComment(order.comment || "");
     setStatusRemarks("");
+    setPersonalNote(order.personalNote || "");
+    setPersonalNoteInfo({
+      updatedAt: order.personalNoteUpdatedAt || null,
+      updatedBy: order.personalNoteUpdatedBy || null,
+    });
     setValidationError(null);
 
-    // Fetch complete history
+    // Fetch complete history & isolated personal note
     setIsLoadingDetails(true);
     fetch(`/api/orders/${order.id}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.order) {
           setDetailedOrder(data.order);
+          if (data.order.personalNote !== undefined) {
+            setPersonalNote(data.order.personalNote || "");
+            setPersonalNoteInfo({
+              updatedAt: data.order.personalNoteUpdatedAt || null,
+              updatedBy: data.order.personalNoteUpdatedBy || null,
+            });
+          }
         }
       })
       .catch(() => {})
@@ -103,6 +121,7 @@ export function OrderDetailsDrawer({
         deliveryDate: deliveryDate ? deliveryDate : null,
         comment: comment.trim(),
         remarks: statusRemarks.trim(),
+        personalNote: personalNote.trim(),
       };
 
       const res = await fetch(`/api/orders/${order.id}`, {
@@ -478,6 +497,38 @@ export function OrderDetailsDrawer({
                     onChange={(e) => setStatusRemarks(e.target.value)}
                     className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
                   />
+                </div>
+
+                {/* 🔒 PERSONAL INTERNAL NOTE (Strictly Private to Appointment Desk) */}
+                <div className="mt-4 p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/90 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                      <Lock className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Internal Personal Note (Appointment Desk Only)</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+                      Private & Isolated
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-amber-900/80 leading-normal">
+                    🔒 These notes are stored exclusively in Appointment Desk storage. They are <strong>never</strong> exported, shared, or displayed in Consignment Ops or external portals.
+                  </p>
+
+                  <textarea
+                    rows={3}
+                    placeholder="Write personal operational notes, driver contacts, gate pass details, or reminders about this order..."
+                    value={personalNote}
+                    onChange={(e) => setPersonalNote(e.target.value)}
+                    className="w-full text-xs bg-white border border-amber-300 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-2xs"
+                  />
+
+                  {personalNoteInfo.updatedAt && (
+                    <div className="text-[10px] text-amber-800/80 flex items-center justify-between pt-0.5">
+                      <span>Last edited: {formatDateTimeDisplay(personalNoteInfo.updatedAt)}</span>
+                      {personalNoteInfo.updatedBy && <span>by {personalNoteInfo.updatedBy}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
 
