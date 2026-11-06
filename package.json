@@ -9,7 +9,11 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx tests/appointment-plan-v2.test.ts",
     "test:integration": "tsx tests/appointment-core.test.ts",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "db:start": "pg_ctl -D ~/.local/share/postgres-data -l ~/.local/share/postgres-data/server.log start",
+    "db:stop": "pg_ctl -D ~/.local/share/postgres-data stop",
+    "db:status": "pg_isready -h localhost -p 5432",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
