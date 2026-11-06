@@ -20,6 +20,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
+import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
+import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
@@ -55,6 +57,7 @@ export function OrderDetailsDrawer({
   const [courierStatus, setCourierStatus] = useState("Pending");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [comment, setComment] = useState("");
+  const [grnReport, setGrnReport] = useState("");
   const [statusRemarks, setStatusRemarks] = useState("");
   const [personalNote, setPersonalNote] = useState("");
   const [personalNoteInfo, setPersonalNoteInfo] = useState<{
@@ -72,9 +75,10 @@ export function OrderDetailsDrawer({
     setAppointmentId(order.appointmentId || "");
     setAppointmentDate(formatDateInputValue(order.appointmentDate));
     setAppointmentSlot(order.appointmentSlot || "");
-    setCourierStatus(order.courierStatus || "Pending");
+    setCourierStatus(order.courierStatus || order.status || "Pending");
     setDeliveryDate(formatDateInputValue(order.deliveryDate));
     setComment(order.comment || "");
+    setGrnReport(order.grnReport || "");
     setStatusRemarks("");
     setPersonalNote(order.personalNote || "");
     setPersonalNoteInfo({
@@ -117,12 +121,18 @@ export function OrderDetailsDrawer({
         appointmentId: appointmentId.trim(),
         appointmentDate: appointmentDate ? appointmentDate : null,
         appointmentSlot: appointmentSlot.trim(),
+        status: courierStatus.trim(),
         courierStatus: courierStatus.trim(),
         deliveryDate: deliveryDate ? deliveryDate : null,
         comment: comment.trim(),
         remarks: statusRemarks.trim(),
         personalNote: personalNote.trim(),
       };
+
+      if (courierStatus.toLowerCase() === "grn issue") {
+        payload.grnStatus = "GRN Issue";
+        payload.grnReport = grnReport.trim() || comment.trim();
+      }
 
       const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
@@ -199,12 +209,25 @@ export function OrderDetailsDrawer({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={`http://localhost:3000?search=${encodeURIComponent(order.roPoNumber)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition border border-white/20"
+              title="Open this consignment in the Main Consignment App"
+            >
+              <span>Consignment App</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Navigation Tabs inside Drawer */}
@@ -307,6 +330,15 @@ export function OrderDetailsDrawer({
                     </div>
                   </div>
                 )}
+
+                {/* Box Dimensions 1-Click Copy Wizard */}
+                <div className="pt-2 border-t border-slate-200/70">
+                  <BoxDimensionCopyHelper
+                    groups={detailedOrder?.boxDimensionGroups || (order ? extractBoxDimensionGroups(order) : [])}
+                    compact={false}
+                    orderNumber={order.roPoNumber}
+                  />
+                </div>
               </div>
 
               {/* SECTION 2: Courier & Tracking Information (Editable) */}
@@ -465,13 +497,45 @@ export function OrderDetailsDrawer({
 
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Current Milestone Badge
+                      Current Milestone Badge & Quick Actions
                     </label>
-                    <div className="pt-1.5">
+                    <div className="flex items-center gap-1.5 pt-1">
                       <StatusBadge status={courierStatus} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCourierStatus("Delivered");
+                          if (!deliveryDate) setDeliveryDate(new Date().toISOString().split("T")[0]);
+                        }}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 cursor-pointer"
+                      >
+                        ✓ Delivered
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCourierStatus("GRN Issue")}
+                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 hover:bg-rose-200 cursor-pointer"
+                      >
+                        ⚠️ GRN Issue
+                      </button>
                     </div>
                   </div>
                 </div>
+
+                {courierStatus.toLowerCase() === "grn issue" && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-2">
+                    <label className="block text-xs font-bold text-rose-900">
+                      GRN Discrepancy Details / Report
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="Specify GRN discrepancy (e.g. shortage of 5 units, box seal damaged, dock rejection)..."
+                      value={grnReport}
+                      onChange={(e) => setGrnReport(e.target.value)}
+                      className="w-full text-xs bg-white border border-rose-300 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500 resize-none"
+                    />
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">

@@ -2,9 +2,11 @@ import React from "react";
 
 interface ChannelBadgeProps {
   channel: string | null | undefined;
+  size?: "sm" | "md" | "lg";
+  className?: string;
 }
 
-export function ChannelBadge({ channel }: ChannelBadgeProps) {
+export function ChannelBadge({ channel, size = "md", className = "" }: ChannelBadgeProps) {
   const c = (channel || "OTHER").toUpperCase().trim();
 
   let label = channel || "Other";
@@ -29,8 +31,17 @@ export function ChannelBadge({ channel }: ChannelBadgeProps) {
     dotColor = "bg-emerald-500";
   }
 
+  const sizeClasses =
+    size === "sm"
+      ? "px-1.5 py-0.2 text-[10px]"
+      : size === "lg"
+      ? "px-2.5 py-1 text-xs"
+      : "px-2 py-0.5 text-[11px]";
+
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${bgClass}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-md font-semibold border ${sizeClasses} ${bgClass} ${className}`}
+    >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`} />
       <span>{label}</span>
     </span>

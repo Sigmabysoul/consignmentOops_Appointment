@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { resolveTrackingUrl } from "@/lib/tracking-utils";
+import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,17 @@ export async function GET(req: NextRequest) {
     };
 
     // Tab filter conditions
-    if (tab === "pending") {
+    if (tab === "booking") {
+      whereConditions.AND = whereConditions.AND || [];
+      whereConditions.AND.push({
+        status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] },
+      });
+    } else if (tab === "appointment") {
+      whereConditions.AND = whereConditions.AND || [];
+      whereConditions.AND.push({
+        status: { notIn: ["Cancelled", "CANCELLED", "Archive", "ARCHIVED"] },
+      });
+    } else if (tab === "pending") {
       whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push({
         OR: [
@@ -295,6 +305,16 @@ export async function GET(req: NextRequest) {
               itemName: true,
               totalQty: true,
               boxCount: true,
+              lengthCm: true,
+              widthCm: true,
+              heightCm: true,
+              weightKg: true,
+              remainderQty: true,
+              remainderLengthCm: true,
+              remainderWidthCm: true,
+              remainderHeightCm: true,
+              remainderWeightKg: true,
+              boxDimensions: true,
             },
           },
           auditLogs: {
@@ -323,25 +343,39 @@ export async function GET(req: NextRequest) {
         : [];
     const notesMap = new Map(personalNotes.map((n) => [n.orderId, n]));
 
-    // Enrich orders with generated trackingLink, audit info, and isolated personal notes
+    // Enrich orders with boxDimensionGroups, audit info, and isolated personal notes
     const enrichedOrders = orders.map((order) => {
-      const computedLink =
-        order.trackingLink ||
-        resolveTrackingUrl(order.courierPartner, order.trackingId, null, courierPresets);
+      const boxDimensionGroups = extractBoxDimensionGroups(order);
 
       const latestUser =
         order.auditLogs?.[0]?.userName || order.statusHistory?.[0]?.userName || null;
 
       const isDelivered =
-        (order.courierStatus || "").toLowerCase() === "delivered" || !!order.deliveryDate;
-      const isInTransit = (order.courierStatus || "").toLowerCase() === "in transit";
-      const computedDeliveryStatus = isDelivered ? "Delivered" : isInTransit ? "In Transit" : "Pending";
+        (order.status || "").toLowerCase() === "delivered" ||
+        (order.courierStatus || "").toLowerCase() === "delivered" ||
+        !!order.deliveryDate;
+      const isInTransit =
+        (order.status || "").toLowerCase() === "in transit" ||
+        (order.courierStatus || "").toLowerCase() === "in transit";
+      const isGrnIssue =
+        (order.status || "").toLowerCase().includes("issue") ||
+        (order.grnStatus || "").toLowerCase().includes("issue") ||
+        (order.courierStatus || "").toLowerCase().includes("issue");
+
+      const computedDeliveryStatus = isGrnIssue
+        ? "GRN Issue"
+        : isDelivered
+        ? "Delivered"
+        : isInTransit
+        ? "In Transit"
+        : "Pending";
 
       const noteItem = notesMap.get(order.id);
 
       return {
         ...order,
-        trackingLink: computedLink,
+        boxDimensionGroups,
+        trackingLink: order.trackingLink || null, // No automatic external URL generation
         lastUpdatedBy: latestUser,
         deliveryStatus: computedDeliveryStatus,
         personalNote: noteItem?.note || null,

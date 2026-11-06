@@ -7,7 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start -p 3001",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/appointment-core.test.ts",
+    "test": "tsx tests/appointment-plan-v2.test.ts",
+    "test:integration": "tsx tests/appointment-core.test.ts",
     "prisma:generate": "prisma generate"
   },
   "dependencies": {

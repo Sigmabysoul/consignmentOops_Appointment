@@ -18,6 +18,20 @@ export type ShipmentStatus =
   | "GRN Issue"
   | "Cancelled";
 
+export interface BoxDimensionGroup {
+  id: string;
+  boxCount: number;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  dimensionUnit: string;
+  weightUnit: string;
+  isRemainder?: boolean;
+  label?: string;
+  key: string;
+}
+
 export interface AppointmentOrder {
   id: string;
   channel: string;
@@ -39,6 +53,18 @@ export interface AppointmentOrder {
   boxCount: number | null;
   boxDimensions: string | null;
   weightKg: number | null;
+  lengthCm?: number | null;
+  widthCm?: number | null;
+  heightCm?: number | null;
+  dimensionUnit?: string | null;
+  weightUnit?: string | null;
+  remainderQty?: number | null;
+  remainderLengthCm?: number | null;
+  remainderWidthCm?: number | null;
+  remainderHeightCm?: number | null;
+  remainderWeightKg?: number | null;
+  boxName?: string | null;
+  boxDimensionGroups?: BoxDimensionGroup[];
   comment: string | null;
   grnStatus: string | null;
   grnReport: string | null;
@@ -105,6 +131,6 @@ export interface DashboardStats {
   warehouses?: string[];
 }
 
-export type ActiveView = "sheet" | "kanban" | "timeline" | "analytics";
+export type ActiveView = "booking" | "appointment" | "kanban" | "sheet" | "timeline" | "analytics";
 export type QuickDatePreset = "all" | "today" | "tomorrow" | "this_week" | "overdue";
 

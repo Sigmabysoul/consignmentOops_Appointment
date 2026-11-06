@@ -31,6 +31,7 @@ import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
 
 interface OrdersTableProps {
   orders: AppointmentOrder[];
@@ -741,11 +742,19 @@ export function OrdersTable({
                       {formatDateDisplay(order.pickupDate || order.orderDate)}
                     </td>
 
-                    {/* Boxes */}
-                    <td className="py-2.5 px-3 whitespace-nowrap text-center">
-                      <span className="font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-800">
-                        {order.boxCount ?? 1}
-                      </span>
+                    {/* Boxes & Dimensions with 1-Click Copy */}
+                    <td className="py-2.5 px-3 min-w-[190px]">
+                      {order.boxDimensionGroups && order.boxDimensionGroups.length > 0 ? (
+                        <BoxDimensionCopyHelper
+                          groups={order.boxDimensionGroups}
+                          compact={true}
+                          orderNumber={order.roPoNumber}
+                        />
+                      ) : (
+                        <span className="font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-800">
+                          {order.boxCount ?? 1} box{(order.boxCount ?? 1) > 1 ? "es" : ""}
+                        </span>
+                      )}
                     </td>
 
                     {/* Courier Partner (Inline Editable) */}

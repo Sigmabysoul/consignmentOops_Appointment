@@ -13,6 +13,9 @@ import {
   Shield,
   Truck,
   ExternalLink,
+  Calendar,
+  Layers,
+  Hash,
 } from "lucide-react";
 import { SessionUser, ActiveView } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -192,20 +195,62 @@ export function AppHeader({
             </div>
           </div>
 
-          {/* MIDDLE: Operational View Switchers (Sheet, Kanban, Timeline, Analytics) */}
+          {/* MIDDLE: Operational View Switchers (1. Booking, 2. Appointment, 3. Kanban, Sheet) */}
           <div className="flex items-center bg-black/20 backdrop-blur-sm p-0.5 rounded-xl border border-white/15 gap-0.5">
-            {/* Sheet View */}
+            {/* Part 1: Booking View */}
             <button
-              onClick={() => onSelectView("sheet")}
-              title="Spreadsheet View"
+              onClick={() => onSelectView("booking")}
+              title="Part 1: Booking & Pickup Desk (Priority: Pickup Data & Dimensions)"
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "sheet"
+                activeView === "booking"
                   ? "bg-white text-gray-900 shadow-md"
                   : "text-white/80 hover:text-white hover:bg-white/15"
               }`}
             >
-              <TableProperties className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Sheet</span>
+              <Truck className="w-3.5 h-3.5 text-violet-600" />
+              <span>1. Booking</span>
+            </button>
+
+            {/* Part 2: Appointment View */}
+            <button
+              onClick={() => onSelectView("appointment")}
+              title="Part 2: Appointment & CN Desk (Priority: CN & Appointment Date)"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
+                activeView === "appointment"
+                  ? "bg-white text-gray-900 shadow-md"
+                  : "text-white/80 hover:text-white hover:bg-white/15"
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+              <span>2. Appointment</span>
+            </button>
+
+            {/* Part 3: Kanban View */}
+            <button
+              onClick={() => onSelectView("kanban")}
+              title="Part 3: Normal Kanban View (Gone vs Remaining)"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
+                activeView === "kanban"
+                  ? "bg-white text-gray-900 shadow-md"
+                  : "text-white/80 hover:text-white hover:bg-white/15"
+              }`}
+            >
+              <Kanban className="w-3.5 h-3.5 text-amber-500" />
+              <span>3. Kanban</span>
+            </button>
+
+            {/* All / Sheet View */}
+            <button
+              onClick={() => onSelectView("sheet")}
+              title="All Consignments Spreadsheet"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
+                activeView === "sheet"
+                  ? "bg-white text-gray-900 shadow-md font-bold"
+                  : "text-white/70 hover:text-white hover:bg-white/15"
+              }`}
+            >
+              <TableProperties className="w-3.5 h-3.5 opacity-70" />
+              <span className="hidden md:inline">All Data</span>
               <span
                 className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
                   activeView === "sheet"
@@ -216,52 +261,21 @@ export function AppHeader({
                 {totalOrdersCount}
               </span>
             </button>
-
-            {/* Kanban View */}
-            <button
-              onClick={() => onSelectView("kanban")}
-              title="Kanban Pipeline"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "kanban"
-                  ? "bg-white text-gray-900 shadow-md"
-                  : "text-white/80 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <Kanban className="w-3.5 h-3.5 opacity-80" />
-              <span className="hidden sm:inline">Kanban</span>
-            </button>
-
-            {/* Timeline View */}
-            <button
-              onClick={() => onSelectView("timeline")}
-              title="Schedule Timeline"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "timeline"
-                  ? "bg-white text-gray-900 shadow-md"
-                  : "text-white/80 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <CalendarDays className="w-3.5 h-3.5 opacity-80" />
-              <span className="hidden sm:inline">Timeline</span>
-            </button>
-
-            {/* Analytics View */}
-            <button
-              onClick={() => onSelectView("analytics")}
-              title="Analytics & Metrics"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "analytics"
-                  ? "bg-white text-gray-900 shadow-md"
-                  : "text-white/80 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5 opacity-80" />
-              <span className="hidden sm:inline">Analytics</span>
-            </button>
           </div>
 
           {/* RIGHT: Actions & User Dropdown */}
           <div className="flex items-center gap-2">
+            {/* Quick jump to Main Consignment Operations App */}
+            <a
+              href="http://localhost:3000"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/25 bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition shadow-xs"
+              title="Open Main Consignment App in new tab (Port 3000)"
+            >
+              <span>Consignment App</span>
+              <ExternalLink className="w-3 h-3 opacity-80" />
+            </a>
             {/* Refresh button */}
             {onRefresh && (
               <button

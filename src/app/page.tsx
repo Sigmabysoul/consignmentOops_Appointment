@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { MetricCards } from "@/components/dashboard/MetricCards";
 import { OrdersTable } from "@/components/table/OrdersTable";
+import { BookingView } from "@/components/booking/BookingView";
+import { AppointmentView } from "@/components/appointment/AppointmentView";
 import { KanbanView } from "@/components/views/KanbanView";
 import { TimelineView } from "@/components/views/TimelineView";
 import { OrderDetailsDrawer } from "@/components/drawer/OrderDetailsDrawer";
@@ -27,8 +29,8 @@ export default function AppointmentDashboard() {
   const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // View Mode: Sheet, Kanban, Timeline, Analytics
-  const [activeView, setActiveView] = useState<ActiveView>("sheet");
+  // View Mode: 1. Booking, 2. Appointment, 3. Kanban, Sheet, Analytics
+  const [activeView, setActiveView] = useState<ActiveView>("booking");
 
   // Data States
   const [orders, setOrders] = useState<AppointmentOrder[]>([]);
@@ -97,16 +99,16 @@ export default function AppointmentDashboard() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key === "1") {
         e.preventDefault();
-        setActiveView("sheet");
+        setActiveView("booking");
       } else if (e.altKey && e.key === "2") {
         e.preventDefault();
-        setActiveView("kanban");
+        setActiveView("appointment");
       } else if (e.altKey && e.key === "3") {
         e.preventDefault();
-        setActiveView("timeline");
+        setActiveView("kanban");
       } else if (e.altKey && e.key === "4") {
         e.preventDefault();
-        setActiveView("analytics");
+        setActiveView("sheet");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -169,6 +171,7 @@ export default function AppointmentDashboard() {
       page: String(page),
       pageSize: String(effectivePageSize),
       search: searchTerm,
+      tab: activeView,
       channel: selectedChannel,
       courier: selectedCourier,
       warehouse: selectedWarehouse,
@@ -428,7 +431,79 @@ export default function AppointmentDashboard() {
           />
         )}
 
-        {/* View 1: Spreadsheet Table (Primary Operational View) */}
+        {/* Part 1: Booking & Pickup Desk (Priority: Pickup Data & Dimensions) */}
+        {activeView === "booking" && (
+          <div className="flex-1">
+            <BookingView
+              orders={orders}
+              isLoading={isLoadingOrders}
+              courierPresets={courierPresets}
+              warehouses={stats?.warehouses || []}
+              page={page}
+              pageSize={pageSize}
+              totalOrders={totalOrders}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
+              onOrderUpdated={handleRefresh}
+              onQuickNoteClick={(order) =>
+                setActiveNoteModal({
+                  order,
+                  noteText: order.personalNote || "",
+                })
+              }
+              onSwitchToAppointment={(order) => {
+                setActiveView("appointment");
+                if (order) setSelectedDrawerOrder(order);
+              }}
+            />
+          </div>
+        )}
+
+        {/* Part 2: Appointment & CN Desk (Priority: CN & Appointment Date, Manual Status) */}
+        {activeView === "appointment" && (
+          <div className="flex-1">
+            <AppointmentView
+              orders={orders}
+              isLoading={isLoadingOrders}
+              courierPresets={courierPresets}
+              warehouses={stats?.warehouses || []}
+              page={page}
+              pageSize={pageSize}
+              totalOrders={totalOrders}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
+              onOrderUpdated={handleRefresh}
+              onQuickNoteClick={(order) =>
+                setActiveNoteModal({
+                  order,
+                  noteText: order.personalNote || "",
+                })
+              }
+            />
+          </div>
+        )}
+
+        {/* Part 3: Normal Kanban View (Gone vs Remaining) */}
+        {activeView === "kanban" && (
+          <div className="flex-1">
+            <KanbanView
+              orders={orders}
+              isLoading={isLoadingOrders}
+              onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
+              onQuickNoteClick={(order) =>
+                setActiveNoteModal({
+                  order,
+                  noteText: order.personalNote || "",
+                })
+              }
+              onOrderUpdated={handleRefresh}
+            />
+          </div>
+        )}
+
+        {/* View 4: All Data Spreadsheet Table */}
         {activeView === "sheet" && (
           <div className="flex-1">
             <OrdersTable
@@ -509,23 +584,6 @@ export default function AppointmentDashboard() {
                 })
               }
               includeToolbar={false}
-            />
-          </div>
-        )}
-
-        {/* View 2: Kanban Pipeline View */}
-        {activeView === "kanban" && (
-          <div className="flex-1">
-            <KanbanView
-              orders={orders}
-              isLoading={isLoadingOrders}
-              onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
-              onQuickNoteClick={(order) =>
-                setActiveNoteModal({
-                  order,
-                  noteText: order.personalNote || "",
-                })
-              }
             />
           </div>
         )}
