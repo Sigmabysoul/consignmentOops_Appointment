@@ -160,9 +160,11 @@ export default function AppointmentDashboard() {
   }, []);
 
   // 4. Fetch Paginated Orders
-  const fetchOrders = useCallback(() => {
+  const fetchOrders = useCallback((isBackground = false) => {
     if (!currentUser) return;
-    setIsLoadingOrders(true);
+    if (!isBackground) {
+      setIsLoadingOrders(true);
+    }
 
     const effectivePageSize =
       activeView === "kanban" || activeView === "timeline" ? 100 : pageSize;
@@ -186,7 +188,10 @@ export default function AppointmentDashboard() {
     });
 
     fetch(`/api/orders?${params.toString()}`)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load orders");
+        return res.json();
+      })
       .then((data) => {
         if (data.orders) {
           setOrders(data.orders);
@@ -194,7 +199,9 @@ export default function AppointmentDashboard() {
           setTotalPages(data.pagination.totalPages);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error("Order fetch error:", err);
+      })
       .finally(() => {
         setIsLoadingOrders(false);
         setIsRefreshing(false);
@@ -238,12 +245,12 @@ export default function AppointmentDashboard() {
 
     // 1. Window focus / visibility listener
     const onWindowFocus = () => {
-      fetchOrders();
+      fetchOrders(true);
       fetchStats();
     };
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        fetchOrders();
+        fetchOrders(true);
         fetchStats();
       }
     };
@@ -257,7 +264,7 @@ export default function AppointmentDashboard() {
         bc = new BroadcastChannel("consignment_orders_sync");
         bc.onmessage = (event) => {
           if (event.data?.type === "order_created" || event.data?.type === "order_updated") {
-            fetchOrders();
+            fetchOrders(true);
             fetchStats();
           }
         };
@@ -267,19 +274,19 @@ export default function AppointmentDashboard() {
     // 3. Storage event fallback
     const onStorage = (e: StorageEvent) => {
       if (e.key === "consignment_orders_sync_trigger") {
-        fetchOrders();
+        fetchOrders(true);
         fetchStats();
       }
     };
     window.addEventListener("storage", onStorage);
 
-    // 4. Lightweight background sync (every 12s when tab active)
+    // 4. Fast background sync (every 4s when tab active) to catch orders from consignment ops
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
-        fetchOrders();
+        fetchOrders(true);
         fetchStats();
       }
-    }, 12000);
+    }, 4000);
 
     return () => {
       window.removeEventListener("focus", onWindowFocus);

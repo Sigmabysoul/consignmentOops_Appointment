@@ -34,19 +34,31 @@ export async function GET(req: NextRequest) {
     const sortDir = (searchParams.get("sortDir") || "desc").toLowerCase() === "asc" ? "asc" : "desc";
 
     const whereConditions: any = {
-      isDeleted: { not: true },
+      AND: [
+        {
+          OR: [{ isDeleted: false }, { isDeleted: null }],
+        },
+      ],
     };
 
     // Tab filter conditions
     if (tab === "booking") {
       whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push({
-        status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] },
+        OR: [
+          { status: null },
+          { status: "" },
+          { status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] } },
+        ],
       });
     } else if (tab === "appointment") {
       whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push({
-        status: { notIn: ["Cancelled", "CANCELLED", "Archive", "ARCHIVED"] },
+        OR: [
+          { status: null },
+          { status: "" },
+          { status: { notIn: ["Cancelled", "CANCELLED", "Archive", "ARCHIVED"] } },
+        ],
       });
     } else if (tab === "pending") {
       whereConditions.AND = whereConditions.AND || [];
@@ -56,13 +68,17 @@ export async function GET(req: NextRequest) {
             { courierStatus: null },
             { courierStatus: "" },
             { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
+            { status: null },
+            { status: "" },
             { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "Scheduled", "InProgress", "In Progress", "New", "new"] } },
           ],
         },
         {
-          status: {
-            notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"],
-          },
+          OR: [
+            { status: null },
+            { status: "" },
+            { status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] } },
+          ],
         },
         {
           OR: [
@@ -76,9 +92,15 @@ export async function GET(req: NextRequest) {
       whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push({
         OR: [{ trackingId: null }, { trackingId: "" }],
-        status: {
-          notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
-        },
+        AND: [
+          {
+            OR: [
+              { status: null },
+              { status: "" },
+              { status: { notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"] } },
+            ],
+          },
+        ],
       });
     } else if (tab === "in_transit") {
       whereConditions.AND = whereConditions.AND || [];
@@ -159,6 +181,8 @@ export async function GET(req: NextRequest) {
             { courierStatus: null },
             { courierStatus: "" },
             { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
+            { status: null },
+            { status: "" },
             { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "New", "new"] } },
           ],
         });
@@ -273,15 +297,17 @@ export async function GET(req: NextRequest) {
 
     // Text Search
     if (search) {
-      whereConditions.OR = [
-        { id: { equals: search } },
-        { roPoNumber: { contains: search, mode: "insensitive" } },
-        { trackingId: { contains: search, mode: "insensitive" } },
-        { appointmentId: { contains: search, mode: "insensitive" } },
-        { invoiceNo: { contains: search, mode: "insensitive" } },
-        { warehouseName: { contains: search, mode: "insensitive" } },
-        { itemName: { contains: search, mode: "insensitive" } },
-      ];
+      whereConditions.AND.push({
+        OR: [
+          { id: { equals: search } },
+          { roPoNumber: { contains: search, mode: "insensitive" } },
+          { trackingId: { contains: search, mode: "insensitive" } },
+          { appointmentId: { contains: search, mode: "insensitive" } },
+          { invoiceNo: { contains: search, mode: "insensitive" } },
+          { warehouseName: { contains: search, mode: "insensitive" } },
+          { itemName: { contains: search, mode: "insensitive" } },
+        ],
+      });
     }
 
     // Sorting definition: include all sortable columns
@@ -320,6 +346,7 @@ export async function GET(req: NextRequest) {
               name: true,
               code: true,
               city: true,
+              address: true,
             },
           },
           items: {

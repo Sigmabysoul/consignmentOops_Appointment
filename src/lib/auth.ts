@@ -41,8 +41,15 @@ export function isAllowedAppointmentUser(user: {
     return true;
   }
 
-  // The existing single Consignment Logistics & Dispatch Desk account
-  if (uname === "dispatch") {
+  // Logistics & Dispatch accounts (e.g. 'dispatch', 'dispatcher-user-01', department Dispatch/Logistics)
+  if (
+    uname === "dispatch" ||
+    uname.startsWith("dispatch") ||
+    uname.includes("dispatch") ||
+    name.includes("dispatch") ||
+    dept === "dispatch" ||
+    dept === "logistics"
+  ) {
     return true;
   }
 
@@ -59,15 +66,20 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 async function resolveCookieSecure(): Promise<boolean> {
-  if (process.env.NODE_ENV === "production") return true;
   if (process.env.COOKIE_SECURE === "true") return true;
+  if (process.env.COOKIE_SECURE === "false") return false;
   try {
     const headersList = await headers();
     const proto = headersList.get("x-forwarded-proto");
     if (proto) return proto.toLowerCase() === "https";
+    const host = headersList.get("host");
+    if (host && (host.includes("localhost") || host.match(/^(\d{1,3}\.){3}\d{1,3}/))) {
+      return false;
+    }
   } catch {
     // headers() might not be available outside request context
   }
+  if (process.env.NODE_ENV === "production") return true;
   return false;
 }
 

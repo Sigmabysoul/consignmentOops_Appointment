@@ -21,7 +21,11 @@ export async function GET(req: NextRequest) {
     todayEnd.setHours(23, 59, 59, 999);
 
     const baseWhere = {
-      isDeleted: { not: true },
+      AND: [
+        {
+          OR: [{ isDeleted: false }, { isDeleted: null }],
+        },
+      ],
     };
 
     // Calculate metrics using parallel queries for optimal speed
@@ -40,19 +44,25 @@ export async function GET(req: NextRequest) {
     ] = await Promise.all([
       // Total orders
       db.consignmentOrder.count({
-        where: baseWhere,
+        where: { AND: baseWhere.AND },
       }),
 
       // Tracking missing (not cancelled, not delivered, missing trackingId)
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
-          OR: [{ trackingId: null }, { trackingId: "" }],
           AND: [
+            ...baseWhere.AND,
+            { OR: [{ trackingId: null }, { trackingId: "" }] },
             {
-              status: {
-                notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
-              },
+              OR: [
+                { status: null },
+                { status: "" },
+                {
+                  status: {
+                    notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
+                  },
+                },
+              ],
             },
           ],
         },
@@ -61,17 +71,21 @@ export async function GET(req: NextRequest) {
       // In transit
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
-          OR: [
-            { courierStatus: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "SHIPPED"] } },
-            { status: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched"] } },
+          AND: [
+            ...baseWhere.AND,
             {
-              AND: [
-                { pickupDone: true },
+              OR: [
+                { courierStatus: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "SHIPPED"] } },
+                { status: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched"] } },
                 {
-                  NOT: {
-                    courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] },
-                  },
+                  AND: [
+                    { pickupDone: true },
+                    {
+                      NOT: {
+                        courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] },
+                      },
+                    },
+                  ],
                 },
               ],
             },
@@ -82,11 +96,15 @@ export async function GET(req: NextRequest) {
       // Appointment scheduled
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
-          OR: [
-            { appointmentId: { not: null, notIn: [""] } },
-            { appointmentDate: { not: null } },
-            { courierStatus: { in: ["Appointment Scheduled", "appointment scheduled"] } },
+          AND: [
+            ...baseWhere.AND,
+            {
+              OR: [
+                { appointmentId: { not: null, notIn: [""] } },
+                { appointmentDate: { not: null } },
+                { courierStatus: { in: ["Appointment Scheduled", "appointment scheduled"] } },
+              ],
+            },
           ],
         },
       }),
@@ -94,21 +112,29 @@ export async function GET(req: NextRequest) {
       // Scheduled today
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
-          appointmentDate: {
-            gte: todayStart,
-            lte: todayEnd,
-          },
+          AND: [
+            ...baseWhere.AND,
+            {
+              appointmentDate: {
+                gte: todayStart,
+                lte: todayEnd,
+              },
+            },
+          ],
         },
       }),
 
       // Delivered
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
-          OR: [
-            { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
-            { status: { in: ["Delivered", "delivered", "DELIVERED", "COMPLETED", "Completed"] } },
+          AND: [
+            ...baseWhere.AND,
+            {
+              OR: [
+                { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
+                { status: { in: ["Delivered", "delivered", "DELIVERED", "COMPLETED", "Completed"] } },
+              ],
+            },
           ],
         },
       }),
@@ -116,11 +142,15 @@ export async function GET(req: NextRequest) {
       // GRN Issues
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
-          OR: [
-            { grnStatus: { contains: "issue", mode: "insensitive" } },
-            { status: { contains: "grn issue", mode: "insensitive" } },
-            { courierStatus: { contains: "grn issue", mode: "insensitive" } },
+          AND: [
+            ...baseWhere.AND,
+            {
+              OR: [
+                { grnStatus: { contains: "issue", mode: "insensitive" } },
+                { status: { contains: "grn issue", mode: "insensitive" } },
+                { courierStatus: { contains: "grn issue", mode: "insensitive" } },
+              ],
+            },
           ],
         },
       }),
@@ -128,20 +158,28 @@ export async function GET(req: NextRequest) {
       // Pending
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
           AND: [
+            ...baseWhere.AND,
             {
               OR: [
                 { courierStatus: null },
                 { courierStatus: "" },
                 { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
+                { status: null },
+                { status: "" },
                 { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "Scheduled", "InProgress", "In Progress", "New", "new"] } },
               ],
             },
             {
-              status: {
-                notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"],
-              },
+              OR: [
+                { status: null },
+                { status: "" },
+                {
+                  status: {
+                    notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"],
+                  },
+                },
+              ],
             },
             {
               OR: [
@@ -157,10 +195,14 @@ export async function GET(req: NextRequest) {
       // Cancelled
       db.consignmentOrder.count({
         where: {
-          ...baseWhere,
-          OR: [
-            { status: { in: ["Cancelled", "cancelled", "CANCELLED", "CANCELED"] } },
-            { courierStatus: { in: ["Cancelled", "cancelled", "CANCELLED"] } },
+          AND: [
+            ...baseWhere.AND,
+            {
+              OR: [
+                { status: { in: ["Cancelled", "cancelled", "CANCELLED", "CANCELED"] } },
+                { courierStatus: { in: ["Cancelled", "cancelled", "CANCELLED"] } },
+              ],
+            },
           ],
         },
       }),
@@ -168,13 +210,18 @@ export async function GET(req: NextRequest) {
       // Channels breakdown
       db.consignmentOrder.groupBy({
         by: ["channel"],
-        where: baseWhere,
+        where: { AND: baseWhere.AND },
         _count: { id: true },
       }),
 
       // Distinct warehouse names
       db.consignmentOrder.findMany({
-        where: { ...baseWhere, warehouseName: { not: null } },
+        where: {
+          AND: [
+            ...baseWhere.AND,
+            { warehouseName: { not: null } },
+          ],
+        },
         select: { warehouseName: true },
         distinct: ["warehouseName"],
       }),
@@ -184,10 +231,8 @@ export async function GET(req: NextRequest) {
     for (const g of (channelGroups as Array<{ channel: string; _count: { id: number } }>)) {
       if (g.channel) {
         const canonical = normalizeChannelCode(g.channel);
-        if (canonical) {
-          channelCounts[canonical] = (channelCounts[canonical] || 0) + g._count.id;
-        }
-        channelCounts[g.channel.toUpperCase()] = (channelCounts[g.channel.toUpperCase()] || 0) + g._count.id;
+        const key = canonical || g.channel.toUpperCase();
+        channelCounts[key] = (channelCounts[key] || 0) + g._count.id;
       }
     }
 

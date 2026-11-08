@@ -235,6 +235,15 @@ describe("Appointment App 3-Part Redesign — Comprehensive Verification", () =>
         true
       );
       assert.strictEqual(
+        isAllowedAppointmentUser({
+          role: "STAFF",
+          username: "dispatcher-user-01",
+          name: "Logistics Dispatcher",
+          department: "Dispatch",
+        }),
+        true
+      );
+      assert.strictEqual(
         isAllowedAppointmentUser({ role: "STAFF", username: "printing", department: "Printing" }),
         false
       );

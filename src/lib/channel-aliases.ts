@@ -8,6 +8,7 @@
 
 export const Channel = {
   SWIGGY: "SWIGGY",
+  ZEPTO: "ZEPTO",
   BLINKIT_STO: "BLINKIT_STO",
   FLIPKART_MINUTES: "FLIPKART_MINUTES",
   FLIPKART_FBF: "FLIPKART_FBF",
@@ -138,6 +139,16 @@ export function getChannelAliases(channel: unknown): string[] {
       "Swiggy Instamart",
       "swiggy",
       "swiggy_instamart",
+    ].forEach((a) => set.add(a));
+  } else if (norm === "ZEPTO" || norm === "ZEPTO_INSTAMART") {
+    [
+      "ZEPTO",
+      "Zepto",
+      "zepto",
+      "ZEPTO_INSTAMART",
+      "ZEPTO INSTAMART",
+      "Zepto Instamart",
+      "zepto_instamart",
     ].forEach((a) => set.add(a));
   }
 

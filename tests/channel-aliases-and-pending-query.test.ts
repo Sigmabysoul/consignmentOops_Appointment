@@ -41,11 +41,12 @@ describe("Channel Aliases and Normalization Suite", () => {
   });
 });
 
-describe("UI Header All-Platform Glow Invariant", () => {
-  test("When selectedPlatform is 'ALL', every platform evaluates to active", () => {
+describe("UI Header Platform Selector Invariant", () => {
+  test("When selectedPlatform is 'ALL', only the 'ALL' platform evaluates to active", () => {
     const platforms = [
       { code: "ALL" },
       { code: "SWIGGY" },
+      { code: "ZEPTO" },
       { code: "BLINKIT_STO" },
       { code: "FLIPKART_MINUTES" },
       { code: "FLIPKART_FBF" },
@@ -55,11 +56,14 @@ describe("UI Header All-Platform Glow Invariant", () => {
     ];
 
     const selectedPlatform = "ALL";
-    const isAllSelected = selectedPlatform === "ALL";
 
     platforms.forEach((p) => {
-      const isActive = isAllSelected || selectedPlatform === p.code;
-      assert.strictEqual(isActive, true, `Platform ${p.code} must be active when ALL is selected`);
+      const isActive = selectedPlatform === p.code;
+      if (p.code === "ALL") {
+        assert.strictEqual(isActive, true, "Platform ALL must be active when ALL is selected");
+      } else {
+        assert.strictEqual(isActive, false, `Platform ${p.code} must not be active when ALL is selected`);
+      }
     });
   });
 
@@ -67,15 +71,15 @@ describe("UI Header All-Platform Glow Invariant", () => {
     const platforms = [
       { code: "ALL" },
       { code: "SWIGGY" },
+      { code: "ZEPTO" },
       { code: "BLINKIT_STO" },
       { code: "FLIPKART_MINUTES" },
     ];
 
     const selectedPlatform = "BLINKIT_STO";
-    const isAllSelected = selectedPlatform === "ALL";
 
     platforms.forEach((p) => {
-      const isActive = isAllSelected || selectedPlatform === p.code;
+      const isActive = selectedPlatform === p.code;
       if (p.code === "BLINKIT_STO") {
         assert.strictEqual(isActive, true);
       } else {

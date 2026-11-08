@@ -728,6 +728,14 @@ export function OrdersTable({
                         <span className="font-medium text-slate-800 truncate">
                           {order.warehouseName || "—"}
                         </span>
+                        {((order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address) && (
+                          <span
+                            className="text-[10px] text-slate-500 line-clamp-2 font-normal leading-tight"
+                            title={((order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address)}
+                          >
+                            {((order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address)}
+                          </span>
+                        )}
                         {order.client?.name && (
                           <span className="text-[10px] text-slate-500 truncate flex items-center gap-0.5">
                             <Building className="w-2.5 h-2.5 shrink-0" />

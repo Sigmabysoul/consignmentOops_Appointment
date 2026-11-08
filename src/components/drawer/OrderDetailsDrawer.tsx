@@ -292,6 +292,14 @@ export function OrderDetailsDrawer({
                       {order.warehouseName || "—"}
                     </span>
                   </div>
+                  {((detailedOrder?.customData as any)?.deliveredTo || (order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address) && (
+                    <div className="col-span-2">
+                      <span className="text-slate-400">Delivered To Address:</span>{" "}
+                      <span className="font-medium text-slate-700 block mt-0.5 text-[11px] bg-slate-50 p-2 rounded border border-slate-100 select-all">
+                        {((detailedOrder?.customData as any)?.deliveredTo || (order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address)}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <span className="text-slate-400">Order Date:</span>{" "}
                     <span className="font-semibold text-slate-800">
@@ -304,6 +312,14 @@ export function OrderDetailsDrawer({
                       {formatDateDisplay(order.pickupDate)}
                     </span>
                   </div>
+                  {(order.roExpiryDate || (order.customData as any)?.roExpiryDate) && (
+                    <div className="col-span-2">
+                      <span className="text-slate-400">RO Expiry Date:</span>{" "}
+                      <span className="font-semibold text-amber-700">
+                        {formatDateDisplay(order.roExpiryDate || (order.customData as any)?.roExpiryDate)}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <span className="text-slate-400">Total Boxes:</span>{" "}
                     <span className="font-semibold text-slate-800">{order.boxCount ?? 1} boxes</span>

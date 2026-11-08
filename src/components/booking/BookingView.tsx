@@ -238,7 +238,9 @@ export function BookingView({
               ) : (
                 orders.map((order) => {
                   const isCopiedRo = copiedText === order.roPoNumber;
-                  const isCopiedWh = copiedText === (order.warehouseName || "");
+                  const deliveredTo = (order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address;
+                  const destToCopy = deliveredTo || order.warehouseName || "";
+                  const isCopiedDest = copiedText === destToCopy;
                   const isEditingPickup = editingPickupOrderId === order.id;
 
                   return (
@@ -383,13 +385,19 @@ export function BookingView({
                             <span className="line-clamp-2">{order.warehouseName || "Destination Pending"}</span>
                           </div>
 
-                          {order.warehouseName && (
+                          {deliveredTo && (
+                            <p className="text-[11px] text-slate-600 line-clamp-2 font-normal leading-tight" title={deliveredTo}>
+                              {deliveredTo}
+                            </p>
+                          )}
+
+                          {destToCopy && (
                             <button
                               type="button"
-                              onClick={() => handleCopy(order.warehouseName || "", "Warehouse Name")}
+                              onClick={() => handleCopy(destToCopy, deliveredTo ? "Destination Address" : "Warehouse Name")}
                               className="text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium cursor-pointer"
                             >
-                              {isCopiedWh ? (
+                              {isCopiedDest ? (
                                 <>
                                   <Check className="w-2.5 h-2.5 text-emerald-600" />
                                   <span className="text-emerald-700">Copied!</span>
@@ -397,7 +405,7 @@ export function BookingView({
                               ) : (
                                 <>
                                   <Copy className="w-2.5 h-2.5" />
-                                  <span>Copy Destination</span>
+                                  <span>{deliveredTo ? "Copy Address" : "Copy Destination"}</span>
                                 </>
                               )}
                             </button>

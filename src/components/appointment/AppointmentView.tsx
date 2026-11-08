@@ -515,6 +515,15 @@ export function AppointmentView({
                             <span className="line-clamp-2">{order.warehouseName || "Destination Pending"}</span>
                           </div>
 
+                          {((order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address) && (
+                            <p
+                              className="text-[10px] text-slate-600 line-clamp-2 leading-tight"
+                              title={(order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address}
+                            >
+                              {(order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address}
+                            </p>
+                          )}
+
                           {order.client?.name && (
                             <div className="text-[10px] text-slate-500 truncate">
                               Client: {order.client.name}

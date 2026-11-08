@@ -69,6 +69,8 @@ export interface AppointmentOrder {
   grnStatus: string | null;
   grnReport: string | null;
   orderDate: string | null;
+  roExpiryDate?: string | null;
+  customData?: any;
   createdAt: string;
   updatedAt: string;
   lastUpdatedBy?: string | null;
@@ -81,6 +83,7 @@ export interface AppointmentOrder {
     name: string;
     code: string;
     city: string | null;
+    address?: string | null;
   } | null;
   items?: Array<{
     id: string;
