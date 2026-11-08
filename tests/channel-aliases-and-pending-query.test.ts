@@ -42,11 +42,24 @@ describe("Channel Aliases and Normalization Suite", () => {
 });
 
 describe("UI Header Platform Selector Invariant", () => {
-  test("When selectedPlatform is 'ALL', only the 'ALL' platform evaluates to active", () => {
+  test("Excludes Zepto from supported sales platforms", () => {
     const platforms = [
       { code: "ALL" },
       { code: "SWIGGY" },
-      { code: "ZEPTO" },
+      { code: "BLINKIT_STO" },
+      { code: "FLIPKART_MINUTES" },
+      { code: "FLIPKART_FBF" },
+      { code: "FKSB_FLIPKART" },
+      { code: "AMAZON_VC" },
+      { code: "AMAZON_FBA" },
+    ];
+    assert.strictEqual(platforms.some((p) => p.code === "ZEPTO"), false, "Zepto must not be in platforms");
+  });
+
+  test("When selectedPlatform is 'ALL', all platform buttons evaluate to active (glow up)", () => {
+    const platforms = [
+      { code: "ALL" },
+      { code: "SWIGGY" },
       { code: "BLINKIT_STO" },
       { code: "FLIPKART_MINUTES" },
       { code: "FLIPKART_FBF" },
@@ -58,12 +71,8 @@ describe("UI Header Platform Selector Invariant", () => {
     const selectedPlatform = "ALL";
 
     platforms.forEach((p) => {
-      const isActive = selectedPlatform === p.code;
-      if (p.code === "ALL") {
-        assert.strictEqual(isActive, true, "Platform ALL must be active when ALL is selected");
-      } else {
-        assert.strictEqual(isActive, false, `Platform ${p.code} must not be active when ALL is selected`);
-      }
+      const isActive = selectedPlatform === "ALL" || selectedPlatform === p.code;
+      assert.strictEqual(isActive, true, `Platform ${p.code} must be active/glowing when ALL is selected`);
     });
   });
 
@@ -71,7 +80,6 @@ describe("UI Header Platform Selector Invariant", () => {
     const platforms = [
       { code: "ALL" },
       { code: "SWIGGY" },
-      { code: "ZEPTO" },
       { code: "BLINKIT_STO" },
       { code: "FLIPKART_MINUTES" },
     ];
@@ -79,7 +87,7 @@ describe("UI Header Platform Selector Invariant", () => {
     const selectedPlatform = "BLINKIT_STO";
 
     platforms.forEach((p) => {
-      const isActive = selectedPlatform === p.code;
+      const isActive = selectedPlatform === "ALL" || selectedPlatform === p.code;
       if (p.code === "BLINKIT_STO") {
         assert.strictEqual(isActive, true);
       } else {

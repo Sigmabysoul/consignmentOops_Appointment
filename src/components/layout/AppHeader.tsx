@@ -44,13 +44,6 @@ const PLATFORMS: PlatformDef[] = [
     ringClass: "ring-2 ring-orange-300/50",
   },
   {
-    code: "ZEPTO",
-    name: "Zepto",
-    activeClass: "bg-gradient-to-r from-purple-600 to-violet-700 text-white border-white/40 shadow-md",
-    dotColor: "bg-purple-300",
-    ringClass: "ring-2 ring-purple-300/50",
-  },
-  {
     code: "BLINKIT_STO",
     name: "Blinkit STO",
     activeClass: "bg-gradient-to-r from-yellow-400 to-amber-500 text-white border-white/40 shadow-md",
@@ -367,7 +360,8 @@ export function AppHeader({
         <div className="flex items-center justify-between py-1.5">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
             {PLATFORMS.map((platform) => {
-              const isActive = selectedPlatform === platform.code;
+              // When "ALL" is selected, all platform buttons glow up matching consignment app behavior
+              const isActive = selectedPlatform === "ALL" || selectedPlatform === platform.code;
               const count =
                 platform.code === "ALL"
                   ? totalOrdersCount
