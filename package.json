@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start -p 3001",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/appointment-plan-v2.test.ts",
+    "test": "tsx tests/appointment-plan-v2.test.ts && tsx tests/channel-aliases-and-pending-query.test.ts",
     "test:integration": "tsx tests/appointment-core.test.ts",
     "prisma:generate": "prisma generate",
     "db:start": "pg_ctl -D ~/.local/share/postgres-data -l ~/.local/share/postgres-data/server.log start",

@@ -226,11 +226,69 @@ export default function AppointmentDashboard() {
     }
   }, [currentUser, fetchOrders, fetchStats]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     fetchOrders();
     fetchStats();
-  };
+  }, [fetchOrders, fetchStats]);
+
+  // Live cross-tab & cross-app real-time synchronization
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // 1. Window focus / visibility listener
+    const onWindowFocus = () => {
+      fetchOrders();
+      fetchStats();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+        fetchStats();
+      }
+    };
+    window.addEventListener("focus", onWindowFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    // 2. BroadcastChannel cross-window sync
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== "undefined") {
+        bc = new BroadcastChannel("consignment_orders_sync");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "order_created" || event.data?.type === "order_updated") {
+            fetchOrders();
+            fetchStats();
+          }
+        };
+      }
+    } catch {}
+
+    // 3. Storage event fallback
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "consignment_orders_sync_trigger") {
+        fetchOrders();
+        fetchStats();
+      }
+    };
+    window.addEventListener("storage", onStorage);
+
+    // 4. Lightweight background sync (every 12s when tab active)
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchOrders();
+        fetchStats();
+      }
+    }, 12000);
+
+    return () => {
+      window.removeEventListener("focus", onWindowFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("storage", onStorage);
+      clearInterval(interval);
+      if (bc) bc.close();
+    };
+  }, [currentUser, fetchOrders, fetchStats]);
 
   const handleSortChange = (field: string) => {
     if (sortBy === field) {

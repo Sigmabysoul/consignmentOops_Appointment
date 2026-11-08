@@ -590,7 +590,7 @@ export function AppointmentView({
 
                             {/* Direct link to Main Consignment App */}
                             <a
-                              href={`http://localhost:3000?search=${encodeURIComponent(order.roPoNumber)}`}
+                              href={`http://consignmentops.averretail.com?search=${encodeURIComponent(order.roPoNumber)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Open in Main Consignment Operations App"

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { normalizeChannelCode } from "@/lib/channel-aliases";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
         where: baseWhere,
       }),
 
-      // Tracking missing (not cancelled, not draft, not delivered, missing trackingId)
+      // Tracking missing (not cancelled, not delivered, missing trackingId)
       db.consignmentOrder.count({
         where: {
           ...baseWhere,
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
           AND: [
             {
               status: {
-                notIn: ["Draft", "DRAFT", "Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
+                notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
               },
             },
           ],
@@ -128,19 +129,26 @@ export async function GET(req: NextRequest) {
       db.consignmentOrder.count({
         where: {
           ...baseWhere,
-          OR: [
-            { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
-            { courierStatus: null },
-            { status: { in: ["Pending", "pending", "Scheduled", "InProgress", "In Progress", "New"] } },
-          ],
           AND: [
             {
-              NOT: {
-                OR: [
-                  { courierStatus: { in: ["Delivered", "delivered", "In Transit", "in transit"] } },
-                  { status: { in: ["Delivered", "delivered", "In Transit", "Cancelled"] } },
-                ],
+              OR: [
+                { courierStatus: null },
+                { courierStatus: "" },
+                { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
+                { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "Scheduled", "InProgress", "In Progress", "New", "new"] } },
+              ],
+            },
+            {
+              status: {
+                notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"],
               },
+            },
+            {
+              OR: [
+                { courierStatus: null },
+                { courierStatus: "" },
+                { courierStatus: { notIn: ["Delivered", "delivered", "DELIVERED", "In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "Cancelled", "cancelled"] } },
+              ],
             },
           ],
         },
@@ -175,7 +183,11 @@ export async function GET(req: NextRequest) {
     const channelCounts: Record<string, number> = {};
     for (const g of (channelGroups as Array<{ channel: string; _count: { id: number } }>)) {
       if (g.channel) {
-        channelCounts[g.channel.toUpperCase()] = g._count.id;
+        const canonical = normalizeChannelCode(g.channel);
+        if (canonical) {
+          channelCounts[canonical] = (channelCounts[canonical] || 0) + g._count.id;
+        }
+        channelCounts[g.channel.toUpperCase()] = (channelCounts[g.channel.toUpperCase()] || 0) + g._count.id;
       }
     }
 

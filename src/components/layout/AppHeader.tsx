@@ -360,7 +360,8 @@ export function AppHeader({
         <div className="flex items-center justify-between py-1.5">
           <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
             {PLATFORMS.map((platform) => {
-              const isActive = selectedPlatform === platform.code;
+              const isAllSelected = selectedPlatform === "ALL";
+              const isActive = isAllSelected || selectedPlatform === platform.code;
               const count =
                 platform.code === "ALL"
                   ? totalOrdersCount

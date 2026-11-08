@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
+import { getChannelAliases } from "@/lib/channel-aliases";
 
 export const dynamic = "force-dynamic";
 
@@ -49,25 +50,34 @@ export async function GET(req: NextRequest) {
       });
     } else if (tab === "pending") {
       whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push({
-        OR: [
-          { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
-          { courierStatus: null },
-          { status: { in: ["Pending", "pending", "Scheduled", "InProgress", "In Progress", "New"] } },
-        ],
-        NOT: {
+      whereConditions.AND.push(
+        {
           OR: [
-            { courierStatus: { in: ["Delivered", "delivered", "In Transit", "in transit"] } },
-            { status: { in: ["Delivered", "delivered", "In Transit", "Cancelled"] } },
+            { courierStatus: null },
+            { courierStatus: "" },
+            { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
+            { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "Scheduled", "InProgress", "In Progress", "New", "new"] } },
           ],
         },
-      });
+        {
+          status: {
+            notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"],
+          },
+        },
+        {
+          OR: [
+            { courierStatus: null },
+            { courierStatus: "" },
+            { courierStatus: { notIn: ["Delivered", "delivered", "DELIVERED", "In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "Cancelled", "cancelled"] } },
+          ],
+        }
+      );
     } else if (tab === "tracking_missing" || tab === "missing_tracking") {
       whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push({
         OR: [{ trackingId: null }, { trackingId: "" }],
         status: {
-          notIn: ["Draft", "DRAFT", "Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
+          notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
         },
       });
     } else if (tab === "in_transit") {
@@ -124,9 +134,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Channel filter
+    // Channel filter (with multi-alias and legacy platform support)
     if (channel && channel !== "ALL") {
-      whereConditions.channel = { equals: channel, mode: "insensitive" };
+      const aliases = getChannelAliases(channel);
+      whereConditions.channel = { in: aliases, mode: "insensitive" };
     }
 
     // Courier filter
@@ -141,7 +152,19 @@ export async function GET(req: NextRequest) {
 
     // Specific Status filter
     if (statusFilter && statusFilter !== "ALL") {
-      whereConditions.courierStatus = { equals: statusFilter, mode: "insensitive" };
+      if (statusFilter.toLowerCase() === "pending") {
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({
+          OR: [
+            { courierStatus: null },
+            { courierStatus: "" },
+            { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
+            { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "New", "new"] } },
+          ],
+        });
+      } else {
+        whereConditions.courierStatus = { equals: statusFilter, mode: "insensitive" };
+      }
     }
 
     // Delivery Status filter
