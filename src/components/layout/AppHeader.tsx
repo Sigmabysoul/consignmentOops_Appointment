@@ -166,7 +166,7 @@ export function AppHeader({
               </div>
               <div className="hidden sm:block">
                 <div className="text-white font-black text-sm tracking-tight leading-none">
-                  Consignment
+                  The Logistics WorkHub
                 </div>
                 <div className="text-white/70 text-[10px] font-medium tracking-wider">
                   APPOINTMENT & DISPATCH DESK
@@ -332,7 +332,7 @@ export function AppHeader({
 
                   <div className="px-2 py-1">
                     <div className="px-2.5 py-1.5 text-[11px] text-slate-500 font-medium flex items-center justify-between">
-                      <span>Appointment Desk Mode</span>
+                      <span>Logistics WorkHub Mode</span>
                       <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
                         Active
                       </span>

@@ -17,6 +17,8 @@ echo "📡 [Appointment] Connecting to Shared Consignment Database: $MASKED_URL"
 if [ -f "./prisma/schema.prisma" ]; then
   echo "🔧 [Appointment] Verifying Prisma Client..."
   npx prisma generate --schema=./prisma/schema.prisma || true
+  echo "📦 [Appointment] Synchronizing Database Schema..."
+  npx prisma db push --skip-generate || true
 fi
 
 echo "✅ [Appointment] Initialization complete. Launching server on port ${PORT:-3001}..."

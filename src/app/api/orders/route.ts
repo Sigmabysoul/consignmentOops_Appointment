@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { getChannelAliases } from "@/lib/channel-aliases";
+import { getAppointmentNotesMap } from "@/lib/appointment-notes";
 
 export const dynamic = "force-dynamic";
 
@@ -385,13 +386,9 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    // Fetch personal internal notes isolated to Appointment application
+    // Fetch personal internal notes isolated to Appointment application (safe self-healing)
     const orderIds = orders.map((o) => o.id);
-    const personalNotes =
-      orderIds.length > 0
-        ? await db.appointmentNote.findMany({ where: { orderId: { in: orderIds } } })
-        : [];
-    const notesMap = new Map(personalNotes.map((n) => [n.orderId, n]));
+    const notesMap = await getAppointmentNotesMap(orderIds);
 
     // Enrich orders with boxDimensionGroups, audit info, and isolated personal notes
     const enrichedOrders = orders.map((order) => {

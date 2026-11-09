@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { db } from "@/lib/db";
+import {
+  getSingleAppointmentNote,
+  saveSingleAppointmentNote,
+  deleteSingleAppointmentNote,
+} from "@/lib/appointment-notes";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +23,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    const note = await db.appointmentNote.findUnique({
-      where: { orderId: id },
-    });
+    const note = await getSingleAppointmentNote(id);
 
     return NextResponse.json({
       orderId: id,
@@ -56,7 +58,7 @@ export async function POST(
     const noteContent = body.note !== undefined ? String(body.note).trim() : "";
 
     if (!noteContent) {
-      await db.appointmentNote.deleteMany({ where: { orderId: id } });
+      await deleteSingleAppointmentNote(id);
       return NextResponse.json({
         success: true,
         orderId: id,
@@ -65,26 +67,18 @@ export async function POST(
       });
     }
 
-    const saved = await db.appointmentNote.upsert({
-      where: { orderId: id },
-      create: {
-        orderId: id,
-        note: noteContent,
-        updatedBy: user.name || user.username,
-      },
-      update: {
-        note: noteContent,
-        updatedBy: user.name || user.username,
-        updatedAt: new Date(),
-      },
-    });
+    const saved = await saveSingleAppointmentNote(
+      id,
+      noteContent,
+      user.name || user.username
+    );
 
     return NextResponse.json({
       success: true,
       orderId: id,
-      note: saved.note,
-      updatedAt: saved.updatedAt,
-      updatedBy: saved.updatedBy,
+      note: saved?.note || noteContent,
+      updatedAt: saved?.updatedAt || new Date(),
+      updatedBy: saved?.updatedBy || (user.name || user.username),
       message: "Personal note saved successfully",
     });
   } catch (error: any) {
@@ -110,7 +104,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    await db.appointmentNote.deleteMany({ where: { orderId: id } });
+    await deleteSingleAppointmentNote(id);
 
     return NextResponse.json({ success: true, message: "Personal note removed" });
   } catch (error: any) {

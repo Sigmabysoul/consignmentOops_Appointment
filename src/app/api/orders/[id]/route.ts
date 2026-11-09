@@ -3,6 +3,11 @@ import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { parseDateInput } from "@/lib/date-utils";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
+import {
+  getSingleAppointmentNote,
+  saveSingleAppointmentNote,
+  deleteSingleAppointmentNote,
+} from "@/lib/appointment-notes";
 
 export const dynamic = "force-dynamic";
 
@@ -37,9 +42,7 @@ export async function GET(
           },
         },
       }),
-      db.appointmentNote.findUnique({
-        where: { orderId: id },
-      }),
+      getSingleAppointmentNote(id),
     ]);
 
     if (!order) {
@@ -428,29 +431,22 @@ export async function PATCH(
         });
       }
 
-      // Handle isolated personal notes
+      // Handle isolated personal notes (safely self-healing)
       let activePersonalNote: any = null;
       if (hasPersonalNoteUpdate) {
         const noteStr = body.personalNote ? String(body.personalNote).trim() : "";
         if (noteStr) {
-          activePersonalNote = await tx.appointmentNote.upsert({
-            where: { orderId: id },
-            create: {
-              orderId: id,
-              note: noteStr,
-              updatedBy: user.name || user.username,
-            },
-            update: {
-              note: noteStr,
-              updatedBy: user.name || user.username,
-              updatedAt: new Date(),
-            },
-          });
+          activePersonalNote = await saveSingleAppointmentNote(
+            id,
+            noteStr,
+            user.name || user.username,
+            tx
+          );
         } else {
-          await tx.appointmentNote.deleteMany({ where: { orderId: id } });
+          await deleteSingleAppointmentNote(id, tx);
         }
       } else {
-        activePersonalNote = await tx.appointmentNote.findUnique({ where: { orderId: id } });
+        activePersonalNote = await getSingleAppointmentNote(id, tx);
       }
 
       // Record OrderStatusHistory if status changed

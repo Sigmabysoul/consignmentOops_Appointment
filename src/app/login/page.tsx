@@ -48,9 +48,9 @@ export default function LoginPage() {
             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-3 border border-white/30 shadow-lg">
               <CalendarCheck className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-xl font-black tracking-tight">Appointment Management</h1>
+            <h1 className="text-xl font-black tracking-tight">The Logistics WorkHub</h1>
             <p className="text-white/70 text-xs font-medium mt-0.5 tracking-wider">
-              CONSIGNMENT LOGISTICS OPERATIONS
+              APPOINTMENT & DISPATCH DESK
             </p>
           </div>
 

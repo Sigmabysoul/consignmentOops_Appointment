@@ -68,7 +68,7 @@ describe("UI Header Platform Selector Invariant", () => {
       { code: "AMAZON_FBA" },
     ];
 
-    const selectedPlatform = "ALL";
+    const selectedPlatform: string = "ALL";
 
     platforms.forEach((p) => {
       const isActive = selectedPlatform === "ALL" || selectedPlatform === p.code;
@@ -84,7 +84,7 @@ describe("UI Header Platform Selector Invariant", () => {
       { code: "FLIPKART_MINUTES" },
     ];
 
-    const selectedPlatform = "BLINKIT_STO";
+    const selectedPlatform: string = "BLINKIT_STO";
 
     platforms.forEach((p) => {
       const isActive = selectedPlatform === "ALL" || selectedPlatform === p.code;

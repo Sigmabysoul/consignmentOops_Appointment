@@ -201,6 +201,9 @@ export default function AppointmentDashboard() {
       })
       .catch((err) => {
         console.error("Order fetch error:", err);
+        if (!isBackground) {
+          showToast(err.message || "Failed to load orders", "error");
+        }
       })
       .finally(() => {
         setIsLoadingOrders(false);
@@ -331,7 +334,7 @@ export default function AppointmentDashboard() {
         <div className="flex flex-col items-center gap-3 text-white">
           <span className="w-6 h-6 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
           <span className="text-xs font-semibold text-slate-300">
-            Initializing Appointment Management Desk...
+            Initializing The Logistics WorkHub...
           </span>
         </div>
       </div>

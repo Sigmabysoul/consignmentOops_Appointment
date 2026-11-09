@@ -3,8 +3,8 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
-  title: "Appointment Management | ConsignmentOps Ecosystem",
-  description: "Dedicated Appointment and Logistics Tracking Application",
+  title: "The Logistics WorkHub | Appointment & Dispatch Desk",
+  description: "Dedicated Logistics WorkHub and Appointment Tracking Application",
 };
 
 export default function RootLayout({
