@@ -14,7 +14,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - AUTH_SECRET=${AUTH_SECRET}
       - JWT_SECRET=${AUTH_SECRET}
-      - APP_URL=${APP_URL:-https://appointment.averretail.com}
+      - APP_URL=${APP_URL:-https://appo.averretail.com}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:4000/api/health"]
       interval: 30s
