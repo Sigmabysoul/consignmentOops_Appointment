@@ -267,7 +267,7 @@ export function AppHeader({
           <div className="flex items-center gap-2">
             {/* Quick jump to Main Consignment Operations App */}
             <a
-              href="http://localhost:3000"
+              href="https://consignmentops.averretail.com/"
               target="_blank"
               rel="noopener noreferrer"
               className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/25 bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition shadow-xs"

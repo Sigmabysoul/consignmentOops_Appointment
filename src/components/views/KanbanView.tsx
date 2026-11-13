@@ -379,7 +379,7 @@ export function KanbanView({
                         <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
                           {/* Main App Link */}
                           <a
-                            href={`http://localhost:3000?search=${encodeURIComponent(order.roPoNumber)}`}
+                            href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-[10px] text-slate-400 hover:text-indigo-600 flex items-center gap-1"

@@ -211,7 +211,7 @@ export function OrderDetailsDrawer({
 
           <div className="flex items-center gap-2">
             <a
-              href={`http://localhost:3000?search=${encodeURIComponent(order.roPoNumber)}`}
+              href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition border border-white/20"

@@ -471,7 +471,7 @@ export function BookingView({
 
                           {/* Direct link to open in Main Consignment App */}
                           <a
-                            href={`http://localhost:3000?search=${encodeURIComponent(order.roPoNumber)}`}
+                            href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Open this consignment in the Main Consignment App"
