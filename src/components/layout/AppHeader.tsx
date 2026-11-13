@@ -16,6 +16,7 @@ import {
   Calendar,
   Layers,
   Hash,
+  Sliders,
 } from "lucide-react";
 import { SessionUser, ActiveView } from "@/lib/types";
 import { useRouter } from "next/navigation";
@@ -97,6 +98,7 @@ interface AppHeaderProps {
   totalOrdersCount?: number;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  onOpenPresets?: () => void;
 }
 
 export function AppHeader({
@@ -109,6 +111,7 @@ export function AppHeader({
   totalOrdersCount = 0,
   onRefresh,
   isRefreshing,
+  onOpenPresets,
 }: AppHeaderProps) {
   const router = useRouter();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -265,6 +268,18 @@ export function AppHeader({
 
           {/* RIGHT: Actions & User Dropdown */}
           <div className="flex items-center gap-2">
+            {/* Rate Presets Button */}
+            {onOpenPresets && (
+              <button
+                onClick={onOpenPresets}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/25 bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                title="Configure OM Logistics rate cards, fuel surcharge, ODA matrix, and courier presets"
+              >
+                <Sliders className="w-3.5 h-3.5 opacity-90" />
+                <span className="hidden sm:inline">Rate Presets</span>
+              </button>
+            )}
+
             {/* Quick jump to Main Consignment Operations App */}
             <a
               href="https://consignmentops.averretail.com/"
@@ -337,6 +352,19 @@ export function AppHeader({
                         Active
                       </span>
                     </div>
+
+                    {onOpenPresets && (
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          onOpenPresets();
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 mt-1 rounded-lg text-xs font-semibold text-slate-700 hover:bg-violet-50 hover:text-violet-900 transition cursor-pointer text-left"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-violet-600" />
+                        <span>Shipping Rate Presets</span>
+                      </button>
+                    )}
                   </div>
 
                   <div className="pt-1 border-t border-slate-100 px-2">

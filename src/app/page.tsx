@@ -11,6 +11,7 @@ import { KanbanView } from "@/components/views/KanbanView";
 import { TimelineView } from "@/components/views/TimelineView";
 import { OrderDetailsDrawer } from "@/components/drawer/OrderDetailsDrawer";
 import { FilterToolbar } from "@/components/toolbar/FilterToolbar";
+import { ShippingPresetsModal } from "@/components/presets/ShippingPresetsModal";
 import { useToast } from "@/components/ui/Toast";
 import { Lock, X } from "lucide-react";
 import {
@@ -59,6 +60,9 @@ export default function AppointmentDashboard() {
 
   // Selected Order for Drawer
   const [selectedDrawerOrder, setSelectedDrawerOrder] = useState<AppointmentOrder | null>(null);
+
+  // Shipping Rate Presets Modal State
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
 
   // Private Personal Note Quick Editor Modal State
   const [activeNoteModal, setActiveNoteModal] = useState<{
@@ -359,6 +363,7 @@ export default function AppointmentDashboard() {
         totalOrdersCount={stats?.totalOrders || totalOrders}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
+        onOpenPresets={() => setIsPresetsModalOpen(true)}
       />
 
       {/* ── Main Workspace ── */}
@@ -514,6 +519,7 @@ export default function AppointmentDashboard() {
               onPageChange={setPage}
               onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
               onOrderUpdated={handleRefresh}
+              onOpenPresets={() => setIsPresetsModalOpen(true)}
               onQuickNoteClick={(order) =>
                 setActiveNoteModal({
                   order,
@@ -543,6 +549,7 @@ export default function AppointmentDashboard() {
               onPageChange={setPage}
               onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
               onOrderUpdated={handleRefresh}
+              onOpenPresets={() => setIsPresetsModalOpen(true)}
               onQuickNoteClick={(order) =>
                 setActiveNoteModal({
                   order,
@@ -784,6 +791,12 @@ export default function AppointmentDashboard() {
           </div>
         </div>
       )}
+      {/* ── Shipping Rate Presets Modal ── */}
+      <ShippingPresetsModal
+        isOpen={isPresetsModalOpen}
+        onClose={() => setIsPresetsModalOpen(false)}
+        onPresetsUpdated={handleRefresh}
+      />
     </div>
   );
 }

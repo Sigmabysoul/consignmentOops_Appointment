@@ -28,7 +28,11 @@ import {
   Square,
   ArrowRight,
   Lock,
+  Sliders,
+  DollarSign,
+  Calculator,
 } from "lucide-react";
+import { BookingDetailModal } from "@/components/booking/BookingDetailModal";
 
 interface BookingViewProps {
   orders: AppointmentOrder[];
@@ -44,6 +48,7 @@ interface BookingViewProps {
   onOrderUpdated: () => void;
   onQuickNoteClick?: (order: AppointmentOrder) => void;
   onSwitchToAppointment?: (order?: AppointmentOrder) => void;
+  onOpenPresets?: () => void;
 }
 
 export function BookingView({
@@ -60,6 +65,7 @@ export function BookingView({
   onOrderUpdated,
   onQuickNoteClick,
   onSwitchToAppointment,
+  onOpenPresets,
 }: BookingViewProps) {
   const { showToast } = useToast();
 
@@ -67,6 +73,7 @@ export function BookingView({
   const [editingPickupOrderId, setEditingPickupOrderId] = useState<string | null>(null);
   const [pickupDateVal, setPickupDateVal] = useState<string>("");
   const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedBookingDetailOrder, setSelectedBookingDetailOrder] = useState<AppointmentOrder | null>(null);
 
   // Quick Copy Helper
   const handleCopy = async (text: string, label: string) => {
@@ -193,6 +200,17 @@ export function BookingView({
         </div>
 
         <div className="flex items-center gap-2 self-end md:self-auto text-xs font-semibold text-violet-200">
+          {onOpenPresets && (
+            <button
+              type="button"
+              onClick={onOpenPresets}
+              className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-xl border border-white/20 flex items-center gap-1.5 transition cursor-pointer font-bold shadow-2xs"
+              title="Configure OM Logistics rate card, fuel %, ODA matrix, and carrier presets"
+            >
+              <Sliders className="w-3.5 h-3.5 text-violet-200" />
+              <span>Rate Presets</span>
+            </button>
+          )}
           <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/15">
             Showing <span className="font-extrabold text-white">{orders.length}</span> orders ready for booking
           </div>
@@ -246,18 +264,31 @@ export function BookingView({
                   return (
                     <tr
                       key={order.id}
-                      className="hover:bg-slate-50/80 transition-colors group text-slate-800"
+                      onClick={() => setSelectedBookingDetailOrder(order)}
+                      className="hover:bg-violet-50/40 transition-colors group text-slate-800 cursor-pointer"
+                      title="Click anywhere on row to view order details & compare carrier rates"
                     >
                       {/* Column 1: RO / PO & Platform */}
                       <td className="py-3 px-3.5 align-top">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="font-mono font-extrabold text-slate-900 text-xs">
-                              {order.roPoNumber}
-                            </span>
                             <button
                               type="button"
-                              onClick={() => handleCopy(order.roPoNumber, "RO/PO Number")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBookingDetailOrder(order);
+                              }}
+                              className="font-mono font-extrabold text-violet-700 hover:text-violet-900 hover:underline text-xs text-left cursor-pointer"
+                              title="Click to view details & compare rates"
+                            >
+                              {order.roPoNumber}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopy(order.roPoNumber, "RO/PO Number");
+                              }}
                               title="Copy RO/PO Number"
                               className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
                             >
@@ -282,7 +313,10 @@ export function BookingView({
                           {order.personalNote && (
                             <button
                               type="button"
-                              onClick={() => onQuickNoteClick?.(order)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onQuickNoteClick?.(order);
+                              }}
                               className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded flex items-center gap-1 max-w-[140px] truncate cursor-pointer hover:bg-amber-100"
                             >
                               <Lock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
@@ -293,12 +327,15 @@ export function BookingView({
                       </td>
 
                       {/* Column 2: Pickup Data (PRIORITY 1) */}
-                      <td className="py-3 px-3.5 align-top bg-violet-50/30 border-l border-r border-violet-100">
+                      <td className="py-3 px-3.5 align-top bg-violet-50/30 border-l border-r border-violet-100" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-2 max-w-[200px]">
                           {/* Pickup Done Toggle */}
                           <button
                             type="button"
-                            onClick={() => handleTogglePickupDone(order)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTogglePickupDone(order);
+                            }}
                             className={`w-full py-1 px-2 rounded-lg text-xs font-bold flex items-center justify-between border transition cursor-pointer ${
                               order.pickupDone
                                 ? "bg-emerald-100 border-emerald-300 text-emerald-900 hover:bg-emerald-200"
@@ -333,14 +370,20 @@ export function BookingView({
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => handleSavePickupDate(order.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSavePickupDate(order.id);
+                                  }}
                                   className="p-1 rounded bg-violet-600 text-white hover:bg-violet-700 cursor-pointer text-[10px]"
                                 >
                                   Save
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => setEditingPickupOrderId(null)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPickupOrderId(null);
+                                  }}
                                   className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer text-[10px]"
                                 >
                                   ✕
@@ -353,7 +396,8 @@ export function BookingView({
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     setEditingPickupOrderId(order.id);
                                     setPickupDateVal(formatDateInputValue(order.pickupDate));
                                   }}
@@ -369,7 +413,7 @@ export function BookingView({
                       </td>
 
                       {/* Column 3: Box Dimensions (UNIQUE DISPLAY & 1-CLICK COPY WIZARD) */}
-                      <td className="py-3 px-3.5 align-top bg-slate-50/40">
+                      <td className="py-3 px-3.5 align-top bg-slate-50/40" onClick={(e) => e.stopPropagation()}>
                         <BoxDimensionCopyHelper
                           groups={order.boxDimensionGroups || []}
                           compact={true}
@@ -394,7 +438,10 @@ export function BookingView({
                           {destToCopy && (
                             <button
                               type="button"
-                              onClick={() => handleCopy(destToCopy, deliveredTo ? "Destination Address" : "Warehouse Name")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopy(destToCopy, deliveredTo ? "Destination Address" : "Warehouse Name");
+                              }}
                               className="text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-1 font-medium cursor-pointer"
                             >
                               {isCopiedDest ? (
@@ -420,7 +467,7 @@ export function BookingView({
                       </td>
 
                       {/* Column 5: Courier Partner */}
-                      <td className="py-3 px-3.5 align-top">
+                      <td className="py-3 px-3.5 align-top" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-1.5">
                           <select
                             value={order.courierPartner || ""}
@@ -442,8 +489,19 @@ export function BookingView({
                       </td>
 
                       {/* Column 6: Booking Actions */}
-                      <td className="py-3 px-3.5 align-top text-right">
+                      <td className="py-3 px-3.5 align-top text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-col items-end gap-1.5">
+                          {/* Compare Rates & Cost Estimator Button */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBookingDetailOrder(order)}
+                            className="px-2.5 py-1.5 text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200/80 rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                            title="Compare shipping rates between OM Logistics & partner carriers"
+                          >
+                            <Calculator className="w-3.5 h-3.5 text-violet-600" />
+                            <span>Compare Rates</span>
+                          </button>
+
                           {/* Next Step Button: Move to Appointment / Enter CN */}
                           <button
                             type="button"
@@ -519,6 +577,23 @@ export function BookingView({
           </div>
         )}
       </div>
+
+      {/* ── Order Detail & Multi-Carrier Price Comparison Window ── */}
+      <BookingDetailModal
+        order={selectedBookingDetailOrder}
+        isOpen={Boolean(selectedBookingDetailOrder)}
+        onClose={() => setSelectedBookingDetailOrder(null)}
+        courierPresets={courierPresets}
+        onOrderUpdated={() => {
+          onOrderUpdated();
+          setSelectedBookingDetailOrder(null);
+        }}
+        onOpenPresets={onOpenPresets}
+        onSwitchToAppointment={(ord) => {
+          setSelectedBookingDetailOrder(null);
+          onSwitchToAppointment?.(ord);
+        }}
+      />
     </div>
   );
 }

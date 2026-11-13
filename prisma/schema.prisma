@@ -222,6 +222,24 @@ model Department {
   updatedAt   DateTime @updatedAt
 }
 
+model CorporateRoutine {
+  id            String   @id @default(uuid())
+  department    String
+  stage         String
+  name          String
+  targetMinutes Int      @default(120)
+  cutoffTime    String?
+  shiftStart    String?  @default("09:00")
+  shiftEnd      String?  @default("18:00")
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([department])
+  @@index([stage])
+}
+
 model BoxPreset {
   id            String   @id @default(uuid())
   channel       String
@@ -544,6 +562,7 @@ enum Role {
   MANAGER
   STAFF
   TL
+  BOX_PACKER
 }
 
 model AppointmentNote {

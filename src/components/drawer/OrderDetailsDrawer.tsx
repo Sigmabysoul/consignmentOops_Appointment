@@ -14,7 +14,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Lock,
+  Calculator,
 } from "lucide-react";
+import { BookingDetailModal } from "@/components/booking/BookingDetailModal";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
@@ -46,6 +48,7 @@ export function OrderDetailsDrawer({
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
   // Form Fields
   const [trackingId, setTrackingId] = useState("");
@@ -359,9 +362,21 @@ export function OrderDetailsDrawer({
 
               {/* SECTION 2: Courier & Tracking Information (Editable) */}
               <div className="space-y-3">
-                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <Truck className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Carrier & Tracking Information</span>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-violet-600" />
+                    <span>Carrier & Tracking Information</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsPricingModalOpen(true)}
+                    className="px-2.5 py-1 text-[11px] font-bold bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    title="Compare shipping rates between OM Logistics & partners"
+                  >
+                    <Calculator className="w-3.5 h-3.5 text-violet-600" />
+                    <span>Compare Shipping Rates</span>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -709,6 +724,27 @@ export function OrderDetailsDrawer({
           onCancel={() => setIsConfirmOpen(false)}
         />
       )}
+
+      {/* ── Order Detail & Multi-Carrier Price Comparison Window ── */}
+      <BookingDetailModal
+        order={detailedOrder || order}
+        isOpen={isPricingModalOpen}
+        onClose={() => setIsPricingModalOpen(false)}
+        courierPresets={courierPresets}
+        onOrderUpdated={() => {
+          onOrderUpdated();
+          if (order?.id) {
+            fetch(`/api/orders/${order.id}`)
+              .then((r) => r.json())
+              .then((d) => {
+                if (d.order?.courierPartner) {
+                  setCourierPartner(d.order.courierPartner);
+                }
+              })
+              .catch(() => {});
+          }
+        }}
+      />
     </div>
   );
 }

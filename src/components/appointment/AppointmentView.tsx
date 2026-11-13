@@ -40,6 +40,7 @@ interface AppointmentViewProps {
   onOpenOrderDrawer: (order: AppointmentOrder) => void;
   onOrderUpdated: () => void;
   onQuickNoteClick?: (order: AppointmentOrder) => void;
+  onOpenPresets?: () => void;
 }
 
 export function AppointmentView({
@@ -55,6 +56,7 @@ export function AppointmentView({
   onOpenOrderDrawer,
   onOrderUpdated,
   onQuickNoteClick,
+  onOpenPresets,
 }: AppointmentViewProps) {
   const { showToast } = useToast();
 
