@@ -50,16 +50,19 @@ async function main() {
 
   console.log("👤 Created users: admin, iqbal, dispatch");
 
-  // 3. Couriers Presets
+  // 3. Couriers Presets (Strictly the 4 active couriers)
   const couriers = [
-    { name: "Delhivery One", urlName: "delhivery-courier", trackingUrlPattern: "https://trackcourier.io/track-and-trace/delhivery-courier/{trackingId}", sortOrder: 1 },
-    { name: "Blue Dart", urlName: "blue-dart-tracking", trackingUrlPattern: "https://trackcourier.io/track-and-trace/blue-dart-tracking/{trackingId}", sortOrder: 2 },
-    { name: "OM Logistics", urlName: "om-logistics", trackingUrlPattern: "https://trackcourier.io/track-and-trace/om-logistics/{trackingId}", sortOrder: 3 },
-    { name: "Smartr Logistics", urlName: "smartr-logistics", trackingUrlPattern: "https://trackcourier.io/track-and-trace/smartr-logistics/{trackingId}", sortOrder: 4 },
-    { name: "Kerry Indev", urlName: "kerry-indev", trackingUrlPattern: "https://trackcourier.io/track-and-trace/kerry-indev/{trackingId}", sortOrder: 5 },
-    { name: "V-Trans", urlName: "v-trans", trackingUrlPattern: "https://trackcourier.io/track-and-trace/v-trans/{trackingId}", sortOrder: 6 },
-    { name: "Gati-KWE", urlName: "gati", trackingUrlPattern: "https://trackcourier.io/track-and-trace/gati/{trackingId}", sortOrder: 7 },
+    { name: "OM Logistics", urlName: "om-logistics", trackingUrlPattern: "https://trackcourier.io/track-and-trace/om-logistics/{trackingId}", sortOrder: 1 },
+    { name: "Delhivery One", urlName: "delhivery-courier", trackingUrlPattern: "https://trackcourier.io/track-and-trace/delhivery-courier/{trackingId}", sortOrder: 2 },
+    { name: "Ekart", urlName: "ekart-logistics", trackingUrlPattern: "https://trackcourier.io/track-and-trace/ekart-logistics/{trackingId}", sortOrder: 3 },
+    { name: "Amazon ATS", urlName: "amazon-ats", trackingUrlPattern: "https://trackcourier.io/track-and-trace/amazon-ats/{trackingId}", sortOrder: 4 },
   ];
+
+  // Deactivate any dummy couriers not in the approved list
+  const approvedNames = couriers.map((c) => c.name);
+  await prisma.courierPreset.deleteMany({
+    where: { name: { notIn: approvedNames } },
+  });
 
   for (const cr of couriers) {
     const existing = await prisma.courierPreset.findFirst({ where: { name: cr.name } });
@@ -73,9 +76,19 @@ async function main() {
           isActive: true,
         },
       });
+    } else {
+      await prisma.courierPreset.update({
+        where: { id: existing.id },
+        data: {
+          urlName: cr.urlName,
+          trackingUrlPattern: cr.trackingUrlPattern,
+          sortOrder: cr.sortOrder,
+          isActive: true,
+        },
+      });
     }
   }
-  console.log("🚚 Seeded courier presets");
+  console.log("🚚 Seeded approved courier presets: OM Logistics, Delhivery One, Ekart, Amazon ATS");
 
   // 4. Sample Consignment Orders with Box Dimensions & Pickup Data
   const existingOrders = await prisma.consignmentOrder.count();

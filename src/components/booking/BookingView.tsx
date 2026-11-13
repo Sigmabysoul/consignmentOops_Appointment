@@ -33,6 +33,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { BookingDetailModal } from "@/components/booking/BookingDetailModal";
+import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
 
 interface BookingViewProps {
   orders: AppointmentOrder[];
@@ -84,33 +85,6 @@ export function BookingView({
       setTimeout(() => setCopiedText(null), 1800);
     } catch {
       showToast("Failed to copy", "error");
-    }
-  };
-
-  // Toggle Pickup Done
-  const handleTogglePickupDone = async (order: AppointmentOrder) => {
-    setIsUpdating(true);
-    try {
-      const res = await fetch(`/api/orders/${order.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pickupDone: !order.pickupDone,
-          pickupDate: !order.pickupDone ? (order.pickupDate || new Date().toISOString()) : order.pickupDate,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update pickup status");
-
-      showToast(
-        !order.pickupDone ? "Marked as Picked Up ✓" : "Pickup unchecked",
-        "success"
-      );
-      onOrderUpdated();
-    } catch (err: any) {
-      showToast(err.message || "Failed to update", "error");
-    } finally {
-      setIsUpdating(false);
     }
   };
 
@@ -178,71 +152,32 @@ export function BookingView({
 
   return (
     <div className="space-y-4">
-      {/* ── Section Header Banner ── */}
-      <div className="bg-gradient-to-r from-violet-900/90 via-indigo-900/90 to-purple-900/90 text-white p-4 rounded-2xl border border-violet-700/50 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-violet-600/60 border border-violet-400/40 flex items-center justify-center shadow-inner">
-            <Truck className="w-5 h-5 text-violet-200" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-black tracking-tight text-white">
-                Part 1: Carrier Booking & Pickup Desk
-              </h2>
-              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-violet-500/40 border border-violet-400/30 text-violet-200">
-                Priority: Pickup Data & Dimensions
-              </span>
-            </div>
-            <p className="text-xs text-violet-200/80 font-medium mt-0.5">
-              Unique box dimensions breakdown with 1-click copy chips for fast carrier booking (Qty ➔ L ➔ B ➔ H ➔ Wt).
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-end md:self-auto text-xs font-semibold text-violet-200">
-          {onOpenPresets && (
-            <button
-              type="button"
-              onClick={onOpenPresets}
-              className="bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-xl border border-white/20 flex items-center gap-1.5 transition cursor-pointer font-bold shadow-2xs"
-              title="Configure OM Logistics rate card, fuel %, ODA matrix, and carrier presets"
-            >
-              <Sliders className="w-3.5 h-3.5 text-violet-200" />
-              <span>Rate Presets</span>
-            </button>
-          )}
-          <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/15">
-            Showing <span className="font-extrabold text-white">{orders.length}</span> orders ready for booking
-          </div>
-        </div>
-      </div>
-
       {/* ── Main Orders Booking Table ── */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 select-none">
-                <th className="py-3 px-3.5 whitespace-nowrap">RO / PO & Channel</th>
-                <th className="py-3 px-3.5 whitespace-nowrap bg-violet-50/70 text-violet-900 border-l border-r border-violet-200/60">
+              <tr className="bg-slate-100 text-slate-800 font-bold border-b-2 border-slate-300 select-none">
+                <th className="py-3 px-3.5 whitespace-nowrap border-r border-slate-300">RO / PO & Channel</th>
+                <th className="py-3 px-3.5 whitespace-nowrap bg-slate-50 text-slate-900 border-r border-slate-300">
                   <div className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-violet-600" />
                     <span>Pickup Data (Priority 1)</span>
                   </div>
                 </th>
-                <th className="py-3 px-3.5 whitespace-nowrap min-w-[340px] bg-slate-50/60">
+                <th className="py-3 px-3.5 whitespace-nowrap min-w-[340px] bg-slate-50 border-r border-slate-300">
                   <div className="flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-violet-600" />
                     <span>Box Dimensions (1-Click Copy Wizard)</span>
                   </div>
                 </th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Warehouse Destination</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Carrier Partner</th>
+                <th className="py-3 px-3.5 whitespace-nowrap border-r border-slate-300">Warehouse Destination</th>
+                <th className="py-3 px-3.5 whitespace-nowrap border-r border-slate-300">Carrier Partner</th>
                 <th className="py-3 px-3.5 whitespace-nowrap text-right">Booking Actions</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-300">
               {orders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center text-slate-400">
@@ -261,15 +196,20 @@ export function BookingView({
                   const isCopiedDest = copiedText === destToCopy;
                   const isEditingPickup = editingPickupOrderId === order.id;
 
+                  // Channel Default Courier Logic
+                  const isAmz = isAmazonChannel(order.channel);
+                  const isFk = isFlipkartFbfOrFksb(order.channel);
+                  const selectedCourierVal = order.courierPartner || (isAmz ? "Amazon ATS" : "");
+
                   return (
                     <tr
                       key={order.id}
                       onClick={() => setSelectedBookingDetailOrder(order)}
-                      className="hover:bg-violet-50/40 transition-colors group text-slate-800 cursor-pointer"
+                      className="hover:bg-slate-50 transition-colors group text-slate-800 cursor-pointer"
                       title="Click anywhere on row to view order details & compare carrier rates"
                     >
                       {/* Column 1: RO / PO & Platform */}
-                      <td className="py-3 px-3.5 align-top">
+                      <td className="py-3 px-3.5 align-top border-r border-slate-200">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <button
@@ -326,32 +266,25 @@ export function BookingView({
                         </div>
                       </td>
 
-                      {/* Column 2: Pickup Data (PRIORITY 1) */}
-                      <td className="py-3 px-3.5 align-top bg-violet-50/30 border-l border-r border-violet-100" onClick={(e) => e.stopPropagation()}>
+                      {/* Column 2: Pickup Data (PRIORITY 1 - Sourced from Consignment Sheet) */}
+                      <td className="py-3 px-3.5 align-top bg-slate-50/50 border-r border-slate-200" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-2 max-w-[200px]">
-                          {/* Pickup Done Toggle */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTogglePickupDone(order);
-                            }}
-                            className={`w-full py-1 px-2 rounded-lg text-xs font-bold flex items-center justify-between border transition cursor-pointer ${
+                          {/* Read-Only Pickup Status Badge */}
+                          <div
+                            className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border shadow-2xs ${
                               order.pickupDone
-                                ? "bg-emerald-100 border-emerald-300 text-emerald-900 hover:bg-emerald-200"
-                                : "bg-white border-amber-300 text-amber-900 hover:bg-amber-50 shadow-2xs"
+                                ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                                : "bg-amber-50 border-amber-300 text-amber-800"
                             }`}
+                            title="Pickup status is sourced directly from consignment sheet"
                           >
-                            <span className="flex items-center gap-1.5">
-                              {order.pickupDone ? (
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              ) : (
-                                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              )}
-                              <span>{order.pickupDone ? "Pickup Done" : "Pickup Pending"}</span>
-                            </span>
-                            <span className="text-[10px] font-normal underline opacity-80">Toggle</span>
-                          </button>
+                            {order.pickupDone ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            ) : (
+                              <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            )}
+                            <span>{order.pickupDone ? "Pickup Done" : "Pickup Pending"}</span>
+                          </div>
 
                           {/* Pickup Date Display / Inline Edit */}
                           <div className="space-y-1">
@@ -365,7 +298,7 @@ export function BookingView({
                                   type="date"
                                   value={pickupDateVal}
                                   onChange={(e) => setPickupDateVal(e.target.value)}
-                                  className="text-xs bg-white border border-violet-400 rounded px-1.5 py-0.5 text-slate-800"
+                                  className="text-xs bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 focus:outline-none focus:border-violet-500"
                                   autoFocus
                                 />
                                 <button
@@ -374,7 +307,7 @@ export function BookingView({
                                     e.stopPropagation();
                                     handleSavePickupDate(order.id);
                                   }}
-                                  className="p-1 rounded bg-violet-600 text-white hover:bg-violet-700 cursor-pointer text-[10px]"
+                                  className="p-1 rounded bg-violet-600 text-white hover:bg-violet-700 cursor-pointer text-[10px] font-bold"
                                 >
                                   Save
                                 </button>
@@ -413,7 +346,7 @@ export function BookingView({
                       </td>
 
                       {/* Column 3: Box Dimensions (UNIQUE DISPLAY & 1-CLICK COPY WIZARD) */}
-                      <td className="py-3 px-3.5 align-top bg-slate-50/40" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-3 px-3.5 align-top bg-slate-50/30 border-r border-slate-200" onClick={(e) => e.stopPropagation()}>
                         <BoxDimensionCopyHelper
                           groups={order.boxDimensionGroups || []}
                           compact={true}
@@ -422,7 +355,7 @@ export function BookingView({
                       </td>
 
                       {/* Column 4: Warehouse Destination */}
-                      <td className="py-3 px-3.5 align-top">
+                      <td className="py-3 px-3.5 align-top border-r border-slate-200">
                         <div className="space-y-1 max-w-[200px]">
                           <div className="font-semibold text-xs text-slate-800 flex items-start gap-1">
                             <Building className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
@@ -466,20 +399,23 @@ export function BookingView({
                         </div>
                       </td>
 
-                      {/* Column 5: Courier Partner */}
-                      <td className="py-3 px-3.5 align-top" onClick={(e) => e.stopPropagation()}>
+                      {/* Column 5: Carrier Partner */}
+                      <td className="py-3 px-3.5 align-top border-r border-slate-200" onClick={(e) => e.stopPropagation()}>
                         <div className="space-y-1.5">
                           <select
-                            value={order.courierPartner || ""}
+                            value={selectedCourierVal}
                             onChange={(e) => handleCourierChange(order.id, e.target.value)}
-                            className="text-xs bg-slate-50 hover:bg-white border border-slate-200 rounded-lg p-1.5 text-slate-800 font-semibold focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer w-full max-w-[150px]"
+                            className="text-xs bg-slate-50 hover:bg-white border border-slate-300 rounded-lg p-1.5 text-slate-800 font-semibold focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer w-full max-w-[155px]"
                           >
                             <option value="">Select Courier...</option>
-                            {courierPresets.map((cp) => (
-                              <option key={cp.id} value={cp.name}>
-                                {cp.name}
-                              </option>
-                            ))}
+                            {courierPresets.map((cp) => {
+                              const isRecommended = isFk && cp.name === "Ekart";
+                              return (
+                                <option key={cp.id} value={cp.name}>
+                                  {cp.name}{isRecommended ? " (Recommended)" : ""}
+                                </option>
+                              );
+                            })}
                           </select>
 
                           <div className="flex items-center gap-1">
@@ -491,17 +427,6 @@ export function BookingView({
                       {/* Column 6: Booking Actions */}
                       <td className="py-3 px-3.5 align-top text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex flex-col items-end gap-1.5">
-                          {/* Compare Rates & Cost Estimator Button */}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedBookingDetailOrder(order)}
-                            className="px-2.5 py-1.5 text-xs font-bold bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200/80 rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-                            title="Compare shipping rates between OM Logistics & partner carriers"
-                          >
-                            <Calculator className="w-3.5 h-3.5 text-violet-600" />
-                            <span>Compare Rates</span>
-                          </button>
-
                           {/* Next Step Button: Move to Appointment / Enter CN */}
                           <button
                             type="button"
@@ -512,32 +437,47 @@ export function BookingView({
                                 onOpenOrderDrawer(order);
                               }
                             }}
-                            className="px-3 py-1.5 text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white rounded-lg shadow-2xs hover:shadow-sm transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                            className="px-3 py-1.5 text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white rounded-lg shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
                           >
                             <span>Enter CN & Slot</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </button>
 
+                          {/* Compare Rates & Cost Estimator Button */}
                           <button
                             type="button"
-                            onClick={() => onOpenOrderDrawer(order)}
-                            className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:underline cursor-pointer flex items-center gap-1"
+                            onClick={() => setSelectedBookingDetailOrder(order)}
+                            className="px-2.5 py-1 text-xs font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                            title="Compare shipping rates between OM Logistics & partner carriers"
                           >
-                            <Edit2 className="w-3 h-3 text-slate-400" />
-                            <span>Edit Details</span>
+                            <Calculator className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Compare Rates</span>
                           </button>
 
-                          {/* Direct link to open in Main Consignment App */}
-                          <a
-                            href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Open this consignment in the Main Consignment App"
-                            className="text-[10px] text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition"
-                          >
-                            <span>Consignment App</span>
-                            <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => onOpenOrderDrawer(order)}
+                              className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              <Edit2 className="w-3 h-3 text-slate-400" />
+                              <span>Edit Details</span>
+                            </button>
+
+                            <span className="text-slate-300 text-xs">•</span>
+
+                            {/* Direct link to open in Main Consignment App */}
+                            <a
+                              href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Open this consignment in the Main Consignment App"
+                              className="text-[11px] text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition"
+                            >
+                              <span>Consignment</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -550,10 +490,10 @@ export function BookingView({
 
         {/* ── Pagination Footer ── */}
         {totalOrders > 0 && (
-          <div className="flex items-center justify-between p-3 border-t border-slate-200 text-xs text-slate-600 bg-slate-50/50">
+          <div className="flex items-center justify-between p-3 border-t border-slate-300 text-xs text-slate-700 bg-slate-50">
             <div>
-              Page <span className="font-bold text-slate-800">{page}</span> of{" "}
-              <span className="font-bold text-slate-800">{totalPages}</span> ({totalOrders} orders total)
+              Page <span className="font-bold text-slate-900">{page}</span> of{" "}
+              <span className="font-bold text-slate-900">{totalPages}</span> ({totalOrders} orders total)
             </div>
 
             <div className="flex items-center gap-1">
@@ -561,7 +501,7 @@ export function BookingView({
                 type="button"
                 disabled={page <= 1}
                 onClick={() => onPageChange(page - 1)}
-                className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer font-medium"
               >
                 Previous
               </button>
@@ -569,7 +509,7 @@ export function BookingView({
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => onPageChange(page + 1)}
-                className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer font-medium"
               >
                 Next
               </button>

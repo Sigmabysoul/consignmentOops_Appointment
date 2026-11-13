@@ -328,7 +328,7 @@ describe("OM Logistics Pure Pricing Module — Specification Verification", () =
   });
 
   describe("Multi-Carrier Comparison Engine", () => {
-    test("Correctly generates comparisons for OM Surface, OM Air, Delhivery, Blue Dart, V-Trans, Smartr", () => {
+    test("Correctly generates comparisons for OM Surface, OM Air, Delhivery One, Ekart, Amazon ATS", () => {
       const comparison = compareShippingCarriers({
         state: "Maharashtra",
         weightKg: 400,

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { getChannelAliases } from "@/lib/channel-aliases";
 import { getAppointmentNotesMap } from "@/lib/appointment-notes";
+import { getEffectiveCourierPartner } from "@/lib/courier-defaults";
 
 export const dynamic = "force-dynamic";
 
@@ -418,9 +419,11 @@ export async function GET(req: NextRequest) {
         : "Pending";
 
       const noteItem = notesMap.get(order.id);
+      const effectiveCourier = getEffectiveCourierPartner(order.channel, order.courierPartner);
 
       return {
         ...order,
+        courierPartner: effectiveCourier,
         boxDimensionGroups,
         trackingLink: order.trackingLink || null, // No automatic external URL generation
         lastUpdatedBy: latestUser,

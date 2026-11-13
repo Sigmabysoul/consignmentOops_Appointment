@@ -28,6 +28,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
+import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
 import {
   ALL_STATES,
   OmDeliveryInput,
@@ -506,6 +507,16 @@ export function BookingDetailModal({
                               {carrier.isFastest && (
                                 <span className="text-[10px] bg-sky-100 text-sky-800 font-extrabold px-2 py-0.5 rounded-full border border-sky-200">
                                   Fastest (Air)
+                                </span>
+                              )}
+                              {isFlipkartFbfOrFksb(order.channel) && carrier.name === "Ekart" && (
+                                <span className="text-[10px] bg-blue-100 text-blue-900 font-extrabold px-2 py-0.5 rounded-full border border-blue-200">
+                                  Recommended for Flipkart
+                                </span>
+                              )}
+                              {isAmazonChannel(order.channel) && carrier.name === "Amazon ATS" && (
+                                <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-2 py-0.5 rounded-full border border-amber-200">
+                                  Default for Amazon
                                 </span>
                               )}
                               {isCurrentAssigned && (

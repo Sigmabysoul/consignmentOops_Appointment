@@ -210,62 +210,34 @@ export function AppointmentView({
 
   return (
     <div className="space-y-4">
-      {/* ── Section Header Banner ── */}
-      <div className="bg-gradient-to-r from-indigo-900/90 via-purple-900/90 to-slate-900/90 text-white p-4 rounded-2xl border border-indigo-700/50 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-600/60 border border-indigo-400/40 flex items-center justify-center shadow-inner">
-            <Calendar className="w-5 h-5 text-indigo-200" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-black tracking-tight text-white">
-                Part 2: Appointment Management & Dispatch Desk
-              </h2>
-              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-indigo-500/40 border border-indigo-400/30 text-indigo-200">
-                Priority: CN & Appointment Date
-              </span>
-            </div>
-            <p className="text-xs text-indigo-200/80 font-medium mt-0.5">
-              Consignment Note (CN / Docket) and Appointment schedule tracking. Manually change status to Delivered or GRN Issue.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 self-end md:self-auto text-xs font-semibold text-indigo-200">
-          <div className="bg-white/10 px-3 py-1.5 rounded-xl border border-white/15">
-            Showing <span className="font-extrabold text-white">{orders.length}</span> active appointments
-          </div>
-        </div>
-      </div>
-
       {/* ── Main Orders Appointment Table ── */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 select-none">
-                <th className="py-3 px-3.5 whitespace-nowrap">RO / PO & Channel</th>
-                <th className="py-3 px-3.5 whitespace-nowrap bg-indigo-50/70 text-indigo-950 border-l border-r border-indigo-200/60 min-w-[200px]">
+              <tr className="bg-slate-100 text-slate-800 font-bold border-b-2 border-slate-300 select-none">
+                <th className="py-3 px-3.5 whitespace-nowrap border-r border-slate-300">RO / PO & Channel</th>
+                <th className="py-3 px-3.5 whitespace-nowrap bg-slate-50 text-slate-900 border-r border-slate-300 min-w-[200px]">
                   <div className="flex items-center gap-1.5">
                     <Hash className="w-3.5 h-3.5 text-indigo-600" />
                     <span>Consignment Note (CN / Docket #)</span>
                   </div>
                 </th>
-                <th className="py-3 px-3.5 whitespace-nowrap bg-purple-50/70 text-purple-950 border-r border-purple-200/60 min-w-[200px]">
+                <th className="py-3 px-3.5 whitespace-nowrap bg-slate-50 text-slate-900 border-r border-slate-300 min-w-[200px]">
                   <div className="flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5 text-purple-600" />
                     <span>Appointment Date & Slot</span>
                   </div>
                 </th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Warehouse Destination</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Current Status</th>
+                <th className="py-3 px-3.5 whitespace-nowrap border-r border-slate-300">Warehouse Destination</th>
+                <th className="py-3 px-3.5 whitespace-nowrap border-r border-slate-300">Current Status</th>
                 <th className="py-3 px-3.5 whitespace-nowrap text-right min-w-[220px]">
                   Manual Status Controls
                 </th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-300">
               {orders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center text-slate-400">
@@ -289,10 +261,10 @@ export function AppointmentView({
                   return (
                     <tr
                       key={order.id}
-                      className="hover:bg-slate-50/80 transition-colors group text-slate-800"
+                      className="hover:bg-slate-50 transition-colors group text-slate-800"
                     >
                       {/* Column 1: RO / PO & Platform */}
-                      <td className="py-3 px-3.5 align-top">
+                      <td className="py-3 px-3.5 align-top border-r border-slate-200">
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <span className="font-mono font-extrabold text-slate-900 text-xs">
@@ -337,7 +309,7 @@ export function AppointmentView({
                       </td>
 
                       {/* Column 2: Consignment Note (CN / Docket #) (PRIORITY 1) */}
-                      <td className="py-3 px-3.5 align-top bg-indigo-50/30 border-l border-r border-indigo-100">
+                      <td className="py-3 px-3.5 align-top bg-slate-50/50 border-r border-slate-200">
                         <div className="space-y-1.5">
                           {isEditingCn ? (
                             <div className="space-y-1">
@@ -346,7 +318,7 @@ export function AppointmentView({
                                 value={cnVal}
                                 onChange={(e) => setCnVal(e.target.value)}
                                 placeholder="Enter CN / Docket No..."
-                                className="w-full text-xs font-mono font-bold bg-white border border-indigo-400 rounded px-2 py-1 text-slate-900"
+                                className="w-full text-xs font-mono font-bold bg-white border border-indigo-400 rounded px-2 py-1 text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                 autoFocus
                               />
                               <div className="flex items-center gap-1">
@@ -360,7 +332,7 @@ export function AppointmentView({
                                 <button
                                   type="button"
                                   onClick={() => setEditingCnOrderId(null)}
-                                  className="px-2 py-0.5 text-[10px] bg-slate-200 text-slate-700 rounded hover:bg-slate-300 cursor-pointer"
+                                  className="px-2 py-0.5 text-[10px] bg-slate-200 text-slate-700 rounded hover:bg-slate-300 cursor-pointer font-medium"
                                 >
                                   Cancel
                                 </button>
@@ -423,7 +395,7 @@ export function AppointmentView({
                       </td>
 
                       {/* Column 3: Appointment Date & Slot (PRIORITY 2) */}
-                      <td className="py-3 px-3.5 align-top bg-purple-50/30 border-r border-purple-100">
+                      <td className="py-3 px-3.5 align-top bg-slate-50/30 border-r border-slate-200">
                         <div className="space-y-1.5">
                           {isEditingDate ? (
                             <div className="space-y-1.5 bg-white p-2 rounded-lg border border-purple-300 shadow-2xs">
@@ -435,7 +407,7 @@ export function AppointmentView({
                                   type="date"
                                   value={dateVal}
                                   onChange={(e) => setDateVal(e.target.value)}
-                                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-800"
+                                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 text-slate-800"
                                 />
                               </div>
 
@@ -448,7 +420,7 @@ export function AppointmentView({
                                   value={slotVal}
                                   onChange={(e) => setSlotVal(e.target.value)}
                                   placeholder="e.g. 10:00 - 13:00"
-                                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-slate-800"
+                                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 text-slate-800"
                                 />
                               </div>
 
@@ -463,7 +435,7 @@ export function AppointmentView({
                                 <button
                                   type="button"
                                   onClick={() => setEditingDateOrderId(null)}
-                                  className="px-2 py-0.5 text-[10px] bg-slate-200 text-slate-700 rounded hover:bg-slate-300 cursor-pointer"
+                                  className="px-2 py-0.5 text-[10px] bg-slate-200 text-slate-700 rounded hover:bg-slate-300 cursor-pointer font-medium"
                                 >
                                   Cancel
                                 </button>
@@ -510,7 +482,7 @@ export function AppointmentView({
                       </td>
 
                       {/* Column 4: Warehouse Destination */}
-                      <td className="py-3 px-3.5 align-top">
+                      <td className="py-3 px-3.5 align-top border-r border-slate-200">
                         <div className="space-y-1 max-w-[190px]">
                           <div className="font-semibold text-xs text-slate-800 flex items-start gap-1">
                             <Building className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
@@ -535,7 +507,7 @@ export function AppointmentView({
                       </td>
 
                       {/* Column 5: Current Status */}
-                      <td className="py-3 px-3.5 align-top">
+                      <td className="py-3 px-3.5 align-top border-r border-slate-200">
                         <div className="space-y-1">
                           <StatusBadge status={order.status || order.courierStatus} size="sm" />
 
@@ -599,13 +571,15 @@ export function AppointmentView({
                               <span>More Details</span>
                             </button>
 
+                            <span className="text-slate-300 text-xs">•</span>
+
                             {/* Direct link to Main Consignment App */}
                             <a
                               href={`http://consignmentops.averretail.com?search=${encodeURIComponent(order.roPoNumber)}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Open in Main Consignment Operations App"
-                              className="text-[10px] text-slate-400 hover:text-indigo-600 flex items-center gap-1 transition"
+                              className="text-[11px] text-slate-500 hover:text-indigo-600 flex items-center gap-1 transition"
                             >
                               <span>Consignment</span>
                               <ExternalLink className="w-2.5 h-2.5" />
@@ -623,10 +597,10 @@ export function AppointmentView({
 
         {/* ── Pagination Footer ── */}
         {totalOrders > 0 && (
-          <div className="flex items-center justify-between p-3 border-t border-slate-200 text-xs text-slate-600 bg-slate-50/50">
+          <div className="flex items-center justify-between p-3 border-t border-slate-300 text-xs text-slate-700 bg-slate-50">
             <div>
-              Page <span className="font-bold text-slate-800">{page}</span> of{" "}
-              <span className="font-bold text-slate-800">{totalPages}</span> ({totalOrders} appointments total)
+              Page <span className="font-bold text-slate-900">{page}</span> of{" "}
+              <span className="font-bold text-slate-900">{totalPages}</span> ({totalOrders} appointments total)
             </div>
 
             <div className="flex items-center gap-1">
@@ -634,7 +608,7 @@ export function AppointmentView({
                 type="button"
                 disabled={page <= 1}
                 onClick={() => onPageChange(page - 1)}
-                className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer font-medium"
               >
                 Previous
               </button>
@@ -642,7 +616,7 @@ export function AppointmentView({
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => onPageChange(page + 1)}
-                className="px-2.5 py-1 rounded border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer"
+                className="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 cursor-pointer font-medium"
               >
                 Next
               </button>
