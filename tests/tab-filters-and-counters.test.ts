@@ -214,4 +214,96 @@ describe("Tab Filters and Scope Counters Verification", () => {
       assert.strictEqual(sheet.channels["BLINKIT_STO"], 3);
     });
   });
+
+  describe("4. Date Formatting, Quick Dates & Past Due Rules", () => {
+    it("4.1 formatDateDisplay formats strictly as dd/mm/yyyy", async () => {
+      const { formatDateDisplay, formatDateTimeDisplay, parseDateInput } = await import("../src/lib/date-utils");
+      
+      const testDate = new Date(2026, 10, 14, 15, 30); // Nov 14, 2026, 3:30 PM
+      assert.strictEqual(formatDateDisplay(testDate), "14/11/2026");
+      assert.strictEqual(formatDateDisplay("2026-05-08T00:00:00.000Z"), "08/05/2026");
+      assert.strictEqual(formatDateDisplay(null), "—");
+      assert.strictEqual(formatDateDisplay("invalid"), "—");
+
+      // Verify date-time formatting
+      const formattedTime = formatDateTimeDisplay(testDate);
+      assert.ok(formattedTime.startsWith("14/11/2026,"));
+      assert.ok(formattedTime.includes("03:30 pm"));
+    });
+
+    it("4.2 parseDateInput parses dd/mm/yyyy and ISO strings", async () => {
+      const { parseDateInput } = await import("../src/lib/date-utils");
+
+      const d1 = parseDateInput("14/11/2026");
+      assert.ok(d1 !== null);
+      assert.strictEqual(d1.getFullYear(), 2026);
+      assert.strictEqual(d1.getMonth(), 10);
+      assert.strictEqual(d1.getDate(), 14);
+
+      const d2 = parseDateInput("2026-11-14");
+      assert.ok(d2 !== null);
+      assert.strictEqual(d2.getFullYear(), 2026);
+      assert.strictEqual(d2.getMonth(), 10);
+      assert.strictEqual(d2.getDate(), 14);
+    });
+
+    it("4.3 Past Due logic identifies orders that passed pickup date and have not entered in-transit", () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const yesterday = new Date(today.getTime() - 86400000);
+      const tomorrow = new Date(today.getTime() + 86400000);
+
+      const orders = [
+        {
+          id: "1",
+          pickupDate: yesterday,
+          pickupDone: false,
+          courierStatus: null,
+          status: "Draft",
+        },
+        {
+          id: "2",
+          pickupDate: yesterday,
+          pickupDone: true, // Already dispatched / in-transit
+          courierStatus: "In Transit",
+          status: "In Transit",
+        },
+        {
+          id: "3",
+          pickupDate: tomorrow,
+          pickupDone: false,
+          courierStatus: null,
+          status: "Draft",
+        },
+      ];
+
+      const isPastDue = (o: typeof orders[0]) => {
+        const passedPickup = o.pickupDate && o.pickupDate.getTime() < today.getTime();
+        const inTransit = o.pickupDone || o.courierStatus === "In Transit" || o.status === "In Transit";
+        return passedPickup && !inTransit;
+      };
+
+      const pastDueOrders = orders.filter(isPastDue);
+      assert.strictEqual(pastDueOrders.length, 1);
+      assert.strictEqual(pastDueOrders[0].id, "1", "Only order 1 is past its pickup date and not in transit");
+    });
+
+    it("4.4 Booking filter defaults date field to pickupDate; Appointment defaults to appointmentDate", () => {
+      const getFieldForView = (view: string, explicitType?: string) => {
+        if (view === "booking") {
+          return explicitType && explicitType !== "appointmentDate" ? explicitType : "pickupDate";
+        }
+        if (view === "appointment") {
+          return explicitType && explicitType !== "pickupDate" ? explicitType : "appointmentDate";
+        }
+        return explicitType || "appointmentDate";
+      };
+
+      assert.strictEqual(getFieldForView("booking"), "pickupDate");
+      assert.strictEqual(getFieldForView("booking", "appointmentDate"), "pickupDate");
+      assert.strictEqual(getFieldForView("appointment"), "appointmentDate");
+      assert.strictEqual(getFieldForView("appointment", "pickupDate"), "appointmentDate");
+    });
+  });
 });

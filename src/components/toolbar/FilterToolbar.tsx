@@ -217,6 +217,7 @@ export function FilterToolbar({
             </span>
             {[
               { id: "all", label: "All Dates" },
+              { id: "yesterday", label: "Yesterday" },
               { id: "today", label: "Today's All" },
               { id: "tomorrow", label: "Tomorrow's All" },
               { id: "this_week", label: "This Week" },
@@ -279,9 +280,9 @@ export function FilterToolbar({
                 onChange={(e) => onDateTypeChange(e.target.value)}
                 className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 font-medium focus:outline-none"
               >
+                <option value="pickupDate">Pickup Date</option>
                 <option value="appointmentDate">Appt Date</option>
                 <option value="deliveryDate">Delivery Date</option>
-                <option value="pickupDate">Pickup Date</option>
                 <option value="orderDate">Order Date</option>
                 <option value="createdAt">Created Date</option>
               </select>
@@ -289,16 +290,18 @@ export function FilterToolbar({
                 type="date"
                 value={startDate}
                 onChange={(e) => onStartDateChange(e.target.value)}
+                placeholder="dd/mm/yyyy"
                 className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:outline-none font-medium"
-                title="Start date filter"
+                title="Start date filter (dd/mm/yyyy)"
               />
               <span className="text-slate-400 text-xs">to</span>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => onEndDateChange(e.target.value)}
+                placeholder="dd/mm/yyyy"
                 className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:outline-none font-medium"
-                title="End date filter"
+                title="End date filter (dd/mm/yyyy)"
               />
             </div>
           </div>

@@ -14,3 +14,10 @@ now to fine tune the appointment app , we need to fix some stuffs ,
 
 7. in case of decimal value in weight or other stuffs just use point 2 , .00
 
+8. in Quick Dates, add a yesterday option too.
+
+9. for past due option, make it so if the order has passed its pickup date but hasn't gotten in in-transit state then show them in the past due section.
+
+10. in booking section all the filters are based on pickup date, and in appointment section all will be based on appointment date.
+
+11. change all the date formats to dd/mm/yyyy (and dd/mm/yyyy, hh:mm am/pm for date-time).

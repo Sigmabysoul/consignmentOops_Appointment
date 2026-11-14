@@ -141,5 +141,5 @@ export interface DashboardStats {
 }
 
 export type ActiveView = "booking" | "appointment" | "kanban" | "sheet" | "timeline" | "analytics";
-export type QuickDatePreset = "all" | "today" | "tomorrow" | "this_week" | "overdue";
+export type QuickDatePreset = "all" | "yesterday" | "today" | "tomorrow" | "this_week" | "overdue";
 

@@ -52,7 +52,7 @@ export default function AppointmentDashboard() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [selectedDeliveryStatus, setSelectedDeliveryStatus] = useState<string>("ALL");
   const [quickDate, setQuickDate] = useState<string>("all");
-  const [dateType, setDateType] = useState<string>("appointmentDate");
+  const [dateType, setDateType] = useState<string>("pickupDate");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("createdAt");
@@ -340,6 +340,16 @@ export default function AppointmentDashboard() {
     setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
   };
 
+  // Synchronize default date filtering field with active view
+  // (In booking section all filters based on pickup date; in appointment section on appointment date)
+  useEffect(() => {
+    if (activeView === "booking") {
+      setDateType("pickupDate");
+    } else if (activeView === "appointment") {
+      setDateType("appointmentDate");
+    }
+  }, [activeView]);
+
   const handleResetFilters = () => {
     setSearchTerm("");
     setSelectedChannel("ALL");
@@ -350,6 +360,7 @@ export default function AppointmentDashboard() {
     setQuickDate("all");
     setStartDate("");
     setEndDate("");
+    setDateType(activeView === "booking" ? "pickupDate" : "appointmentDate");
     setSortBy("createdAt");
     setSortDir("desc");
     setPage(1);

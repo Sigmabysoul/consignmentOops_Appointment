@@ -9,6 +9,7 @@ import {
   BOOKING_FILTER_CONDITIONS,
   APPOINTMENT_FILTER_CONDITIONS,
 } from "@/lib/order-filters";
+import { parseDateInput } from "@/lib/date-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -211,81 +212,245 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Quick Date presets (Today's All, Tomorrow's All, This Week, Overdue)
+    // In booking section all the filter will be based on pickup date, and in appointment section on appointment date
+    const effectiveDateType =
+      tab === "booking"
+        ? (dateType === "pickupDate" || !dateType || dateType === "appointmentDate" ? "pickupDate" : dateType)
+        : tab === "appointment"
+        ? (dateType === "appointmentDate" || !dateType || dateType === "pickupDate" ? "appointmentDate" : dateType)
+        : (dateType || "appointmentDate");
+
+    // Quick Date presets (Yesterday, Today's All, Tomorrow's All, This Week, Past Due / Overdue)
     if (quickDate && quickDate !== "all") {
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+      const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+      const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59, 999);
+      const weekStart = new Date(todayStart);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
 
-      if (quickDate === "today") {
-        whereConditions.AND = whereConditions.AND || [];
-        whereConditions.AND.push({
-          OR: [
-            { appointmentDate: { gte: todayStart, lte: todayEnd } },
-            { deliveryDate: { gte: todayStart, lte: todayEnd } },
-            { pickupDate: { gte: todayStart, lte: todayEnd } },
-            { orderDate: { gte: todayStart, lte: todayEnd } },
-          ],
-        });
-      } else if (quickDate === "tomorrow") {
-        const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-        const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59, 999);
-        whereConditions.AND = whereConditions.AND || [];
-        whereConditions.AND.push({
-          OR: [
-            { appointmentDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-            { deliveryDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-            { pickupDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-            { orderDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-          ],
-        });
-      } else if (quickDate === "this_week") {
-        const weekStart = new Date(todayStart);
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
-        whereConditions.AND = whereConditions.AND || [];
-        whereConditions.AND.push({
-          OR: [
-            { appointmentDate: { gte: weekStart, lte: weekEnd } },
-            { deliveryDate: { gte: weekStart, lte: weekEnd } },
-            { pickupDate: { gte: weekStart, lte: weekEnd } },
-            { orderDate: { gte: weekStart, lte: weekEnd } },
-          ],
-        });
-      } else if (quickDate === "overdue") {
-        whereConditions.AND = whereConditions.AND || [];
-        whereConditions.AND.push({
-          appointmentDate: { lt: todayStart },
-          NOT: {
-            courierStatus: { in: ["Delivered", "delivered", "DELIVERED", "Cancelled", "cancelled"] },
-          },
-        });
+      whereConditions.AND = whereConditions.AND || [];
+
+      if (tab === "booking") {
+        // In booking section all filters are based on pickup date
+        if (quickDate === "yesterday") {
+          whereConditions.AND.push({ pickupDate: { gte: yesterdayStart, lte: yesterdayEnd } });
+        } else if (quickDate === "today") {
+          whereConditions.AND.push({ pickupDate: { gte: todayStart, lte: todayEnd } });
+        } else if (quickDate === "tomorrow") {
+          whereConditions.AND.push({ pickupDate: { gte: tomorrowStart, lte: tomorrowEnd } });
+        } else if (quickDate === "this_week") {
+          whereConditions.AND.push({ pickupDate: { gte: weekStart, lte: weekEnd } });
+        } else if (quickDate === "overdue") {
+          // Past due: order has passed its pickup date but haven't gotten in in-transit state
+          whereConditions.AND.push(
+            { pickupDate: { lt: todayStart } },
+            { pickupDone: false },
+            {
+              OR: [
+                { courierStatus: null },
+                { courierStatus: "" },
+                {
+                  courierStatus: {
+                    notIn: [
+                      "In Transit",
+                      "in transit",
+                      "IN TRANSIT",
+                      "Dispatched",
+                      "dispatched",
+                      "SHIPPED",
+                      "shipped",
+                      "Delivered",
+                      "delivered",
+                      "DELIVERED",
+                      "Cancelled",
+                      "cancelled",
+                    ],
+                  },
+                },
+              ],
+            },
+            {
+              OR: [
+                { status: null },
+                { status: "" },
+                {
+                  status: {
+                    notIn: [
+                      "In Transit",
+                      "in transit",
+                      "IN TRANSIT",
+                      "Dispatched",
+                      "dispatched",
+                      "Delivered",
+                      "delivered",
+                      "DELIVERED",
+                      "Cancelled",
+                      "CANCELLED",
+                      "Archive",
+                      "ARCHIVED",
+                    ],
+                  },
+                },
+              ],
+            }
+          );
+        }
+      } else if (tab === "appointment") {
+        // In appointment section all filters are based on appointment date
+        if (quickDate === "yesterday") {
+          whereConditions.AND.push({ appointmentDate: { gte: yesterdayStart, lte: yesterdayEnd } });
+        } else if (quickDate === "today") {
+          whereConditions.AND.push({ appointmentDate: { gte: todayStart, lte: todayEnd } });
+        } else if (quickDate === "tomorrow") {
+          whereConditions.AND.push({ appointmentDate: { gte: tomorrowStart, lte: tomorrowEnd } });
+        } else if (quickDate === "this_week") {
+          whereConditions.AND.push({ appointmentDate: { gte: weekStart, lte: weekEnd } });
+        } else if (quickDate === "overdue") {
+          whereConditions.AND.push(
+            { appointmentDate: { lt: todayStart } },
+            {
+              OR: [
+                { status: null },
+                { status: "" },
+                { status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] } },
+              ],
+            },
+            {
+              OR: [
+                { courierStatus: null },
+                { courierStatus: "" },
+                { courierStatus: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED"] } },
+              ],
+            }
+          );
+        }
+      } else {
+        // General / Kanban / All Data views
+        if (quickDate === "yesterday") {
+          whereConditions.AND.push({
+            OR: [
+              { appointmentDate: { gte: yesterdayStart, lte: yesterdayEnd } },
+              { pickupDate: { gte: yesterdayStart, lte: yesterdayEnd } },
+              { deliveryDate: { gte: yesterdayStart, lte: yesterdayEnd } },
+              { orderDate: { gte: yesterdayStart, lte: yesterdayEnd } },
+            ],
+          });
+        } else if (quickDate === "today") {
+          whereConditions.AND.push({
+            OR: [
+              { appointmentDate: { gte: todayStart, lte: todayEnd } },
+              { pickupDate: { gte: todayStart, lte: todayEnd } },
+              { deliveryDate: { gte: todayStart, lte: todayEnd } },
+              { orderDate: { gte: todayStart, lte: todayEnd } },
+            ],
+          });
+        } else if (quickDate === "tomorrow") {
+          whereConditions.AND.push({
+            OR: [
+              { appointmentDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+              { pickupDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+              { deliveryDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+              { orderDate: { gte: tomorrowStart, lte: tomorrowEnd } },
+            ],
+          });
+        } else if (quickDate === "this_week") {
+          whereConditions.AND.push({
+            OR: [
+              { appointmentDate: { gte: weekStart, lte: weekEnd } },
+              { pickupDate: { gte: weekStart, lte: weekEnd } },
+              { deliveryDate: { gte: weekStart, lte: weekEnd } },
+              { orderDate: { gte: weekStart, lte: weekEnd } },
+            ],
+          });
+        } else if (quickDate === "overdue") {
+          // Past due: order has passed its pickup date but haven't gotten in in-transit state
+          whereConditions.AND.push(
+            { pickupDate: { lt: todayStart } },
+            { pickupDone: false },
+            {
+              OR: [
+                { courierStatus: null },
+                { courierStatus: "" },
+                {
+                  courierStatus: {
+                    notIn: [
+                      "In Transit",
+                      "in transit",
+                      "IN TRANSIT",
+                      "Dispatched",
+                      "dispatched",
+                      "SHIPPED",
+                      "shipped",
+                      "Delivered",
+                      "delivered",
+                      "DELIVERED",
+                      "Cancelled",
+                      "cancelled",
+                    ],
+                  },
+                },
+              ],
+            },
+            {
+              OR: [
+                { status: null },
+                { status: "" },
+                {
+                  status: {
+                    notIn: [
+                      "In Transit",
+                      "in transit",
+                      "IN TRANSIT",
+                      "Dispatched",
+                      "dispatched",
+                      "Delivered",
+                      "delivered",
+                      "DELIVERED",
+                      "Cancelled",
+                      "CANCELLED",
+                      "Archive",
+                      "ARCHIVED",
+                    ],
+                  },
+                },
+              ],
+            }
+          );
+        }
       }
     }
 
     // Date range filter
     if (startDate || endDate) {
-      const validDateFields = ["orderDate", "appointmentDate", "pickupDate", "deliveryDate", "createdAt"];
-      const targetDateField = validDateFields.includes(dateType) ? dateType : "appointmentDate";
+      const validDateFields = ["pickupDate", "appointmentDate", "deliveryDate", "orderDate", "createdAt"];
+      const targetDateField = validDateFields.includes(effectiveDateType)
+        ? effectiveDateType
+        : (tab === "booking" ? "pickupDate" : "appointmentDate");
       const dateRange: { gte?: Date; lte?: Date } = {};
 
       if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        if (!isNaN(start.getTime())) {
+        const start = parseDateInput(startDate);
+        if (start) {
+          start.setHours(0, 0, 0, 0);
           dateRange.gte = start;
         }
       }
       if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        if (!isNaN(end.getTime())) {
+        const end = parseDateInput(endDate);
+        if (end) {
+          end.setHours(23, 59, 59, 999);
           dateRange.lte = end;
         }
       }
 
       if (dateRange.gte || dateRange.lte) {
-        whereConditions[targetDateField] = dateRange;
+        whereConditions.AND = whereConditions.AND || [];
+        whereConditions.AND.push({ [targetDateField]: dateRange });
       }
     }
 
