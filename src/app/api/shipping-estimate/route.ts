@@ -15,10 +15,11 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    const rawWeight = typeof body.weightKg === "number" ? body.weightKg : parseFloat(body.weightKg) || 0;
     const input: OmDeliveryInput = {
       state: body.state,
-      weightKg: typeof body.weightKg === "number" ? body.weightKg : parseFloat(body.weightKg) || 0,
-      mode: body.mode === "air" ? "air" : "surface",
+      weightKg: Number(rawWeight.toFixed(2)),
+      mode: "surface", // Rule 1: No air travel, all shipments done by land
       odaDistanceKm: typeof body.odaDistanceKm === "number" ? body.odaDistanceKm : parseFloat(body.odaDistanceKm) || 0,
       appointmentDelivery: Boolean(body.appointmentDelivery),
       rovCover: body.rovCover || "none",
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
       customOdaMatrix: presets.odaMatrix,
       customConfig: presets.omConfig,
       carrierPresets: presets.carrierPresets,
+      channel: body.channel || undefined,
     };
 
     // 1. Calculate OM Logistics Estimate

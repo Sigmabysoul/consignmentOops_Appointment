@@ -71,7 +71,7 @@ export function extractBoxDimensionGroups(order: any): BoxDimensionGroup[] {
   const stdL = typeof order.lengthCm === "number" ? order.lengthCm : null;
   const stdW = typeof order.widthCm === "number" ? order.widthCm : null;
   const stdH = typeof order.heightCm === "number" ? order.heightCm : null;
-  const stdWt = typeof order.weightKg === "number" ? order.weightKg : null;
+  const stdWt = typeof order.weightKg === "number" ? Number(order.weightKg.toFixed(2)) : null;
 
   const hasExplicitStdDims = stdL !== null || stdW !== null || stdH !== null;
 
@@ -97,7 +97,7 @@ export function extractBoxDimensionGroups(order: any): BoxDimensionGroup[] {
   const remL = typeof order.remainderLengthCm === "number" ? order.remainderLengthCm : null;
   const remW = typeof order.remainderWidthCm === "number" ? order.remainderWidthCm : null;
   const remH = typeof order.remainderHeightCm === "number" ? order.remainderHeightCm : null;
-  const remWt = typeof order.remainderWeightKg === "number" ? order.remainderWeightKg : null;
+  const remWt = typeof order.remainderWeightKg === "number" ? Number(order.remainderWeightKg.toFixed(2)) : null;
 
   const hasExplicitRemDims = remL !== null || remW !== null || remH !== null;
 
@@ -201,7 +201,7 @@ export function extractBoxDimensionGroups(order: any): BoxDimensionGroup[] {
         const existing = unifiedMap.get(dimKey)!;
         existing.boxCount += g.boxCount;
         if (g.weightKg !== null) {
-          existing.weightKg = (existing.weightKg || 0) + g.weightKg;
+          existing.weightKg = Number(((existing.weightKg || 0) + g.weightKg).toFixed(2));
         }
         existing.label = `${existing.boxCount} Boxes (${dimKey} ${g.dimensionUnit})`;
       } else {
@@ -224,7 +224,7 @@ export function formatTabSeparatedBoxRow(group: BoxDimensionGroup): string {
   const l = group.lengthCm ?? "";
   const w = group.widthCm ?? "";
   const h = group.heightCm ?? "";
-  const wt = group.weightKg ?? "";
+  const wt = group.weightKg !== null && group.weightKg !== undefined ? Number(Number(group.weightKg).toFixed(2)).toFixed(2) : "";
   return `${count}\t${l}\t${w}\t${h}\t${wt}`;
 }
 

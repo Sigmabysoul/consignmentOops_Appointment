@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { BoxDimensionGroup, formatTabSeparatedBoxRow } from "@/lib/dimension-helper";
+import { formatDecimalNumber } from "@/lib/courier-defaults";
 import { Copy, Check, Sparkles, Layers, ArrowRight } from "lucide-react";
 
 interface BoxDimensionCopyHelperProps {
@@ -49,7 +50,7 @@ export function BoxDimensionCopyHelper({
   const handleFieldClick = (
     group: BoxDimensionGroup,
     field: "boxCount" | "lengthCm" | "widthCm" | "heightCm" | "weightKg",
-    val: number | null
+    val: number | string | null
   ) => {
     const key = `${group.id}-${field}`;
     copyToClipboard(val, key);
@@ -226,11 +227,11 @@ export function BoxDimensionCopyHelper({
                   {copiedKey === hKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
                 </button>
 
-                {/* Weight Chip (if present) */}
+                {/* Weight Chip (if present) - Formatted to 2 decimals (.00) */}
                 {g.weightKg !== null && (
                   <button
                     type="button"
-                    onClick={() => handleFieldClick(g, "weightKg", g.weightKg)}
+                    onClick={() => handleFieldClick(g, "weightKg", formatDecimalNumber(g.weightKg))}
                     title="Click to copy Weight"
                     className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 cursor-pointer transition ${
                       copiedKey === wtKey
@@ -241,7 +242,7 @@ export function BoxDimensionCopyHelper({
                     }`}
                   >
                     <span className="text-[9px] text-slate-500 font-sans">Wt:</span>
-                    <span>{g.weightKg}</span>
+                    <span>{formatDecimalNumber(g.weightKg)}</span>
                     {copiedKey === wtKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
                   </button>
                 )}
@@ -432,7 +433,7 @@ export function BoxDimensionCopyHelper({
                 {/* 5. Weight */}
                 <button
                   type="button"
-                  onClick={() => handleFieldClick(group, "weightKg", group.weightKg)}
+                  onClick={() => handleFieldClick(group, "weightKg", group.weightKg !== null ? formatDecimalNumber(group.weightKg) : "")}
                   className={`p-2 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
                     copiedKey === wtKey
                       ? "bg-emerald-600 border-emerald-700 text-white shadow-xs"
@@ -446,7 +447,7 @@ export function BoxDimensionCopyHelper({
                     {copiedKey === wtKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
                   </div>
                   <div className="text-sm font-mono font-extrabold mt-1">
-                    {group.weightKg ?? "-"}
+                    {group.weightKg !== null ? formatDecimalNumber(group.weightKg) : "-"}
                   </div>
                 </button>
               </div>

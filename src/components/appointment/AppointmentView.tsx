@@ -243,8 +243,8 @@ export function AppointmentView({
                   <td colSpan={6} className="py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Calendar className="w-8 h-8 text-slate-300" />
-                      <p className="font-bold text-slate-600">No appointments scheduled</p>
-                      <p className="text-xs text-slate-400">Add a CN or schedule appointments from the booking desk.</p>
+                      <p className="font-bold text-slate-600">No in-transit shipments</p>
+                      <p className="text-xs text-slate-400">Orders move to the appointment desk once they are in transit.</p>
                     </div>
                   </td>
                 </tr>

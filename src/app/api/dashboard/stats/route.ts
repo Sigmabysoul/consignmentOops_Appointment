@@ -68,26 +68,27 @@ export async function GET(req: NextRequest) {
         },
       }),
 
-      // In transit
+      // In transit (Appointment Desk)
       db.consignmentOrder.count({
         where: {
           AND: [
             ...baseWhere.AND,
             {
               OR: [
-                { courierStatus: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "SHIPPED"] } },
+                { courierStatus: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "SHIPPED", "shipped"] } },
                 { status: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched"] } },
+                { pickupDone: true },
                 {
-                  AND: [
-                    { pickupDone: true },
-                    {
-                      NOT: {
-                        courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] },
-                      },
-                    },
-                  ],
+                  customData: {
+                    path: ["fulfilmentStatus"],
+                    equals: "Dispatched",
+                  },
                 },
               ],
+            },
+            {
+              status: { notIn: ["Cancelled", "CANCELLED", "Archive", "ARCHIVED", "Delivered", "delivered", "DELIVERED"] },
+              courierStatus: { notIn: ["Cancelled", "CANCELLED", "Delivered", "delivered", "DELIVERED"] },
             },
           ],
         },

@@ -24,7 +24,7 @@ import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "
 import { useToast } from "@/components/ui/Toast";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
-import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
+import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel } from "@/lib/courier-defaults";
 
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 
@@ -392,11 +392,11 @@ export function OrderDetailsDrawer({
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
                     >
                       <option value="">Select courier partner...</option>
-                      {courierPresets.map((cp) => {
-                        const isRec = isFlipkartFbfOrFksb(order?.channel) && cp.name === "Ekart";
+                      {getAllowedCouriersForChannel(order?.channel).map((courierName) => {
+                        const isRec = isFlipkartFbfOrFksb(order?.channel) && courierName === "Ekart";
                         return (
-                          <option key={cp.id} value={cp.name}>
-                            {cp.name}{isRec ? " (Recommended)" : ""}
+                          <option key={courierName} value={courierName}>
+                            {courierName}{isRec ? " (Recommended)" : ""}
                           </option>
                         );
                       })}

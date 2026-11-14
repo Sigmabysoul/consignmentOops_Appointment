@@ -16,7 +16,6 @@ import {
   Sliders,
   DollarSign,
   Shield,
-  Plane,
   Clock,
   Info,
   ChevronDown,
@@ -71,7 +70,6 @@ export function BookingDetailModal({
   // Inputs State
   const [state, setState] = useState<string>("West Bengal (Kolkata)");
   const [weightKg, setWeightKg] = useState<number>(50);
-  const [mode, setMode] = useState<"surface" | "air">("surface");
   const [odaDistanceKm, setOdaDistanceKm] = useState<number>(0);
   const [appointmentDelivery, setAppointmentDelivery] = useState<boolean>(true);
   const [rovCover, setRovCover] = useState<"none" | "shipper" | "carrier">("none");
@@ -89,28 +87,27 @@ export function BookingDetailModal({
     if (!order) return;
     const initial = getInitialLogisticsInput(order);
     setState(initial.state);
-    setWeightKg(initial.weightKg);
-    setMode(initial.mode || "surface");
+    setWeightKg(Number(Number(initial.weightKg).toFixed(2)));
     setOdaDistanceKm(initial.odaDistanceKm || 0);
     setAppointmentDelivery(initial.appointmentDelivery ?? true);
     setRovCover(initial.rovCover || "none");
-    setInvoiceValue(initial.invoiceValue || 0);
-    setExpandedCarrierId("om-surface");
+    setInvoiceValue(Number(Number(initial.invoiceValue || 0).toFixed(2)));
+    setExpandedCarrierId(null);
   }, [order, isOpen]);
 
-  // Live Pure Pricing & Multi-Carrier Comparison
+  // Live Pure Pricing & Multi-Carrier Comparison (Strictly Land Surface & Channel Filtered)
   const comparisonResult: MultiCarrierComparisonResponse = useMemo(() => {
     const input: OmDeliveryInput = {
       state,
-      weightKg: Number(weightKg) || 0,
-      mode,
+      weightKg: Number(Number(weightKg).toFixed(2)) || 0,
+      mode: "surface", // Rule 1: All shipments done by land
       odaDistanceKm: Number(odaDistanceKm) || 0,
       appointmentDelivery,
       rovCover,
-      invoiceValue: Number(invoiceValue) || 0,
+      invoiceValue: Number(Number(invoiceValue).toFixed(2)) || 0,
     };
-    return compareShippingCarriers(input);
-  }, [state, weightKg, mode, odaDistanceKm, appointmentDelivery, rovCover, invoiceValue]);
+    return compareShippingCarriers(input, { channel: order?.channel });
+  }, [state, weightKg, odaDistanceKm, appointmentDelivery, rovCover, invoiceValue, order?.channel]);
 
   if (!isOpen || !order) return null;
 
@@ -316,16 +313,12 @@ export function BookingDetailModal({
 
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Service Mode
+                      Transport Mode
                     </label>
-                    <select
-                      value={mode}
-                      onChange={(e) => setMode(e.target.value as "surface" | "air")}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                    >
-                      <option value="surface">Surface (By Road)</option>
-                      <option value="air">Air Express (₹135/kg)</option>
-                    </select>
+                    <div className="w-full text-xs bg-slate-100/80 border border-slate-200 rounded-lg p-2 font-bold text-slate-800 flex items-center gap-2">
+                      <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>Land / Surface Cargo</span>
+                    </div>
                   </div>
                 </div>
 
@@ -463,7 +456,7 @@ export function BookingDetailModal({
                     <div
                       key={carrier.id}
                       className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
-                        carrier.isOmLogistics && !carrier.isAirExpress
+                        carrier.isOmLogistics
                           ? "border-violet-300 bg-violet-50/20 shadow-xs"
                           : carrier.isLowestCost
                           ? "border-emerald-300 bg-emerald-50/20 shadow-xs"
@@ -477,16 +470,10 @@ export function BookingDetailModal({
                             className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
                               carrier.isOmLogistics
                                 ? "bg-violet-600 text-white shadow-sm"
-                                : carrier.isAirExpress
-                                ? "bg-sky-600 text-white shadow-sm"
                                 : "bg-slate-100 text-slate-800 border border-slate-200"
                             }`}
                           >
-                            {carrier.isAirExpress ? (
-                              <Plane className="w-5 h-5 text-white" />
-                            ) : (
-                              <Truck className="w-5 h-5" />
-                            )}
+                            <Truck className="w-5 h-5" />
                           </div>
 
                           <div>
@@ -494,7 +481,7 @@ export function BookingDetailModal({
                               <h5 className="font-extrabold text-sm text-slate-900">
                                 {carrier.name}
                               </h5>
-                              {carrier.isOmLogistics && !carrier.isAirExpress && (
+                              {carrier.isOmLogistics && (
                                 <span className="text-[10px] bg-violet-100 text-violet-800 font-extrabold px-2 py-0.5 rounded-full border border-violet-200">
                                   Primary Partner
                                 </span>
@@ -504,19 +491,14 @@ export function BookingDetailModal({
                                   Lowest Cost
                                 </span>
                               )}
-                              {carrier.isFastest && (
-                                <span className="text-[10px] bg-sky-100 text-sky-800 font-extrabold px-2 py-0.5 rounded-full border border-sky-200">
-                                  Fastest (Air)
-                                </span>
-                              )}
                               {isFlipkartFbfOrFksb(order.channel) && carrier.name === "Ekart" && (
                                 <span className="text-[10px] bg-blue-100 text-blue-900 font-extrabold px-2 py-0.5 rounded-full border border-blue-200">
-                                  Recommended for Flipkart
+                                  Ekart Exclusive
                                 </span>
                               )}
                               {isAmazonChannel(order.channel) && carrier.name === "Amazon ATS" && (
                                 <span className="text-[10px] bg-amber-100 text-amber-900 font-extrabold px-2 py-0.5 rounded-full border border-amber-200">
-                                  Default for Amazon
+                                  Amazon ATS Exclusive
                                 </span>
                               )}
                               {isCurrentAssigned && (

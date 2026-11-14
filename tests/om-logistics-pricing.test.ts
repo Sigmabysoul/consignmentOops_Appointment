@@ -327,8 +327,8 @@ describe("OM Logistics Pure Pricing Module — Specification Verification", () =
     });
   });
 
-  describe("Multi-Carrier Comparison Engine", () => {
-    test("Correctly generates comparisons for OM Surface, OM Air, Delhivery One, Ekart, Amazon ATS", () => {
+  describe("Multi-Carrier Comparison Engine (Rule 1: Land Surface Only)", () => {
+    test("Correctly generates comparisons for Land Surface Carriers (OM Surface, Delhivery One, Ekart, Amazon ATS)", () => {
       const comparison = compareShippingCarriers({
         state: "Maharashtra",
         weightKg: 400,
@@ -338,7 +338,9 @@ describe("OM Logistics Pure Pricing Module — Specification Verification", () =
         rovCover: "none",
       });
 
-      assert.strictEqual(comparison.carriers.length >= 5, true);
+      // Exactly 4 land surface carriers (no air express)
+      assert.strictEqual(comparison.carriers.length, 4);
+      assert.strictEqual(comparison.carriers.some((c) => c.isAirExpress), false, "No air carriers allowed per Rule 1");
       assert.strictEqual(typeof comparison.lowestCostAmount, "number");
       assert.strictEqual(typeof comparison.omSurfaceTotal, "number");
 
@@ -346,6 +348,34 @@ describe("OM Logistics Pure Pricing Module — Specification Verification", () =
       const omSurface = comparison.carriers.find((c) => c.id === "om-surface");
       assert.ok(omSurface);
       assert.strictEqual(omSurface?.estimatedTotal, 5900);
+    });
+
+    test("Enforces channel-specific courier filtering per Rules 4, 5, 6", () => {
+      // Amazon VC -> only Amazon ATS
+      const amzComp = compareShippingCarriers(
+        { state: "Maharashtra", weightKg: 100, mode: "surface" },
+        { channel: "AMAZON_VC" }
+      );
+      assert.strictEqual(amzComp.carriers.length, 1);
+      assert.strictEqual(amzComp.carriers[0].name, "Amazon ATS");
+
+      // Flipkart FBF -> only Ekart
+      const fkComp = compareShippingCarriers(
+        { state: "Maharashtra", weightKg: 100, mode: "surface" },
+        { channel: "FLIPKART_FBF" }
+      );
+      assert.strictEqual(fkComp.carriers.length, 1);
+      assert.strictEqual(fkComp.carriers[0].name, "Ekart");
+
+      // Swiggy -> only Delhivery One and OM Logistics
+      const swiggyComp = compareShippingCarriers(
+        { state: "Maharashtra", weightKg: 100, mode: "surface" },
+        { channel: "SWIGGY" }
+      );
+      assert.strictEqual(swiggyComp.carriers.length, 2);
+      const names = swiggyComp.carriers.map((c) => c.name);
+      assert.ok(names.includes("OM Logistics"));
+      assert.ok(names.includes("Delhivery One"));
     });
   });
 

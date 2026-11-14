@@ -33,7 +33,7 @@ import {
   Calculator,
 } from "lucide-react";
 import { BookingDetailModal } from "@/components/booking/BookingDetailModal";
-import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
+import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel } from "@/lib/courier-defaults";
 
 interface BookingViewProps {
   orders: AppointmentOrder[];
@@ -196,9 +196,10 @@ export function BookingView({
                   const isCopiedDest = copiedText === destToCopy;
                   const isEditingPickup = editingPickupOrderId === order.id;
 
-                  // Channel Default Courier Logic
+                  // Channel Default Courier Logic (Rules 4, 5, 6)
                   const isAmz = isAmazonChannel(order.channel);
                   const isFk = isFlipkartFbfOrFksb(order.channel);
+                  const allowedCouriers = getAllowedCouriersForChannel(order.channel);
                   const selectedCourierVal = order.courierPartner || (isAmz ? "Amazon ATS" : "");
 
                   return (
@@ -408,11 +409,11 @@ export function BookingView({
                             className="text-xs bg-slate-50 hover:bg-white border border-slate-300 rounded-lg p-1.5 text-slate-800 font-semibold focus:outline-none focus:ring-1 focus:ring-violet-500 cursor-pointer w-full max-w-[155px]"
                           >
                             <option value="">Select Courier...</option>
-                            {courierPresets.map((cp) => {
-                              const isRecommended = isFk && cp.name === "Ekart";
+                            {allowedCouriers.map((courierName) => {
+                              const isRecommended = isFk && courierName === "Ekart";
                               return (
-                                <option key={cp.id} value={cp.name}>
-                                  {cp.name}{isRecommended ? " (Recommended)" : ""}
+                                <option key={courierName} value={courierName}>
+                                  {courierName}{isRecommended ? " (Recommended)" : ""}
                                 </option>
                               );
                             })}

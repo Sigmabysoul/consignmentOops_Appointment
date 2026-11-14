@@ -4,6 +4,7 @@ import {
   calculateOmDeliveryCost,
   PricingOptions,
 } from "../om-logistics";
+import { getAllowedCouriersForChannel } from "@/lib/courier-defaults";
 
 export interface CarrierRatePreset {
   id: string;
@@ -113,145 +114,120 @@ export interface MultiCarrierComparisonResponse {
 }
 
 /**
- * Calculates and compares shipping costs across OM Logistics and other active courier partners.
+ * Calculates and compares shipping costs across OM Logistics and active courier partners.
+ * Per plan:
+ * 1. All shipments are done by land (no air travel).
+ * 2. Amazon VC & FBA: Only Amazon ATS.
+ * 3. Flipkart FBF & FKSB: Only Ekart.
+ * 4. Rest (Swiggy, Blinkit, Flipkart Minutes, etc.): Only Delhivery One and OM Logistics.
  */
 export function compareShippingCarriers(
   input: OmDeliveryInput,
-  options?: PricingOptions & { carrierPresets?: CarrierRatePreset[] }
+  options?: PricingOptions & { carrierPresets?: CarrierRatePreset[]; channel?: string }
 ): MultiCarrierComparisonResponse {
-  const W = input.weightKg;
-  const carriersList: CarrierComparisonItem[] = [];
+  const W = Number(input.weightKg.toFixed(2));
+  let carriersList: CarrierComparisonItem[] = [];
 
-  // 1. Calculate OM Logistics (Surface)
-  const omSurfaceRes = calculateOmDeliveryCost(
-    { ...input, mode: "surface" },
-    options
-  );
+  // Allowed couriers for this channel (if channel is specified)
+  const allowedCouriers = options?.channel ? getAllowedCouriersForChannel(options.channel) : null;
 
-  if (omSurfaceRes.success) {
-    const freight = omSurfaceRes.lineItems.find((l) => l.key === "freight")?.amount || 0;
-    const fuel = omSurfaceRes.lineItems.find((l) => l.key === "fuel")?.amount || 0;
-    const cn = omSurfaceRes.lineItems.find((l) => l.key === "cn")?.amount || 0;
-    const oda = omSurfaceRes.lineItems.find((l) => l.key === "oda")?.amount || 0;
-    const appointment = omSurfaceRes.lineItems.find((l) => l.key === "appointment")?.amount || 0;
-    const rov = omSurfaceRes.lineItems.find((l) => l.key === "rov")?.amount || 0;
+  // 1. Calculate OM Logistics (Land Surface) - only if allowed or unconstrained
+  if (!allowedCouriers || allowedCouriers.includes("OM Logistics")) {
+    const omSurfaceRes = calculateOmDeliveryCost(
+      { ...input, mode: "surface" },
+      options
+    );
 
-    const isSpecialOrNE = ["Northeast", "7 Sister", "Special Zone"].includes(omSurfaceRes.zone);
+    if (omSurfaceRes.success) {
+      const freight = omSurfaceRes.lineItems.find((l) => l.key === "freight")?.amount || 0;
+      const fuel = omSurfaceRes.lineItems.find((l) => l.key === "fuel")?.amount || 0;
+      const cn = omSurfaceRes.lineItems.find((l) => l.key === "cn")?.amount || 0;
+      const oda = omSurfaceRes.lineItems.find((l) => l.key === "oda")?.amount || 0;
+      const appointment = omSurfaceRes.lineItems.find((l) => l.key === "appointment")?.amount || 0;
+      const rov = omSurfaceRes.lineItems.find((l) => l.key === "rov")?.amount || 0;
 
-    carriersList.push({
-      id: "om-surface",
-      name: "OM Logistics",
-      slug: "om-logistics",
-      serviceType: "Surface Per-Kg Rate Card",
-      isOmLogistics: true,
-      isAirExpress: false,
-      estimatedTotal: omSurfaceRes.totalAmount,
-      costPerKg: omSurfaceRes.costPerKg,
-      subtotal: omSurfaceRes.subtotal,
-      gstAmount: omSurfaceRes.gstAmount,
-      breakdown: {
-        freight,
-        fuel,
-        cnOrDocket: cn,
-        oda,
-        appointment,
-        rov,
-        subtotal: omSurfaceRes.subtotal,
-        gst: omSurfaceRes.gstAmount,
-      },
-      estimatedTransitDays: isSpecialOrNE ? "12–14 Days" : "8–9 Days",
-      isLowestCost: false, // will evaluate below
-      isFastest: false,
-      isRecommended: true,
-      notes: omSurfaceRes.notes,
-      rawEstimate: omSurfaceRes,
-    });
-  } else {
-    carriersList.push({
-      id: "om-surface",
-      name: "OM Logistics",
-      slug: "om-logistics",
-      serviceType: "Surface Per-Kg Rate Card",
-      isOmLogistics: true,
-      isAirExpress: false,
-      estimatedTotal: 0,
-      costPerKg: 0,
-      subtotal: 0,
-      gstAmount: 0,
-      breakdown: {
-        freight: 0,
-        fuel: 0,
-        cnOrDocket: 0,
-        oda: 0,
-        appointment: 0,
-        rov: 0,
+      const isSpecialOrNE = ["Northeast", "7 Sister", "Special Zone"].includes(omSurfaceRes.zone);
+
+      carriersList.push({
+        id: "om-surface",
+        name: "OM Logistics",
+        slug: "om-logistics",
+        serviceType: "Surface Heavy Cargo (Land)",
+        isOmLogistics: true,
+        isAirExpress: false,
+        estimatedTotal: Number(omSurfaceRes.totalAmount.toFixed(2)),
+        costPerKg: Number(omSurfaceRes.costPerKg.toFixed(2)),
+        subtotal: Number(omSurfaceRes.subtotal.toFixed(2)),
+        gstAmount: Number(omSurfaceRes.gstAmount.toFixed(2)),
+        breakdown: {
+          freight: Number(freight.toFixed(2)),
+          fuel: Number(fuel.toFixed(2)),
+          cnOrDocket: Number(cn.toFixed(2)),
+          oda: Number(oda.toFixed(2)),
+          appointment: Number(appointment.toFixed(2)),
+          rov: Number(rov.toFixed(2)),
+          subtotal: Number(omSurfaceRes.subtotal.toFixed(2)),
+          gst: Number(omSurfaceRes.gstAmount.toFixed(2)),
+        },
+        estimatedTransitDays: isSpecialOrNE ? "12–14 Days" : "8–9 Days",
+        isLowestCost: false,
+        isFastest: false,
+        isRecommended: true,
+        notes: omSurfaceRes.notes,
+        rawEstimate: omSurfaceRes,
+      });
+    } else {
+      carriersList.push({
+        id: "om-surface",
+        name: "OM Logistics",
+        slug: "om-logistics",
+        serviceType: "Surface Heavy Cargo (Land)",
+        isOmLogistics: true,
+        isAirExpress: false,
+        estimatedTotal: 0,
+        costPerKg: 0,
         subtotal: 0,
-        gst: 0,
-      },
-      estimatedTransitDays: "8–9 Days",
-      isLowestCost: false,
-      isFastest: false,
-      isRecommended: false,
-      error: omSurfaceRes.error,
-      notes: [],
-    });
+        gstAmount: 0,
+        breakdown: {
+          freight: 0,
+          fuel: 0,
+          cnOrDocket: 0,
+          oda: 0,
+          appointment: 0,
+          rov: 0,
+          subtotal: 0,
+          gst: 0,
+        },
+        estimatedTransitDays: "8–9 Days",
+        isLowestCost: false,
+        isFastest: false,
+        isRecommended: false,
+        error: omSurfaceRes.error,
+        notes: [],
+      });
+    }
   }
 
-  // 2. Calculate OM Logistics (Air Express)
-  const omAirRes = calculateOmDeliveryCost(
-    { ...input, mode: "air" },
-    options
-  );
+  // (OM Air Express removed: All shipments are done by land per Rule 1)
 
-  if (omAirRes.success) {
-    const freight = omAirRes.lineItems.find((l) => l.key === "freight")?.amount || 0;
-    const oda = omAirRes.lineItems.find((l) => l.key === "oda")?.amount || 0;
-    const appointment = omAirRes.lineItems.find((l) => l.key === "appointment")?.amount || 0;
-    const rov = omAirRes.lineItems.find((l) => l.key === "rov")?.amount || 0;
-
-    carriersList.push({
-      id: "om-air",
-      name: "OM Logistics (Air Express)",
-      slug: "om-logistics",
-      serviceType: "Air Express Priority",
-      isOmLogistics: true,
-      isAirExpress: true,
-      estimatedTotal: omAirRes.totalAmount,
-      costPerKg: omAirRes.costPerKg,
-      subtotal: omAirRes.subtotal,
-      gstAmount: omAirRes.gstAmount,
-      breakdown: {
-        freight,
-        fuel: 0,
-        cnOrDocket: 0,
-        oda,
-        appointment,
-        rov,
-        subtotal: omAirRes.subtotal,
-        gst: omAirRes.gstAmount,
-      },
-      estimatedTransitDays: "2–3 Days",
-      isLowestCost: false,
-      isFastest: true,
-      isRecommended: false,
-      notes: ["Air Express: ₹135/kg all-inclusive across all zones"],
-      rawEstimate: omAirRes,
-    });
-  }
-
-  // 3. Calculate Configured Partner Carriers
+  // 2. Calculate Configured Partner Carriers (Delhivery One, Ekart, Amazon ATS)
   const presets = options?.carrierPresets || DEFAULT_CARRIER_PRESETS;
   for (const preset of presets) {
     if (!preset.isActive) continue;
 
-    // Weight rules
+    // Filter by channel if channel specified
+    if (allowedCouriers && !allowedCouriers.includes(preset.name)) {
+      continue;
+    }
+
+    // Weight rules (strict 2 decimal points)
     const chargeableW = Math.max(W, preset.minChargeableWeightKg);
     const rawFreight = chargeableW * preset.baseRatePerKg;
     const freight = Number(Math.max(preset.minFreightAmount, rawFreight).toFixed(2));
     const fuel = Number(((freight * preset.fuelSurchargePercent) / 100).toFixed(2));
-    const docket = preset.docketCharge;
-    const appt = input.appointmentDelivery ? preset.appointmentFee : 0;
-    const oda = input.odaDistanceKm && input.odaDistanceKm > 40 ? Math.round(input.odaDistanceKm * 8.5) : 0;
+    const docket = Number(preset.docketCharge.toFixed(2));
+    const appt = input.appointmentDelivery ? Number(preset.appointmentFee.toFixed(2)) : 0;
+    const oda = input.odaDistanceKm && input.odaDistanceKm > 40 ? Number(Math.round(input.odaDistanceKm * 8.5).toFixed(2)) : 0;
 
     // Optional ROV
     let rov = 0;
@@ -299,9 +275,9 @@ export function compareShippingCarriers(
     });
   }
 
-  // 4. Identify Lowest Cost (among surface options without error)
+  // 3. Identify Lowest Cost (among surface options without error)
   const validSurface = carriersList.filter(
-    (c) => !c.error && !c.isAirExpress && c.estimatedTotal > 0
+    (c) => !c.error && c.estimatedTotal > 0
   );
   let lowestCostCarrierName: string | null = null;
   let lowestCostAmount: number | null = null;

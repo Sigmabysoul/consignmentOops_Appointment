@@ -32,7 +32,7 @@ import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "
 import { useToast } from "@/components/ui/Toast";
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
-import { isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
+import { isFlipkartFbfOrFksb, getAllowedCouriersForChannel } from "@/lib/courier-defaults";
 
 interface OrdersTableProps {
   orders: AppointmentOrder[];
@@ -779,11 +779,11 @@ export function OrdersTable({
                             autoFocus
                           >
                             <option value="">Select courier...</option>
-                            {courierPresets.map((cp) => {
-                              const isRec = isFlipkartFbfOrFksb(order.channel) && cp.name === "Ekart";
+                            {getAllowedCouriersForChannel(order.channel).map((courierName) => {
+                              const isRec = isFlipkartFbfOrFksb(order.channel) && courierName === "Ekart";
                               return (
-                                <option key={cp.id} value={cp.name}>
-                                  {cp.name}{isRec ? " (Recommended)" : ""}
+                                <option key={courierName} value={courierName}>
+                                  {courierName}{isRec ? " (Recommended)" : ""}
                                 </option>
                               );
                             })}

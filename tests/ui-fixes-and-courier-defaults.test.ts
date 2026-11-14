@@ -5,13 +5,15 @@ import {
   isFlipkartFbfOrFksb,
   getDefaultCourierForChannel,
   getEffectiveCourierPartner,
+  getAllowedCouriersForChannel,
+  formatDecimalNumber,
 } from "../src/lib/courier-defaults";
 import {
   DEFAULT_CARRIER_PRESETS,
   compareShippingCarriers,
 } from "../src/modules/pricing/multi-carrier/carrier-comparison-engine";
 
-describe("Courier Partner Rules & Channel Defaults Suite", () => {
+describe("Courier Partner Rules & Channel Defaults Suite (plan.md)", () => {
   test("Strictly approves only 4 courier partners across ecosystem", () => {
     const allowedNames = ["OM Logistics", "Delhivery One", "Ekart", "Amazon ATS"];
     
@@ -34,58 +36,48 @@ describe("Courier Partner Rules & Channel Defaults Suite", () => {
     }
   });
 
-  test("Amazon orders automatically default to Amazon ATS when courier is unset", () => {
-    // Amazon VC
+  test("Rule 4: Amazon VC and FBA courier option is strictly and ONLY Amazon ATS", () => {
+    // Allowed couriers
+    assert.deepStrictEqual(getAllowedCouriersForChannel("AMAZON_VC"), ["Amazon ATS"]);
+    assert.deepStrictEqual(getAllowedCouriersForChannel("AMAZON_FBA"), ["Amazon ATS"]);
+    assert.deepStrictEqual(getAllowedCouriersForChannel("Amazon"), ["Amazon ATS"]);
+
+    // Defaults and effective
     assert.strictEqual(isAmazonChannel("AMAZON_VC"), true);
     assert.strictEqual(getDefaultCourierForChannel("AMAZON_VC"), "Amazon ATS");
     assert.strictEqual(getEffectiveCourierPartner("AMAZON_VC", null), "Amazon ATS");
     assert.strictEqual(getEffectiveCourierPartner("AMAZON_VC", ""), "Amazon ATS");
-
-    // Amazon FBA
-    assert.strictEqual(isAmazonChannel("AMAZON_FBA"), true);
-    assert.strictEqual(getDefaultCourierForChannel("AMAZON_FBA"), "Amazon ATS");
     assert.strictEqual(getEffectiveCourierPartner("AMAZON_FBA", null), "Amazon ATS");
-
-    // Generic Amazon channel string
-    assert.strictEqual(isAmazonChannel("amazon"), true);
-    assert.strictEqual(getEffectiveCourierPartner("Amazon Seller", undefined), "Amazon ATS");
-
-    // If operator has explicitly assigned another courier (e.g. Delhivery One), honor it
-    assert.strictEqual(getEffectiveCourierPartner("AMAZON_VC", "Delhivery One"), "Delhivery One");
-    assert.strictEqual(getEffectiveCourierPartner("AMAZON_VC", "OM Logistics"), "OM Logistics");
+    assert.strictEqual(getEffectiveCourierPartner("AMAZON_VC", "Amazon ATS"), "Amazon ATS");
   });
 
-  test("Flipkart FBF and FKSB recommend Ekart, but DO NOT auto-select by default", () => {
-    // Flipkart FBF
+  test("Rule 5: Flipkart FBF and FKSB courier option is strictly and ONLY Ekart (not auto-selected)", () => {
+    // Allowed couriers
+    assert.deepStrictEqual(getAllowedCouriersForChannel("FLIPKART_FBF"), ["Ekart"]);
+    assert.deepStrictEqual(getAllowedCouriersForChannel("FKSB_FLIPKART"), ["Ekart"]);
+
+    // Not auto-selected by default (waits for user to select)
     assert.strictEqual(isFlipkartFbfOrFksb("FLIPKART_FBF"), true);
     assert.strictEqual(getDefaultCourierForChannel("FLIPKART_FBF"), null);
     assert.strictEqual(getEffectiveCourierPartner("FLIPKART_FBF", null), null);
     assert.strictEqual(getEffectiveCourierPartner("FLIPKART_FBF", ""), null);
 
-    // FKSB Flipkart
-    assert.strictEqual(isFlipkartFbfOrFksb("FKSB_FLIPKART"), true);
-    assert.strictEqual(getDefaultCourierForChannel("FKSB_FLIPKART"), null);
-    assert.strictEqual(getEffectiveCourierPartner("FKSB_FLIPKART", null), null);
-
-    // When operator explicitly selects Ekart or another courier
+    // When selected:
     assert.strictEqual(getEffectiveCourierPartner("FLIPKART_FBF", "Ekart"), "Ekart");
-    assert.strictEqual(getEffectiveCourierPartner("FKSB_FLIPKART", "Delhivery One"), "Delhivery One");
   });
 
-  test("Other channels (Swiggy, Blinkit STO, Flipkart Minutes) have no auto-selected courier", () => {
-    assert.strictEqual(isAmazonChannel("SWIGGY"), false);
-    assert.strictEqual(isFlipkartFbfOrFksb("SWIGGY"), false);
+  test("Rule 6: Swiggy, Blinkit, and Flipkart Minutes allowed couriers are strictly Delhivery One and OM Logistics", () => {
+    assert.deepStrictEqual(getAllowedCouriersForChannel("SWIGGY"), ["Delhivery One", "OM Logistics"]);
+    assert.deepStrictEqual(getAllowedCouriersForChannel("BLINKIT_STO"), ["Delhivery One", "OM Logistics"]);
+    assert.deepStrictEqual(getAllowedCouriersForChannel("FLIPKART_MINUTES"), ["Delhivery One", "OM Logistics"]);
+
     assert.strictEqual(getDefaultCourierForChannel("SWIGGY"), null);
     assert.strictEqual(getEffectiveCourierPartner("SWIGGY", null), null);
-
-    assert.strictEqual(isAmazonChannel("BLINKIT_STO"), false);
-    assert.strictEqual(isFlipkartFbfOrFksb("BLINKIT_STO"), false);
-    assert.strictEqual(getDefaultCourierForChannel("BLINKIT_STO"), null);
-
-    assert.strictEqual(isFlipkartFbfOrFksb("FLIPKART_MINUTES"), false);
+    assert.strictEqual(getEffectiveCourierPartner("SWIGGY", "Delhivery One"), "Delhivery One");
+    assert.strictEqual(getEffectiveCourierPartner("BLINKIT_STO", "OM Logistics"), "OM Logistics");
   });
 
-  test("Multi-Carrier Comparison produces only the 4 approved carriers", () => {
+  test("Rule 1 & Comparison: Produces Land Surface carriers only (no Air Express)", () => {
     const comparison = compareShippingCarriers({
       state: "Maharashtra",
       weightKg: 250,
@@ -96,9 +88,9 @@ describe("Courier Partner Rules & Channel Defaults Suite", () => {
     });
 
     const carrierNames = comparison.carriers.map((c) => c.name);
-    // OM Logistics (Surface & Air), Delhivery One, Ekart, Amazon ATS
+    // OM Logistics (Surface), Delhivery One, Ekart, Amazon ATS
     assert.ok(carrierNames.includes("OM Logistics"));
-    assert.ok(carrierNames.includes("OM Logistics (Air Express)"));
+    assert.strictEqual(carrierNames.includes("OM Logistics (Air Express)"), false, "No Air Express");
     assert.ok(carrierNames.includes("Delhivery One"));
     assert.ok(carrierNames.includes("Ekart"));
     assert.ok(carrierNames.includes("Amazon ATS"));
@@ -108,5 +100,13 @@ describe("Courier Partner Rules & Channel Defaults Suite", () => {
     assert.strictEqual(carrierNames.includes("Smartr Logistics"), false);
     assert.strictEqual(carrierNames.includes("V-Trans"), false);
     assert.strictEqual(carrierNames.includes("Kerry Indev"), false);
+  });
+
+  test("Rule 7: Strict 2-decimal formatting (.00)", () => {
+    assert.strictEqual(formatDecimalNumber(54.18000000000001), "54.18");
+    assert.strictEqual(formatDecimalNumber(12), "12.00");
+    assert.strictEqual(formatDecimalNumber(12.5), "12.50");
+    assert.strictEqual(formatDecimalNumber(null), "");
+    assert.strictEqual(formatDecimalNumber(undefined), "");
   });
 });

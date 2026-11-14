@@ -127,7 +127,7 @@ describe("Appointment App 3-Part Redesign — Comprehensive Verification", () =>
       };
 
       const tsv = formatTabSeparatedBoxRow(group);
-      assert.strictEqual(tsv, "3\t23\t40\t25\t12.5", "TSV must be: Count \\t Length \\t Breadth \\t Height \\t Weight");
+      assert.strictEqual(tsv, "3\t23\t40\t25\t12.50", "TSV must be: Count \\t Length \\t Breadth \\t Height \\t Weight (2 decimals)");
 
       const display = formatDimensionDisplay(group);
       assert.strictEqual(display, "23 × 40 × 25 cm");
