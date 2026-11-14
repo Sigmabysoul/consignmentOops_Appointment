@@ -12,6 +12,10 @@ import {
   DEFAULT_CARRIER_PRESETS,
   CarrierRatePreset,
 } from "@/modules/pricing/multi-carrier/carrier-comparison-engine";
+import {
+  OmWhatsAppConfig,
+  DEFAULT_OM_WHATSAPP_CONFIG,
+} from "./om-whatsapp-booking";
 
 export interface UnifiedShippingPresets {
   omRateCard: OmRateRow[];
@@ -19,6 +23,7 @@ export interface UnifiedShippingPresets {
   carrierPresets: CarrierRatePreset[];
   stateZoneMap: Record<string, string>;
   odaMatrix: OdaBand[];
+  omWhatsAppConfig?: OmWhatsAppConfig;
   updatedAt?: string;
   updatedBy?: string | null;
 }
@@ -60,6 +65,7 @@ export function getDefaultShippingPresets(): UnifiedShippingPresets {
     carrierPresets: JSON.parse(JSON.stringify(DEFAULT_CARRIER_PRESETS)),
     stateZoneMap: JSON.parse(JSON.stringify(DEFAULT_STATE_ZONE_MAP)),
     odaMatrix: JSON.parse(JSON.stringify(DEFAULT_ODA_MATRIX)),
+    omWhatsAppConfig: JSON.parse(JSON.stringify(DEFAULT_OM_WHATSAPP_CONFIG)),
     updatedAt: new Date().toISOString(),
     updatedBy: "SYSTEM_DEFAULTS",
   };
@@ -90,6 +96,9 @@ export async function getActiveShippingPresets(client: any = db): Promise<Unifie
         carrierPresets: Array.isArray(stored.carrierPresets) && stored.carrierPresets.length > 0 ? stored.carrierPresets : defaults.carrierPresets,
         stateZoneMap: stored.stateZoneMap && Object.keys(stored.stateZoneMap).length > 0 ? stored.stateZoneMap : defaults.stateZoneMap,
         odaMatrix: Array.isArray(stored.odaMatrix) && stored.odaMatrix.length > 0 ? stored.odaMatrix : defaults.odaMatrix,
+        omWhatsAppConfig: stored.omWhatsAppConfig
+          ? { ...defaults.omWhatsAppConfig!, ...stored.omWhatsAppConfig }
+          : defaults.omWhatsAppConfig,
         updatedAt: rows[0].updatedAt ? new Date(rows[0].updatedAt).toISOString() : defaults.updatedAt,
         updatedBy: rows[0].updatedBy || "ADMIN",
       };
@@ -123,6 +132,9 @@ export async function saveShippingPresets(
     carrierPresets: presets.carrierPresets || current.carrierPresets,
     stateZoneMap: presets.stateZoneMap || current.stateZoneMap,
     odaMatrix: presets.odaMatrix || current.odaMatrix,
+    omWhatsAppConfig: presets.omWhatsAppConfig
+      ? { ...(current.omWhatsAppConfig || DEFAULT_OM_WHATSAPP_CONFIG), ...presets.omWhatsAppConfig }
+      : current.omWhatsAppConfig || DEFAULT_OM_WHATSAPP_CONFIG,
     updatedAt: new Date().toISOString(),
     updatedBy,
   };

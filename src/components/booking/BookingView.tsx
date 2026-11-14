@@ -31,8 +31,10 @@ import {
   Sliders,
   DollarSign,
   Calculator,
+  MessageSquare,
 } from "lucide-react";
 import { BookingDetailModal } from "@/components/booking/BookingDetailModal";
+import { OmWhatsAppBookingModal } from "@/components/booking/OmWhatsAppBookingModal";
 import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel } from "@/lib/courier-defaults";
 
 interface BookingViewProps {
@@ -75,6 +77,7 @@ export function BookingView({
   const [pickupDateVal, setPickupDateVal] = useState<string>("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedBookingDetailOrder, setSelectedBookingDetailOrder] = useState<AppointmentOrder | null>(null);
+  const [whatsAppModalOrder, setWhatsAppModalOrder] = useState<AppointmentOrder | null>(null);
 
   // Quick Copy Helper
   const handleCopy = async (text: string, label: string) => {
@@ -118,6 +121,14 @@ export function BookingView({
 
   // Quick Courier Assignment
   const handleCourierChange = async (orderId: string, courierName: string) => {
+    if (courierName === "OM Logistics") {
+      const target = orders.find((o) => o.id === orderId);
+      if (target) {
+        setWhatsAppModalOrder(target);
+        return;
+      }
+    }
+
     setIsUpdating(true);
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -455,6 +466,19 @@ export function BookingView({
                             <span>Compare Rates</span>
                           </button>
 
+                          {/* OM Logistics WhatsApp Booking Button */}
+                          {(allowedCouriers.includes("OM Logistics") || order.courierPartner === "OM Logistics") && (
+                            <button
+                              type="button"
+                              onClick={() => setWhatsAppModalOrder(order)}
+                              className="px-2.5 py-1 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
+                              title="Draft WhatsApp Pickup Booking for OM Logistics"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>WhatsApp Booking</span>
+                            </button>
+                          )}
+
                           <div className="flex items-center gap-2 pt-0.5">
                             <button
                               type="button"
@@ -534,6 +558,14 @@ export function BookingView({
           setSelectedBookingDetailOrder(null);
           onSwitchToAppointment?.(ord);
         }}
+      />
+
+      {/* ── OM Logistics WhatsApp Pickup Booking Window ── */}
+      <OmWhatsAppBookingModal
+        order={whatsAppModalOrder}
+        isOpen={Boolean(whatsAppModalOrder)}
+        onClose={() => setWhatsAppModalOrder(null)}
+        onOrderUpdated={onOrderUpdated}
       />
     </div>
   );

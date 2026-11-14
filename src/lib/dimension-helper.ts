@@ -66,56 +66,84 @@ export function extractBoxDimensionGroups(order: any): BoxDimensionGroup[] {
   const dimUnit = order.dimensionUnit || "cm";
   const wtUnit = order.weightUnit || "kg";
 
-  // 1. Standard Box Group (if explicit dimensions exist)
-  const stdCount = typeof order.boxCount === "number" && order.boxCount > 0 ? order.boxCount : 0;
-  const stdL = typeof order.lengthCm === "number" ? order.lengthCm : null;
-  const stdW = typeof order.widthCm === "number" ? order.widthCm : null;
-  const stdH = typeof order.heightCm === "number" ? order.heightCm : null;
-  const stdWt = typeof order.weightKg === "number" ? Number(order.weightKg.toFixed(2)) : null;
-
-  const hasExplicitStdDims = stdL !== null || stdW !== null || stdH !== null;
-
-  if (hasExplicitStdDims) {
-    const key = `${stdL ?? "?"}x${stdW ?? "?"}x${stdH ?? "?"}`;
-    groups.push({
-      id: "standard",
-      boxCount: stdCount || 1,
-      lengthCm: stdL,
-      widthCm: stdW,
-      heightCm: stdH,
-      weightKg: stdWt,
-      dimensionUnit: dimUnit,
-      weightUnit: wtUnit,
-      isRemainder: false,
-      label: `${stdCount || 1} Box${stdCount > 1 ? "es" : ""}`,
-      key,
-    });
+  // 0. Explicit Box Dimension Groups (e.g. from customData or direct property)
+  const explicitGroups = order.boxDimensionGroups || order.customData?.boxDimensionGroups;
+  if (Array.isArray(explicitGroups) && explicitGroups.length > 0) {
+    for (let i = 0; i < explicitGroups.length; i++) {
+      const eg = explicitGroups[i];
+      const l = eg.lengthCm !== undefined && eg.lengthCm !== null ? Number(eg.lengthCm) : null;
+      const w = eg.widthCm !== undefined && eg.widthCm !== null ? Number(eg.widthCm) : null;
+      const h = eg.heightCm !== undefined && eg.heightCm !== null ? Number(eg.heightCm) : null;
+      const cnt = Number(eg.boxCount) || 1;
+      const wt = eg.weightKg !== null && eg.weightKg !== undefined ? Number(Number(eg.weightKg).toFixed(2)) : null;
+      groups.push({
+        id: `explicit-${i}`,
+        boxCount: cnt,
+        lengthCm: l,
+        widthCm: w,
+        heightCm: h,
+        weightKg: wt,
+        dimensionUnit: eg.dimensionUnit || dimUnit,
+        weightUnit: eg.weightUnit || wtUnit,
+        isRemainder: Boolean(eg.isRemainder),
+        label: `${cnt} Box${cnt > 1 ? "es" : ""}`,
+        key: `${l ?? "?"}x${w ?? "?"}x${h ?? "?"}`,
+      });
+    }
   }
 
-  // 2. Remainder Box Group (if explicit dimensions exist)
-  const remCount = typeof order.remainderQty === "number" && order.remainderQty > 0 ? order.remainderQty : 0;
-  const remL = typeof order.remainderLengthCm === "number" ? order.remainderLengthCm : null;
-  const remW = typeof order.remainderWidthCm === "number" ? order.remainderWidthCm : null;
-  const remH = typeof order.remainderHeightCm === "number" ? order.remainderHeightCm : null;
-  const remWt = typeof order.remainderWeightKg === "number" ? Number(order.remainderWeightKg.toFixed(2)) : null;
+  // 1. Standard Box Group (if explicit dimensions exist and not already loaded from explicitGroups)
+  if (groups.length === 0) {
+    const stdCount = typeof order.boxCount === "number" && order.boxCount > 0 ? order.boxCount : 0;
+    const stdL = typeof order.lengthCm === "number" ? order.lengthCm : null;
+    const stdW = typeof order.widthCm === "number" ? order.widthCm : null;
+    const stdH = typeof order.heightCm === "number" ? order.heightCm : null;
+    const stdWt = typeof order.weightKg === "number" ? Number(order.weightKg.toFixed(2)) : null;
 
-  const hasExplicitRemDims = remL !== null || remW !== null || remH !== null;
+    const hasExplicitStdDims = stdL !== null || stdW !== null || stdH !== null;
 
-  if (hasExplicitRemDims) {
-    const key = `${remL ?? "?"}x${remW ?? "?"}x${remH ?? "?"}`;
-    groups.push({
-      id: "remainder",
-      boxCount: remCount || 1,
-      lengthCm: remL,
-      widthCm: remW,
-      heightCm: remH,
-      weightKg: remWt,
-      dimensionUnit: dimUnit,
-      weightUnit: wtUnit,
-      isRemainder: true,
-      label: `${remCount || 1} Remainder Box${remCount > 1 ? "es" : ""}`,
-      key,
-    });
+    if (hasExplicitStdDims) {
+      const key = `${stdL ?? "?"}x${stdW ?? "?"}x${stdH ?? "?"}`;
+      groups.push({
+        id: "standard",
+        boxCount: stdCount || 1,
+        lengthCm: stdL,
+        widthCm: stdW,
+        heightCm: stdH,
+        weightKg: stdWt,
+        dimensionUnit: dimUnit,
+        weightUnit: wtUnit,
+        isRemainder: false,
+        label: `${stdCount || 1} Box${stdCount > 1 ? "es" : ""}`,
+        key,
+      });
+    }
+
+    // 2. Remainder Box Group (if explicit dimensions exist)
+    const remCount = typeof order.remainderQty === "number" && order.remainderQty > 0 ? order.remainderQty : 0;
+    const remL = typeof order.remainderLengthCm === "number" ? order.remainderLengthCm : null;
+    const remW = typeof order.remainderWidthCm === "number" ? order.remainderWidthCm : null;
+    const remH = typeof order.remainderHeightCm === "number" ? order.remainderHeightCm : null;
+    const remWt = typeof order.remainderWeightKg === "number" ? Number(order.remainderWeightKg.toFixed(2)) : null;
+
+    const hasExplicitRemDims = remL !== null || remW !== null || remH !== null;
+
+    if (hasExplicitRemDims) {
+      const key = `${remL ?? "?"}x${remW ?? "?"}x${remH ?? "?"}`;
+      groups.push({
+        id: "remainder",
+        boxCount: remCount || 1,
+        lengthCm: remL,
+        widthCm: remW,
+        heightCm: remH,
+        weightKg: remWt,
+        dimensionUnit: dimUnit,
+        weightUnit: wtUnit,
+        isRemainder: true,
+        label: `${remCount || 1} Remainder Box${remCount > 1 ? "es" : ""}`,
+        key,
+      });
+    }
   }
 
   // 3. Fallback: Parse `boxDimensions` text if no explicit dimensions were found

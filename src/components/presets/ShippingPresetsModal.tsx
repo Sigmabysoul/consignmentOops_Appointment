@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  MessageSquare,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -24,6 +25,10 @@ import {
 } from "@/modules/pricing/om-logistics/types";
 import { CarrierRatePreset } from "@/modules/pricing/multi-carrier/carrier-comparison-engine";
 import { UnifiedShippingPresets } from "@/lib/shipping-presets-storage";
+import {
+  OmWhatsAppConfig,
+  DEFAULT_OM_WHATSAPP_CONFIG,
+} from "@/lib/om-whatsapp-booking";
 import { ALL_STATES } from "@/modules/pricing/om-logistics/state-zone-mapping";
 import { ODA_DISTANCE_BANDS } from "@/modules/pricing/om-logistics/oda-matrix";
 
@@ -41,7 +46,7 @@ export function ShippingPresetsModal({
   const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<
-    "omRates" | "omConfig" | "carriers" | "stateZones" | "oda"
+    "omRates" | "omConfig" | "carriers" | "stateZones" | "oda" | "omWhatsApp"
   >("omRates");
 
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +59,7 @@ export function ShippingPresetsModal({
   const [carrierPresets, setCarrierPresets] = useState<CarrierRatePreset[]>([]);
   const [stateZoneMap, setStateZoneMap] = useState<Record<string, string>>({});
   const [odaMatrix, setOdaMatrix] = useState<OdaBand[]>([]);
+  const [omWhatsAppConfig, setOmWhatsAppConfig] = useState<OmWhatsAppConfig>(DEFAULT_OM_WHATSAPP_CONFIG);
   const [stateSearch, setStateSearch] = useState("");
 
   // Load presets on open
@@ -71,6 +77,7 @@ export function ShippingPresetsModal({
           setCarrierPresets(p.carrierPresets || []);
           setStateZoneMap(p.stateZoneMap || {});
           setOdaMatrix(p.odaMatrix || []);
+          setOmWhatsAppConfig(p.omWhatsAppConfig || DEFAULT_OM_WHATSAPP_CONFIG);
         }
       })
       .catch((err) => {
@@ -93,6 +100,7 @@ export function ShippingPresetsModal({
         carrierPresets,
         stateZoneMap,
         odaMatrix,
+        omWhatsAppConfig: omWhatsAppConfig || DEFAULT_OM_WHATSAPP_CONFIG,
       };
 
       const res = await fetch("/api/shipping-presets", {
@@ -136,6 +144,7 @@ export function ShippingPresetsModal({
         setCarrierPresets(p.carrierPresets || []);
         setStateZoneMap(p.stateZoneMap || {});
         setOdaMatrix(p.odaMatrix || []);
+        setOmWhatsAppConfig(p.omWhatsAppConfig || DEFAULT_OM_WHATSAPP_CONFIG);
       }
 
       showToast("Reset to August 2026 defaults ✓", "success");
@@ -259,6 +268,7 @@ export function ShippingPresetsModal({
             { id: "carriers", label: "3. Partner Carriers", icon: Sliders },
             { id: "stateZones", label: "4. State to Zone Mapping", icon: MapPin },
             { id: "oda", label: "5. ODA Distance Matrix", icon: Layers },
+            { id: "omWhatsApp", label: "6. OM WhatsApp Booking", icon: MessageSquare },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -836,6 +846,154 @@ export function ShippingPresetsModal({
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 6: OM WhatsApp Booking */}
+              {activeTab === "omWhatsApp" && (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-emerald-600" />
+                        <span>OM Logistics WhatsApp Pickup Booking Automation</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        When OM Logistics is assigned, WhatsApp Web automatically opens with the drafted pickup details.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setOmWhatsAppConfig(DEFAULT_OM_WHATSAPP_CONFIG)}
+                      className="px-2.5 py-1 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <RotateCcw className="w-3 h-3 text-slate-500" />
+                      <span>Reset WhatsApp Settings</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Left Column: Config Inputs */}
+                    <div className="space-y-4">
+                      {/* WhatsApp Phone Number */}
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                        <label className="block text-xs font-bold text-slate-800">
+                          OM Logistics WhatsApp Phone Number
+                        </label>
+                        <input
+                          type="text"
+                          value={omWhatsAppConfig.phoneNumber}
+                          onChange={(e) =>
+                            setOmWhatsAppConfig((prev) => ({
+                              ...prev,
+                              phoneNumber: e.target.value,
+                            }))
+                          }
+                          placeholder="e.g. 9477070699"
+                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Testing number: <strong className="text-emerald-700">9477070699</strong>. Normalized automatically to international format (+91).
+                        </p>
+                      </div>
+
+                      {/* Default Warehouse Pickup Address */}
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                        <label className="block text-xs font-bold text-slate-800">
+                          Default Warehouse Pickup Address & Pin Code
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={omWhatsAppConfig.pickupAddress}
+                          onChange={(e) =>
+                            setOmWhatsAppConfig((prev) => ({
+                              ...prev,
+                              pickupAddress: e.target.value,
+                            }))
+                          }
+                          placeholder="Warehouse pickup address..."
+                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Replaces <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px]">{"{{pickupAddress}}"}</code> in the template.
+                        </p>
+                      </div>
+
+                      {/* Contact Note */}
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
+                        <label className="block text-xs font-bold text-slate-800">
+                          Pickup Contact Queries Note
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={omWhatsAppConfig.contactNote}
+                          onChange={(e) =>
+                            setOmWhatsAppConfig((prev) => ({
+                              ...prev,
+                              contactNote: e.target.value,
+                            }))
+                          }
+                          placeholder="For any pickup related queries..."
+                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Replaces <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px]">{"{{contactNote}}"}</code> in the template.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Draft Message Template */}
+                    <div className="space-y-4">
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-slate-800">
+                            WhatsApp Draft Message Template
+                          </label>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">
+                            Editable Preset
+                          </span>
+                        </div>
+                        <textarea
+                          rows={11}
+                          value={omWhatsAppConfig.draftTemplate}
+                          onChange={(e) =>
+                            setOmWhatsAppConfig((prev) => ({
+                              ...prev,
+                              draftTemplate: e.target.value,
+                            }))
+                          }
+                          className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed"
+                        />
+
+                        {/* Available Placeholders Legend */}
+                        <div className="pt-1 border-t border-slate-200 space-y-1.5">
+                          <span className="text-[10px] font-bold text-slate-600 block uppercase tracking-wider">
+                            Available Template Placeholders:
+                          </span>
+                          <div className="flex flex-wrap gap-1 text-[10px]">
+                            {[
+                              { tag: "{{pickupDate}}", desc: "Pickup Date (DD.MM.YYYY)" },
+                              { tag: "{{pickupAddress}}", desc: "Pickup Pin / Address" },
+                              { tag: "{{deliveryAddress}}", desc: "Destination Address" },
+                              { tag: "{{totalBoxes}}", desc: "Total Box Count" },
+                              { tag: "{{boxDetails}}", desc: "Line-by-line Dimensions" },
+                              { tag: "{{contactNote}}", desc: "Contact guidance note" },
+                              { tag: "{{orderValue}}", desc: "User-inputted shipment value" },
+                            ].map((p) => (
+                              <span
+                                key={p.tag}
+                                title={p.desc}
+                                className="bg-white border border-slate-300 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold"
+                              >
+                                {p.tag}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

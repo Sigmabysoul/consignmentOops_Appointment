@@ -20,6 +20,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  MessageSquare,
 } from "lucide-react";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
@@ -27,6 +28,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
+import { OmWhatsAppBookingModal } from "@/components/booking/OmWhatsAppBookingModal";
 import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
 import {
   ALL_STATES,
@@ -81,6 +83,7 @@ export function BookingDetailModal({
   // Selection & Saving state
   const [isAssigning, setIsAssigning] = useState<string | null>(null);
   const [copiedRo, setCopiedRo] = useState(false);
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
 
   // Initialize inputs whenever order changes or modal opens
   useEffect(() => {
@@ -540,10 +543,29 @@ export function BookingDetailModal({
                             </div>
                           )}
 
+                          {/* WhatsApp Booking Button for OM Logistics */}
+                          {carrier.isOmLogistics && (
+                            <button
+                              type="button"
+                              onClick={() => setWhatsAppModalOpen(true)}
+                              className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                              title="Draft WhatsApp Pickup Booking for OM Logistics"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5" />
+                              <span>WhatsApp Booking</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             disabled={hasError || isAssigning === carrier.name}
-                            onClick={() => handleAssignCarrier(carrier.name)}
+                            onClick={() => {
+                              if (carrier.isOmLogistics) {
+                                setWhatsAppModalOpen(true);
+                              } else {
+                                handleAssignCarrier(carrier.name);
+                              }
+                            }}
                             className={`px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                               isCurrentAssigned
                                 ? "bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700"
@@ -684,6 +706,17 @@ export function BookingDetailModal({
           </div>
         </div>
       </div>
+
+      {/* ── OM Logistics WhatsApp Pickup Booking Window ── */}
+      <OmWhatsAppBookingModal
+        order={order}
+        isOpen={whatsAppModalOpen}
+        onClose={() => setWhatsAppModalOpen(false)}
+        onOrderUpdated={() => {
+          onOrderUpdated();
+          setWhatsAppModalOpen(false);
+        }}
+      />
     </div>
   );
 }
