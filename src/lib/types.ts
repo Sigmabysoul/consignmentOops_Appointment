@@ -131,6 +131,12 @@ export interface DashboardStats {
   pending: number;
   cancelled: number;
   channelCounts?: Record<string, number>;
+  bookingCount?: number;
+  bookingChannelCounts?: Record<string, number>;
+  appointmentCount?: number;
+  appointmentChannelCounts?: Record<string, number>;
+  activeTotalCount?: number;
+  activeChannelCounts?: Record<string, number>;
   warehouses?: string[];
 }
 

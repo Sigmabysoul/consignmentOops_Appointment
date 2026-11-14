@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { MetricCards } from "@/components/dashboard/MetricCards";
@@ -153,7 +153,7 @@ export default function AppointmentDashboard() {
 
   // 3. Fetch Dashboard Stats (Includes channel counts & warehouses)
   const fetchStats = useCallback(() => {
-    fetch("/api/dashboard/stats")
+    fetch(`/api/dashboard/stats?tab=${activeView}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.stats) {
@@ -161,7 +161,30 @@ export default function AppointmentDashboard() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [activeView]);
+
+  // Derive channel counts and total count matching current active tab
+  const effectiveChannelCounts = useMemo(() => {
+    if (!stats) return {};
+    if (activeView === "booking") {
+      return stats.bookingChannelCounts || {};
+    }
+    if (activeView === "appointment") {
+      return stats.appointmentChannelCounts || {};
+    }
+    return stats.channelCounts || {};
+  }, [stats, activeView]);
+
+  const effectiveTotalOrdersCount = useMemo(() => {
+    if (!stats) return totalOrders;
+    if (activeView === "booking") {
+      return stats.bookingCount ?? totalOrders;
+    }
+    if (activeView === "appointment") {
+      return stats.appointmentCount ?? totalOrders;
+    }
+    return stats.totalOrders ?? totalOrders;
+  }, [stats, activeView, totalOrders]);
 
   // 4. Fetch Paginated Orders
   const fetchOrders = useCallback((isBackground = false) => {
@@ -359,8 +382,11 @@ export default function AppointmentDashboard() {
           setSelectedChannel(platform);
           setPage(1);
         }}
-        channelCounts={stats?.channelCounts || {}}
-        totalOrdersCount={stats?.totalOrders || totalOrders}
+        channelCounts={effectiveChannelCounts}
+        totalOrdersCount={effectiveTotalOrdersCount}
+        bookingCount={stats?.bookingCount}
+        appointmentCount={stats?.appointmentCount}
+        allDataCount={stats?.totalOrders}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
         onOpenPresets={() => setIsPresetsModalOpen(true)}

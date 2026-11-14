@@ -96,6 +96,9 @@ interface AppHeaderProps {
   onSelectPlatform: (platform: string) => void;
   channelCounts?: Record<string, number>;
   totalOrdersCount?: number;
+  bookingCount?: number;
+  appointmentCount?: number;
+  allDataCount?: number;
   onRefresh?: () => void;
   isRefreshing?: boolean;
   onOpenPresets?: () => void;
@@ -109,6 +112,9 @@ export function AppHeader({
   onSelectPlatform,
   channelCounts = {},
   totalOrdersCount = 0,
+  bookingCount,
+  appointmentCount,
+  allDataCount,
   onRefresh,
   isRefreshing,
   onOpenPresets,
@@ -212,6 +218,17 @@ export function AppHeader({
             >
               <Truck className="w-3.5 h-3.5 text-violet-600" />
               <span>1. Booking</span>
+              {typeof bookingCount === "number" && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                    activeView === "booking"
+                      ? "bg-violet-600 text-white"
+                      : "bg-white/20 text-white"
+                  }`}
+                >
+                  {bookingCount}
+                </span>
+              )}
             </button>
 
             {/* Part 2: Appointment View */}
@@ -226,6 +243,17 @@ export function AppHeader({
             >
               <Calendar className="w-3.5 h-3.5 text-indigo-600" />
               <span>2. Appointment</span>
+              {typeof appointmentCount === "number" && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                    activeView === "appointment"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-white/20 text-white"
+                  }`}
+                >
+                  {appointmentCount}
+                </span>
+              )}
             </button>
 
             {/* Part 3: Kanban View */}
@@ -261,7 +289,7 @@ export function AppHeader({
                     : "bg-white/20 text-white"
                 }`}
               >
-                {totalOrdersCount}
+                {allDataCount ?? totalOrdersCount}
               </span>
             </button>
           </div>

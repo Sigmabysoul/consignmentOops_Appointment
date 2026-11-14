@@ -5,6 +5,10 @@ import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { getChannelAliases } from "@/lib/channel-aliases";
 import { getAppointmentNotesMap } from "@/lib/appointment-notes";
 import { getEffectiveCourierPartner } from "@/lib/courier-defaults";
+import {
+  BOOKING_FILTER_CONDITIONS,
+  APPOINTMENT_FILTER_CONDITIONS,
+} from "@/lib/order-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -46,161 +50,10 @@ export async function GET(req: NextRequest) {
     // Tab filter conditions
     if (tab === "booking") {
       whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push(
-        // Rule 3: Only show orders when packaging slip is marked printed by printing team
-        {
-          OR: [
-            { docsPrinted: true },
-            {
-              customData: {
-                path: ["documentPrintStatus", "PACKAGING_SLIP", "isPrinted"],
-                equals: true,
-              },
-            },
-            {
-              customData: {
-                path: ["packagingSlipPrinted"],
-                equals: true,
-              },
-            },
-            {
-              documents: {
-                some: {
-                  docType: "PACKAGING_SLIP",
-                },
-              },
-            },
-          ],
-        },
-        // Rule 2: In-transit orders move to appointment desk, so exclude in-transit / dispatched / delivered / cancelled
-        {
-          pickupDone: false,
-        },
-        {
-          OR: [
-            { courierStatus: null },
-            { courierStatus: "" },
-            {
-              courierStatus: {
-                notIn: [
-                  "In Transit",
-                  "in transit",
-                  "IN TRANSIT",
-                  "Dispatched",
-                  "dispatched",
-                  "SHIPPED",
-                  "shipped",
-                  "Delivered",
-                  "delivered",
-                  "DELIVERED",
-                  "Cancelled",
-                  "cancelled",
-                ],
-              },
-            },
-          ],
-        },
-        {
-          OR: [
-            { status: null },
-            { status: "" },
-            {
-              status: {
-                notIn: [
-                  "In Transit",
-                  "in transit",
-                  "IN TRANSIT",
-                  "Dispatched",
-                  "dispatched",
-                  "Delivered",
-                  "delivered",
-                  "DELIVERED",
-                  "Cancelled",
-                  "CANCELLED",
-                  "Archive",
-                  "ARCHIVED",
-                ],
-              },
-            },
-          ],
-        }
-      );
+      whereConditions.AND.push(...BOOKING_FILTER_CONDITIONS);
     } else if (tab === "appointment") {
       whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push(
-        // Rule 2: Only orders that have been in transit
-        {
-          OR: [
-            {
-              courierStatus: {
-                in: [
-                  "In Transit",
-                  "in transit",
-                  "IN TRANSIT",
-                  "Dispatched",
-                  "dispatched",
-                  "SHIPPED",
-                  "shipped",
-                ],
-              },
-            },
-            {
-              status: {
-                in: [
-                  "In Transit",
-                  "in transit",
-                  "IN TRANSIT",
-                  "Dispatched",
-                  "dispatched",
-                ],
-              },
-            },
-            { pickupDone: true },
-            {
-              customData: {
-                path: ["fulfilmentStatus"],
-                equals: "Dispatched",
-              },
-            },
-          ],
-        },
-        {
-          OR: [
-            { status: null },
-            { status: "" },
-            {
-              status: {
-                notIn: [
-                  "Cancelled",
-                  "CANCELLED",
-                  "Archive",
-                  "ARCHIVED",
-                  "Delivered",
-                  "delivered",
-                  "DELIVERED",
-                ],
-              },
-            },
-          ],
-        },
-        {
-          OR: [
-            { courierStatus: null },
-            { courierStatus: "" },
-            {
-              courierStatus: {
-                notIn: [
-                  "Cancelled",
-                  "CANCELLED",
-                  "Delivered",
-                  "delivered",
-                  "DELIVERED",
-                ],
-              },
-            },
-          ],
-        }
-      );
+      whereConditions.AND.push(...APPOINTMENT_FILTER_CONDITIONS);
     } else if (tab === "pending") {
       whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push(
