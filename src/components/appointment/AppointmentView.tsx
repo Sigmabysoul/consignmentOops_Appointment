@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import React, { useState } from "react";
 import {
   AppointmentOrder,
@@ -403,8 +404,7 @@ export function AppointmentView({
                                 <label className="block text-[9px] font-bold text-slate-500 uppercase">
                                   Date
                                 </label>
-                                <input
-                                  type="date"
+                                <DateInput
                                   value={dateVal}
                                   onChange={(e) => setDateVal(e.target.value)}
                                   className="w-full text-xs bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 text-slate-800"

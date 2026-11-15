@@ -13,6 +13,9 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (!user.isLogisticsAuthorized) {
+      return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
+    }
 
     const body = await req.json();
     const rawWeight = typeof body.weightKg === "number" ? body.weightKg : parseFloat(body.weightKg) || 0;

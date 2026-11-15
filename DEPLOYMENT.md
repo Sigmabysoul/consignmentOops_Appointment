@@ -67,8 +67,8 @@ Configure these variables in Coolify's Environment Variables tab:
 DATABASE_URL=postgresql://postgres:postgres@<DB_HOST>:5432/consignment?schema=public
 
 # Authentication secret (shared JWT key with Consignment ecosystem)
-AUTH_SECRET=consignment_super_secret_jwt_key_2026_production_safe_token
-JWT_SECRET=consignment_super_secret_jwt_key_2026_production_safe_token
+AUTH_SECRET=<same value as the consignment app JWT_SECRET>
+JWT_SECRET=<same value as the consignment app JWT_SECRET>
 
 # Application URL
 APP_URL=https://appointment.averretail.com

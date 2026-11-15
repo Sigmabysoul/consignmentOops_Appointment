@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import React, { useState } from "react";
 import {
   ExternalLink,
@@ -470,16 +471,14 @@ export function OrdersTable({
             {/* Custom Date Range Picker */}
             {onDateTypeChange && onStartDateChange && onEndDateChange && (
               <div className="flex items-center gap-1.5 text-xs text-slate-600 pl-2 border-l border-slate-200">
-                <input
-                  type="date"
+                <DateInput
                   value={startDate}
                   onChange={(e) => onStartDateChange(e.target.value)}
                   className="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700"
                   title="From Date"
                 />
                 <span className="text-slate-400 text-[10px]">to</span>
-                <input
-                  type="date"
+                <DateInput
                   value={endDate}
                   onChange={(e) => onEndDateChange(e.target.value)}
                   className="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-700"
@@ -976,8 +975,7 @@ export function OrdersTable({
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingAppointmentDate ? (
                         <div className="flex items-center gap-1">
-                          <input
-                            type="date"
+                          <DateInput
                             value={inlineEditing.value}
                             onChange={(e) =>
                               setInlineEditing({ ...inlineEditing, value: e.target.value })
@@ -1133,8 +1131,7 @@ export function OrdersTable({
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       {isEditingDeliveryDate ? (
                         <div className="flex items-center gap-1">
-                          <input
-                            type="date"
+                          <DateInput
                             value={inlineEditing.value}
                             onChange={(e) =>
                               setInlineEditing({ ...inlineEditing, value: e.target.value })

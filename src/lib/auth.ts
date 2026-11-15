@@ -3,19 +3,13 @@ import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { SessionUser } from "./types";
+import { getJwtSecretKey } from "./jwt-secret";
 
 const COOKIE_NAME = "appointment_session";
 const FALLBACK_COOKIE_NAME = "consignment_session";
 
-function getJwtSecret(): Uint8Array {
-  const secret =
-    process.env.AUTH_SECRET ||
-    process.env.JWT_SECRET ||
-    "consignment-appointment-secret-key-32-chars-minimum";
-  return new TextEncoder().encode(secret);
-}
-
-const JWT_SECRET = getJwtSecret();
+// Resolved lazily so a missing production secret fails requests instead of the build.
+const getSecret = () => getJwtSecretKey();
 
 /**
  * Determine if a user qualifies as Admin or Iqbal (Logistics Manager).
@@ -28,33 +22,22 @@ export function isAllowedAppointmentUser(user: {
   department?: string | null;
   permissions?: Array<{ allowedFields?: string[] }>;
 }): boolean {
-  if (user.role === "ADMIN") {
-    return true;
-  }
+  if (user.role === "BOX_PACKER") return false;
+  if (user.role === "ADMIN") return true;
 
-  const uname = user.username.toLowerCase().trim();
-  const name = (user.name || "").toLowerCase().trim();
+  // Logistics / Dispatch department (exact match, set by an admin in the consignment app).
   const dept = (user.department || "").toLowerCase().trim();
+  if (dept === "dispatch" || dept === "logistics") return true;
 
-  // Explicit check for Iqbal or existing Dispatch Logistics Manager account
-  if (uname === "iqbal" || name.includes("iqbal")) {
-    return true;
-  }
+  // Explicitly named accounts. Exact usernames only: display names and substrings are not
+  // trusted, because anyone who can edit a user's name could otherwise grant access.
+  const uname = user.username.toLowerCase().trim();
+  return getAllowedUsernames().has(uname);
+}
 
-  // Logistics & Dispatch accounts (e.g. 'dispatch', 'dispatcher-user-01', department Dispatch/Logistics)
-  if (
-    uname === "dispatch" ||
-    uname.startsWith("dispatch") ||
-    uname.includes("dispatch") ||
-    name.includes("dispatch") ||
-    dept === "dispatch" ||
-    dept === "logistics"
-  ) {
-    return true;
-  }
-
-  // All other employees (including other dispatch staff, pack workers, printing operators) are strictly denied
-  return false;
+function getAllowedUsernames(): Set<string> {
+  const raw = process.env.APPOINTMENT_ALLOWED_USERNAMES ?? "iqbal,dispatch";
+  return new Set(raw.split(",").map((u) => u.trim().toLowerCase()).filter(Boolean));
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -88,7 +71,7 @@ export async function createSession(userId: string): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("30d")
-    .sign(JWT_SECRET);
+    .sign(getSecret());
 
   try {
     const isSecure = await resolveCookieSecure();
@@ -119,7 +102,7 @@ export async function destroySession(): Promise<void> {
 
 export async function verifySessionToken(token: string): Promise<SessionUser | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getSecret());
     const userId = payload.sub as string;
     if (!userId) return null;
 

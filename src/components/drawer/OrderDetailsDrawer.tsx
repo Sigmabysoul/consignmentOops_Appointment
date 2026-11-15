@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import React, { useState, useEffect } from "react";
 import {
   X,
@@ -469,8 +470,7 @@ export function OrderDetailsDrawer({
                     <label className="block text-xs font-medium text-slate-700 mb-1">
                       Appointment Scheduled Date
                     </label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={appointmentDate}
                       onChange={(e) => setAppointmentDate(e.target.value)}
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
@@ -496,8 +496,7 @@ export function OrderDetailsDrawer({
                     <label className="block text-xs font-medium text-slate-700 mb-1">
                       Delivery Date (When Delivered)
                     </label>
-                    <input
-                      type="date"
+                    <DateInput
                       value={deliveryDate}
                       onChange={(e) => setDeliveryDate(e.target.value)}
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"

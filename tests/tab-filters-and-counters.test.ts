@@ -216,25 +216,25 @@ describe("Tab Filters and Scope Counters Verification", () => {
   });
 
   describe("4. Date Formatting, Quick Dates & Past Due Rules", () => {
-    it("4.1 formatDateDisplay formats strictly as dd/mm/yyyy", async () => {
+    it("4.1 formatDateDisplay formats as DD Mon YYYY (IST)", async () => {
       const { formatDateDisplay, formatDateTimeDisplay, parseDateInput } = await import("../src/lib/date-utils");
       
-      const testDate = new Date(2026, 10, 14, 15, 30); // Nov 14, 2026, 3:30 PM
-      assert.strictEqual(formatDateDisplay(testDate), "14/11/2026");
-      assert.strictEqual(formatDateDisplay("2026-05-08T00:00:00.000Z"), "08/05/2026");
+      const testDate = new Date("2026-11-14T10:00:00.000Z"); // 14 Nov 2026, 3:30 PM IST
+      assert.strictEqual(formatDateDisplay(testDate), "14 Nov 2026");
+      assert.strictEqual(formatDateDisplay("2026-05-08T00:00:00.000Z"), "08 May 2026");
       assert.strictEqual(formatDateDisplay(null), "—");
       assert.strictEqual(formatDateDisplay("invalid"), "—");
 
       // Verify date-time formatting
       const formattedTime = formatDateTimeDisplay(testDate);
-      assert.ok(formattedTime.startsWith("14/11/2026,"));
-      assert.ok(formattedTime.includes("03:30 pm"));
+      assert.ok(formattedTime.startsWith("14 Nov 2026,"));
+      assert.strictEqual(formattedTime, "14 Nov 2026, 03:30 PM");
     });
 
     it("4.2 parseDateInput parses dd/mm/yyyy and ISO strings", async () => {
       const { parseDateInput } = await import("../src/lib/date-utils");
 
-      const d1 = parseDateInput("14/11/2026");
+      const d1 = parseDateInput("14 Nov 2026");
       assert.ok(d1 !== null);
       assert.strictEqual(d1.getFullYear(), 2026);
       assert.strictEqual(d1.getMonth(), 10);

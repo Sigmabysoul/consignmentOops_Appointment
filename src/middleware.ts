@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { getJwtSecretKey } from "@/lib/jwt-secret";
 
 const COOKIE_NAME = "appointment_session";
 const FALLBACK_COOKIE_NAME = "consignment_session";
-
-function getJwtSecret(): Uint8Array {
-  const secret =
-    process.env.AUTH_SECRET ||
-    process.env.JWT_SECRET ||
-    "consignment-appointment-secret-key-32-chars-minimum";
-  return new TextEncoder().encode(secret);
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -22,7 +15,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/health") ||
     pathname.startsWith("/_next") ||
-    pathname.includes(".") ||
+    (!pathname.startsWith("/api/") && /\.(?:ico|png|jpe?g|svg|webp|gif|css|js|map|txt|webmanifest|woff2?)$/i.test(pathname)) ||
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
@@ -51,7 +44,7 @@ export async function middleware(request: NextRequest) {
 
   // 3. Verify JWT token signature
   try {
-    const secret = getJwtSecret();
+    const secret = getJwtSecretKey();
     const { payload } = await jwtVerify(token, secret);
     if (!payload.sub) {
       throw new Error("Missing subject in token");

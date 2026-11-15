@@ -4,6 +4,11 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
+  // Development seed with well-known passwords. Never run it against a production database.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_SEED !== "true") {
+    throw new Error("Refusing to run the development seed (known passwords) with NODE_ENV=production.");
+  }
+
   console.log("🌱 Seeding appointment & consignment database...");
 
   // 1. Password Hashes

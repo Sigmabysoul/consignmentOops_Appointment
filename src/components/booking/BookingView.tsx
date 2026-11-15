@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import React, { useState } from "react";
 import {
   AppointmentOrder,
@@ -306,8 +307,7 @@ export function BookingView({
 
                             {isEditingPickup ? (
                               <div className="flex items-center gap-1">
-                                <input
-                                  type="date"
+                                <DateInput
                                   value={pickupDateVal}
                                   onChange={(e) => setPickupDateVal(e.target.value)}
                                   className="text-xs bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-800 focus:outline-none focus:border-violet-500"

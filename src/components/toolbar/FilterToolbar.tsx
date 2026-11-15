@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/ui/DateInput";
 import React from "react";
 import {
   Search,
@@ -286,22 +287,18 @@ export function FilterToolbar({
                 <option value="orderDate">Order Date</option>
                 <option value="createdAt">Created Date</option>
               </select>
-              <input
-                type="date"
+              <DateInput
                 value={startDate}
                 onChange={(e) => onStartDateChange(e.target.value)}
-                placeholder="dd/mm/yyyy"
                 className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:outline-none font-medium"
-                title="Start date filter (dd/mm/yyyy)"
+                title="Start date filter"
               />
               <span className="text-slate-400 text-xs">to</span>
-              <input
-                type="date"
+              <DateInput
                 value={endDate}
                 onChange={(e) => onEndDateChange(e.target.value)}
-                placeholder="dd/mm/yyyy"
                 className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 text-slate-800 focus:outline-none font-medium"
-                title="End date filter (dd/mm/yyyy)"
+                title="End date filter"
               />
             </div>
           </div>

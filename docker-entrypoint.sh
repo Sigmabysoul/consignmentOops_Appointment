@@ -17,8 +17,9 @@ echo "📡 [Appointment] Connecting to Shared Consignment Database: $MASKED_URL"
 if [ -f "./prisma/schema.prisma" ]; then
   echo "🔧 [Appointment] Verifying Prisma Client..."
   npx prisma generate --schema=./prisma/schema.prisma || true
-  echo "📦 [Appointment] Synchronizing Database Schema..."
-  npx prisma db push --skip-generate || true
+  # No schema sync here. The database is shared with the consignment app, which owns the schema
+  # through prisma migrations. Running `db push` from this app's (diverging) schema copy could
+  # alter or drop consignment tables.
 fi
 
 echo "✅ [Appointment] Initialization complete. Launching server on port ${PORT:-3001}..."
