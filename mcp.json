@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "delhivery-mcp": {
+      "url": "https://mcp-client-integration.delhivery.com/mcp"
+    }
+  }
+}
