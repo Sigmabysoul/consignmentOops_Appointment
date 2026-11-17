@@ -30,6 +30,7 @@ import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel } fr
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { DelhiveryDrawerSection } from "@/components/delhivery/DelhiveryDrawerSection";
 import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
+import { ShiprocketDrawerSection } from "@/components/shiprocket/ShiprocketDrawerSection";
 import { hasPodOnRecord } from "@/lib/pod";
 
 interface OrderDetailsDrawerProps {
@@ -454,6 +455,7 @@ export function OrderDetailsDrawer({
 
               {/* SECTION 2b: Delhivery One API shipment (only when booked through the API) */}
               <DelhiveryDrawerSection order={detailedOrder || order} onOrderUpdated={onOrderUpdated} />
+              <ShiprocketDrawerSection order={detailedOrder || order} onOrderUpdated={onOrderUpdated} />
 
               {/* SECTION 3: Appointment Scheduling (Editable) */}
               <div className="space-y-3 pt-3 border-t border-slate-200">

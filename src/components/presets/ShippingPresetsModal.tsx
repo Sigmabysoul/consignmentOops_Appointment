@@ -611,7 +611,8 @@ export function ShippingPresetsModal({
                   </div>
 
                   <div className="space-y-3">
-                    {carrierPresets.map((carrier, idx) => (
+                    {/* Live-quote carriers (Shiprocket Cargo) have no rate card to edit */}
+                    {carrierPresets.map((carrier, idx) => carrier.liveQuoteOnly ? null : (
                       <div
                         key={carrier.id || idx}
                         className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-3"

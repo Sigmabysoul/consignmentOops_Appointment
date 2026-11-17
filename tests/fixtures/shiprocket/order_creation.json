@@ -1,0 +1,47 @@
+{
+ "assigned": {
+  "success": true,
+  "order_id": 209880,
+  "from_warehouse_id": 296817,
+  "to_warehouse_id": 296824,
+  "mode": "Surface",
+  "mode_id": 16,
+  "delivery_partner_name": "delhivery_enterprise",
+  "delivery_partner_id": 11,
+  "transportar_id": "<transporter_id>",
+  "tat_days": 3,
+  "scheduled_pickup_date": "2024-01-16"
+ },
+ "multi_carrier": {
+  "success": true,
+  "order_id": 209880,
+  "from_warehouse_id": 296817,
+  "to_warehouse_id": 296824,
+  "carrier_list": [
+   {
+    "mode_id": 16,
+    "mode_name": "Surface",
+    "delivery_partner_id": 11,
+    "delivery_partner_name": "delhivery_enterprise",
+    "transportar_id": "<transporter_id>",
+    "tat_days": 3,
+    "is_oda": false,
+    "is_opa": false
+   }
+  ]
+ },
+ "no_auto_assignment_rule": {
+  "success": true,
+  "order_id": 209986,
+  "from_warehouse_id": 296817,
+  "to_warehouse_id": 296824,
+  "message": "Auto assigment not set for your account, we have created order, please connect with our support team to assign courier partner"
+ },
+ "assignment_serviceability_or_wallet_issue": {
+  "success": true,
+  "order_id": 17455,
+  "from_warehouse_id": 9557,
+  "to_warehouse_id": 9558,
+  "message": "Auto assigment not done, check your credit/wallet balance or something wrong with serviceability, please connect with our support team"
+ }
+}

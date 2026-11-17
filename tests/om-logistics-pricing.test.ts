@@ -338,8 +338,9 @@ describe("OM Logistics Pure Pricing Module — Specification Verification", () =
         rovCover: "none",
       });
 
-      // Exactly 4 land surface carriers (no air express)
-      assert.strictEqual(comparison.carriers.length, 4);
+      // 4 rate-card land carriers + Shiprocket Cargo (live quote only, no air express)
+      assert.strictEqual(comparison.carriers.length, 5);
+      assert.strictEqual(comparison.carriers.filter((c) => !c.liveQuoteOnly).length, 4);
       assert.strictEqual(comparison.carriers.some((c) => c.isAirExpress), false, "No air carriers allowed per Rule 1");
       assert.strictEqual(typeof comparison.lowestCostAmount, "number");
       assert.strictEqual(typeof comparison.omSurfaceTotal, "number");
@@ -367,15 +368,16 @@ describe("OM Logistics Pure Pricing Module — Specification Verification", () =
       assert.strictEqual(fkComp.carriers.length, 1);
       assert.strictEqual(fkComp.carriers[0].name, "Ekart");
 
-      // Swiggy -> only Delhivery One and OM Logistics
+      // Swiggy -> only Delhivery One, OM Logistics and Shiprocket Cargo
       const swiggyComp = compareShippingCarriers(
         { state: "Maharashtra", weightKg: 100, mode: "surface" },
         { channel: "SWIGGY" }
       );
-      assert.strictEqual(swiggyComp.carriers.length, 2);
+      assert.strictEqual(swiggyComp.carriers.length, 3);
       const names = swiggyComp.carriers.map((c) => c.name);
       assert.ok(names.includes("OM Logistics"));
       assert.ok(names.includes("Delhivery One"));
+      assert.ok(names.includes("Shiprocket Cargo"));
     });
   });
 

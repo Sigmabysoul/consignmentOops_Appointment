@@ -21,6 +21,8 @@ export interface CarrierRatePreset {
   estimatedTransitDays: string;
   isActive: boolean;
   isCustomCarrier?: boolean;
+  /** No fixed rate card: prices come only from the carrier's live API (e.g. Shiprocket Cargo). */
+  liveQuoteOnly?: boolean;
   note?: string;
 }
 
@@ -73,6 +75,23 @@ export const DEFAULT_CARRIER_PRESETS: CarrierRatePreset[] = [
     isActive: true,
     note: "Amazon Transportation Services (Default carrier for Amazon VC & FBA)",
   },
+  {
+    id: "carrier-shiprocket-cargo",
+    name: "Shiprocket Cargo",
+    slug: "shiprocket-cargo",
+    serviceType: "Shiprocket Cargo B2B",
+    baseRatePerKg: 0,
+    minChargeableWeightKg: 0,
+    minFreightAmount: 0,
+    docketCharge: 0,
+    fuelSurchargePercent: 0,
+    appointmentFee: 0,
+    gstPercent: 18,
+    estimatedTransitDays: "Live quote",
+    isActive: true,
+    liveQuoteOnly: true,
+    note: "Aggregator: compares several surface carriers live through the Shiprocket Cargo API",
+  },
 ];
 
 export interface CarrierComparisonItem {
@@ -100,6 +119,8 @@ export interface CarrierComparisonItem {
   isLowestCost: boolean;
   isFastest: boolean;
   isRecommended: boolean;
+  /** Price comes only from the live API card shown under this carrier. */
+  liveQuoteOnly?: boolean;
   error?: string;
   notes: string[];
   rawEstimate?: OmDeliveryResult;
@@ -119,7 +140,7 @@ export interface MultiCarrierComparisonResponse {
  * 1. All shipments are done by land (no air travel).
  * 2. Amazon VC & FBA: Only Amazon ATS.
  * 3. Flipkart FBF & FKSB: Only Ekart.
- * 4. Rest (Swiggy, Blinkit, Flipkart Minutes, etc.): Only Delhivery One and OM Logistics.
+ * 4. Rest (Swiggy, Blinkit, Flipkart Minutes, etc.): Delhivery One, OM Logistics and Shiprocket Cargo.
  */
 export function compareShippingCarriers(
   input: OmDeliveryInput,
@@ -220,6 +241,30 @@ export function compareShippingCarriers(
       continue;
     }
 
+    if (preset.liveQuoteOnly) {
+      const zero = { freight: 0, fuel: 0, cnOrDocket: 0, oda: 0, appointment: 0, rov: 0, subtotal: 0, gst: 0 };
+      carriersList.push({
+        id: preset.id,
+        name: preset.name,
+        slug: preset.slug,
+        serviceType: preset.serviceType,
+        isOmLogistics: false,
+        isAirExpress: false,
+        estimatedTotal: 0,
+        costPerKg: 0,
+        subtotal: 0,
+        gstAmount: 0,
+        breakdown: zero,
+        estimatedTransitDays: preset.estimatedTransitDays,
+        isLowestCost: false,
+        isFastest: false,
+        isRecommended: false,
+        liveQuoteOnly: true,
+        notes: [preset.note || "Live rates only"],
+      });
+      continue;
+    }
+
     // Weight rules (strict 2 decimal points)
     const chargeableW = Math.max(W, preset.minChargeableWeightKg);
     const rawFreight = chargeableW * preset.baseRatePerKg;
@@ -277,7 +322,7 @@ export function compareShippingCarriers(
 
   // 3. Identify Lowest Cost (among surface options without error)
   const validSurface = carriersList.filter(
-    (c) => !c.error && c.estimatedTotal > 0
+    (c) => !c.error && !c.liveQuoteOnly && c.estimatedTotal > 0
   );
   let lowestCostCarrierName: string | null = null;
   let lowestCostAmount: number | null = null;

@@ -93,7 +93,9 @@ export async function getActiveShippingPresets(client: any = db): Promise<Unifie
       const merged: UnifiedShippingPresets = {
         omRateCard: Array.isArray(stored.omRateCard) && stored.omRateCard.length > 0 ? stored.omRateCard : defaults.omRateCard,
         omConfig: stored.omConfig ? { ...defaults.omConfig, ...stored.omConfig } : defaults.omConfig,
-        carrierPresets: Array.isArray(stored.carrierPresets) && stored.carrierPresets.length > 0 ? stored.carrierPresets : defaults.carrierPresets,
+        carrierPresets: withLiveQuoteCarriers(
+          Array.isArray(stored.carrierPresets) && stored.carrierPresets.length > 0 ? stored.carrierPresets : defaults.carrierPresets
+        ),
         stateZoneMap: stored.stateZoneMap && Object.keys(stored.stateZoneMap).length > 0 ? stored.stateZoneMap : defaults.stateZoneMap,
         odaMatrix: Array.isArray(stored.odaMatrix) && stored.odaMatrix.length > 0 ? stored.odaMatrix : defaults.odaMatrix,
         omWhatsAppConfig: stored.omWhatsAppConfig
@@ -180,4 +182,13 @@ export async function resetShippingPresets(
   }
 
   return defaults;
+}
+
+/**
+ * Live-quote carriers (no rate card, e.g. Shiprocket Cargo) are not admin-editable presets:
+ * saved preset lists never drop or override them.
+ */
+function withLiveQuoteCarriers(list: CarrierRatePreset[]): CarrierRatePreset[] {
+  const live = DEFAULT_CARRIER_PRESETS.filter((p) => p.liveQuoteOnly);
+  return [...list.filter((p) => !p.liveQuoteOnly && !live.some((l) => l.id === p.id)), ...live];
 }

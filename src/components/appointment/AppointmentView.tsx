@@ -12,6 +12,7 @@ import { formatDateDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { DelhiveryTrackingRefresh, DelhiveryTrackingTag } from "@/components/delhivery/DelhiveryTrackingTag";
 import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
+import { ShiprocketTrackingRefresh, ShiprocketTrackingTag } from "@/components/shiprocket/ShiprocketTrackingTag";
 import { getPodRecord, podFileUrl } from "@/lib/pod";
 import {
   Calendar,
@@ -152,6 +153,7 @@ export function AppointmentView({
   return (
     <div className="space-y-4">
       <DelhiveryTrackingRefresh orders={orders} onRefreshed={onOrderUpdated} />
+      <ShiprocketTrackingRefresh orders={orders} onRefreshed={onOrderUpdated} />
 
       {/* ── Main Orders Appointment Table ── */}
       <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
@@ -453,6 +455,7 @@ export function AppointmentView({
                         <div className="space-y-1">
                           <StatusBadge status={order.status || order.courierStatus} size="sm" />
                           <DelhiveryTrackingTag order={order} />
+                          <ShiprocketTrackingTag order={order} />
 
                           {isDelivered && order.deliveryDate && (
                             <div className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">

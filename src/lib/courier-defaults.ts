@@ -3,7 +3,8 @@
  * 1. All shipments are done by land (no air travel).
  * 2. Amazon VC & FBA: Courier option is strictly ONLY "Amazon ATS".
  * 3. Flipkart FBF & FKSB: Courier option is strictly ONLY "Ekart".
- * 4. The rest (Swiggy, Blinkit, Flipkart Minutes, etc.): Courier options are strictly ONLY "Delhivery One" and "OM Logistics".
+ * 4. The rest (Swiggy, Blinkit, Flipkart Minutes, etc.): Courier options are strictly ONLY "Delhivery One",
+ *    "OM Logistics" and "Shiprocket Cargo".
  * 5. Strict 2-decimal formatting (.00) for weights and numbers.
  */
 
@@ -28,7 +29,7 @@ export function isFlipkartFbfOrFksb(channel?: string | null): boolean {
  * Returns allowed courier partner names for a specific sales channel:
  * - Amazon (VC / FBA): ["Amazon ATS"]
  * - Flipkart FBF / FKSB: ["Ekart"]
- * - Rest (Swiggy, Blinkit, Flipkart Minutes, etc.): ["Delhivery One", "OM Logistics"]
+ * - Rest (Swiggy, Blinkit, Flipkart Minutes, etc.): ["Delhivery One", "OM Logistics", "Shiprocket Cargo"]
  */
 export function getAllowedCouriersForChannel(channel?: string | null): string[] {
   if (isAmazonChannel(channel)) {
@@ -38,7 +39,7 @@ export function getAllowedCouriersForChannel(channel?: string | null): string[] 
     return ["Ekart"];
   }
   // Rest: Swiggy, Blinkit, Flipkart Minutes, etc.
-  return ["Delhivery One", "OM Logistics"];
+  return ["Delhivery One", "OM Logistics", "Shiprocket Cargo"];
 }
 
 /**

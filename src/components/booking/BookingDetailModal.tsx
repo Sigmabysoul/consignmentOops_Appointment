@@ -32,6 +32,10 @@ import { OmWhatsAppBookingModal } from "@/components/booking/OmWhatsAppBookingMo
 import { DelhiveryQuoteCard } from "@/components/delhivery/DelhiveryQuoteCard";
 import { DelhiveryBookingModal } from "@/components/delhivery/DelhiveryBookingModal";
 import { DELHIVERY_NAME, useDelhiveryStatus } from "@/components/delhivery/delhivery-client";
+import { ShiprocketQuoteCard } from "@/components/shiprocket/ShiprocketQuoteCard";
+import { ShiprocketBookingModal } from "@/components/shiprocket/ShiprocketBookingModal";
+import { useShiprocketStatus } from "@/components/shiprocket/shiprocket-client";
+import { SHIPROCKET_COURIER_NAME } from "@/lib/shiprocket-types";
 import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
 import {
   ALL_STATES,
@@ -89,6 +93,8 @@ export function BookingDetailModal({
   const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
   const [delhiveryModalOpen, setDelhiveryModalOpen] = useState(false);
   const delhiveryStatus = useDelhiveryStatus();
+  const [shiprocketModalOpen, setShiprocketModalOpen] = useState(false);
+  const shiprocketStatus = useShiprocketStatus();
 
   // Initialize inputs whenever order changes or modal opens
   useEffect(() => {
@@ -519,7 +525,12 @@ export function BookingDetailModal({
 
                         {/* Pricing Summary & Select Button */}
                         <div className="flex items-center gap-3">
-                          {hasError ? (
+                          {carrier.liveQuoteOnly ? (
+                            <div className="text-right">
+                              <span className="text-xs font-bold text-indigo-700 block">Live rates</span>
+                              <span className="text-[10px] text-slate-400">See below</span>
+                            </div>
+                          ) : hasError ? (
                             <div className="text-right">
                               <span className="text-xs font-bold text-rose-600 block">
                                 Rate Unavailable
@@ -607,6 +618,18 @@ export function BookingDetailModal({
                           invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
                           rovCarrierRisk={rovCover === "carrier"}
                           onBook={() => setDelhiveryModalOpen(true)}
+                        />
+                      )}
+
+                      {/* Live Shiprocket Cargo rates + booking */}
+                      {carrier.name === SHIPROCKET_COURIER_NAME && (
+                        <ShiprocketQuoteCard
+                          order={order}
+                          status={shiprocketStatus}
+                          weightKg={Number(Number(weightKg).toFixed(2)) || 0}
+                          invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
+                          stateLabel={state}
+                          onBook={() => setShiprocketModalOpen(true)}
                         />
                       )}
 
@@ -723,6 +746,18 @@ export function BookingDetailModal({
         defaultState={state}
         rovCarrierRisk={rovCover === "carrier"}
         onClose={() => setDelhiveryModalOpen(false)}
+        onOrderUpdated={onOrderUpdated}
+      />
+
+      {/* ── Shiprocket Cargo API Booking Window ── */}
+      <ShiprocketBookingModal
+        order={order}
+        isOpen={shiprocketModalOpen}
+        status={shiprocketStatus}
+        defaultWeightKg={Number(Number(weightKg).toFixed(2)) || 0}
+        defaultInvoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
+        defaultStateLabel={state}
+        onClose={() => setShiprocketModalOpen(false)}
         onOrderUpdated={onOrderUpdated}
       />
 

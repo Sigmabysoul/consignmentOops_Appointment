@@ -14,8 +14,8 @@ import {
 } from "../src/modules/pricing/multi-carrier/carrier-comparison-engine";
 
 describe("Courier Partner Rules & Channel Defaults Suite (plan.md)", () => {
-  test("Strictly approves only 4 courier partners across ecosystem", () => {
-    const allowedNames = ["OM Logistics", "Delhivery One", "Ekart", "Amazon ATS"];
+  test("Strictly approves only 5 courier partners across ecosystem", () => {
+    const allowedNames = ["OM Logistics", "Delhivery One", "Ekart", "Amazon ATS", "Shiprocket Cargo"];
     
     // In DEFAULT_CARRIER_PRESETS (used for comparisons)
     for (const preset of DEFAULT_CARRIER_PRESETS) {
@@ -66,10 +66,10 @@ describe("Courier Partner Rules & Channel Defaults Suite (plan.md)", () => {
     assert.strictEqual(getEffectiveCourierPartner("FLIPKART_FBF", "Ekart"), "Ekart");
   });
 
-  test("Rule 6: Swiggy, Blinkit, and Flipkart Minutes allowed couriers are strictly Delhivery One and OM Logistics", () => {
-    assert.deepStrictEqual(getAllowedCouriersForChannel("SWIGGY"), ["Delhivery One", "OM Logistics"]);
-    assert.deepStrictEqual(getAllowedCouriersForChannel("BLINKIT_STO"), ["Delhivery One", "OM Logistics"]);
-    assert.deepStrictEqual(getAllowedCouriersForChannel("FLIPKART_MINUTES"), ["Delhivery One", "OM Logistics"]);
+  test("Rule 6: Swiggy, Blinkit, and Flipkart Minutes allowed couriers are strictly Delhivery One, OM Logistics and Shiprocket Cargo", () => {
+    assert.deepStrictEqual(getAllowedCouriersForChannel("SWIGGY"), ["Delhivery One", "OM Logistics", "Shiprocket Cargo"]);
+    assert.deepStrictEqual(getAllowedCouriersForChannel("BLINKIT_STO"), ["Delhivery One", "OM Logistics", "Shiprocket Cargo"]);
+    assert.deepStrictEqual(getAllowedCouriersForChannel("FLIPKART_MINUTES"), ["Delhivery One", "OM Logistics", "Shiprocket Cargo"]);
 
     assert.strictEqual(getDefaultCourierForChannel("SWIGGY"), null);
     assert.strictEqual(getEffectiveCourierPartner("SWIGGY", null), null);
