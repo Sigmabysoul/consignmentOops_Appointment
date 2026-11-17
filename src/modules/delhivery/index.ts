@@ -5,6 +5,7 @@
 export * from "./config";
 export * from "./errors";
 export * from "./endpoints";
+export * from "./mappers";
 export { delhiveryRequest, setDelhiveryCallLogger } from "./client";
 export type { DelhiveryResponse, DelhiveryCallLog } from "./client";
 export { getDelhiveryToken, invalidateDelhiveryToken } from "./auth";

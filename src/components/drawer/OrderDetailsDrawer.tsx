@@ -28,6 +28,7 @@ import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel } from "@/lib/courier-defaults";
 
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { DelhiveryDrawerSection } from "@/components/delhivery/DelhiveryDrawerSection";
 
 interface OrderDetailsDrawerProps {
   order: AppointmentOrder | null;
@@ -444,6 +445,9 @@ export function OrderDetailsDrawer({
                   </div>
                 </div>
               </div>
+
+              {/* SECTION 2b: Delhivery One API shipment (only when booked through the API) */}
+              <DelhiveryDrawerSection order={detailedOrder || order} onOrderUpdated={onOrderUpdated} />
 
               {/* SECTION 3: Appointment Scheduling (Editable) */}
               <div className="space-y-3 pt-3 border-t border-slate-200">

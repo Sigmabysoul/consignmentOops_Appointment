@@ -5,7 +5,14 @@
  * Responses are returned RAW (`unknown`). The portal does not document response bodies, so
  * mapping to app types happens only in mappers.ts, built from captured staging fixtures.
  */
-import { DELHIVERY_PATHS, DelhiveryConfig, DelhiveryLabelSize, getDelhiveryConfig } from "./config";
+import {
+  DELHIVERY_APPOINTMENT_SLOTS,
+  DELHIVERY_PATHS,
+  DelhiveryAppointmentSlot,
+  DelhiveryConfig,
+  DelhiveryLabelSize,
+  getDelhiveryConfig,
+} from "./config";
 import { delhiveryRequest, DelhiveryResponse } from "./client";
 import { DelhiveryError } from "./errors";
 
@@ -414,34 +421,42 @@ export function cancelPickupRequest(pickupId: string, config: DelhiveryConfig = 
 
 export interface AppointmentInput {
   lrn: string;
-  date: string; // DD/MM/YYYY
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
+  date: string; // DD/MM/YYYY, today or later
+  slot: DelhiveryAppointmentSlot;
   poNumbers: string[]; // max 5, ["NotApplicable"] if none
   appointmentId: string;
+  poExpiryDate: string; // DD/MM/YYYY, not before the appointment date
 }
 
-/** POST /appointments/lm — allowed after manifest, before out-for-delivery. */
-export function bookLastMileAppointment(input: AppointmentInput, config: DelhiveryConfig = getDelhiveryConfig()) {
+const DMY_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+const dmyToKey = (d: string) => {
+  const m = DMY_RE.exec(d)!;
+  return Number(`${m[3]}${m[2]}${m[1]}`);
+};
+
+export function buildAppointmentBody(input: AppointmentInput) {
   if (!input.lrn?.trim()) invalid("LR number is required.");
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(input.date)) invalid("Appointment date must be DD/MM/YYYY.");
-  if (!/^\d{2}:\d{2}$/.test(input.startTime) || !/^\d{2}:\d{2}$/.test(input.endTime)) invalid("Appointment times must be HH:MM.");
-  const po = input.poNumbers.filter((p) => p.trim()).slice(0, 5);
-  return delhiveryRequest(
-    {
-      method: "POST",
-      path: DELHIVERY_PATHS.appointment,
-      json: {
-        lrn: input.lrn.trim(),
-        date: input.date,
-        start_time: input.startTime,
-        end_time: input.endTime,
-        po_number: po.length ? po : ["NotApplicable"],
-        appointment_id: input.appointmentId.trim(),
-      },
-    },
-    config
-  );
+  if (!DMY_RE.test(input.date)) invalid("Appointment date must be DD/MM/YYYY.");
+  if (!DMY_RE.test(input.poExpiryDate)) invalid("PO expiry date must be DD/MM/YYYY.");
+  if (!(DELHIVERY_APPOINTMENT_SLOTS as readonly string[]).includes(input.slot)) {
+    invalid(`Appointment slot "${input.slot}" is not one Delhivery accepts.`);
+  }
+  if (dmyToKey(input.poExpiryDate) < dmyToKey(input.date)) invalid("PO expiry date cannot be before the appointment date.");
+  const po = input.poNumbers.map((p) => p.trim()).filter(Boolean);
+  if (po.length > 5) invalid("At most 5 PO numbers can be sent.");
+  return {
+    lrn: input.lrn.trim(),
+    date: input.date,
+    appointment_slot: input.slot,
+    po_number: po.length ? po : ["NotApplicable"],
+    appointment_id: (input.appointmentId ?? "").trim(),
+    po_expiry_date: input.poExpiryDate,
+  };
+}
+
+/** POST /v2/appointments/lm — allowed after manifest, before out-for-delivery. */
+export function bookLastMileAppointment(input: AppointmentInput, config: DelhiveryConfig = getDelhiveryConfig()) {
+  return delhiveryRequest({ method: "POST", path: DELHIVERY_PATHS.appointment, json: buildAppointmentBody(input) }, config);
 }
 
 /** DELETE /lrn/cancel/{lrn}. UI must confirm (OTP) before calling. */
@@ -464,13 +479,15 @@ export function downloadDocument(
   config: DelhiveryConfig = getDelhiveryConfig()
 ) {
   if (!lrn?.trim()) invalid("LR number is required.");
-  return delhiveryRequest(
+  return delhiveryRequest<Buffer | unknown>(
     {
       method: "GET",
       path: DELHIVERY_PATHS.documentDownload,
       query: { lrn: lrn.trim(), doc_type: docType, version: "latest" },
       timeout: "document",
       sendRequestId: true,
+      // Response type is undocumented (file bytes or JSON with a link); the route inspects contentType.
+      binary: true,
     },
     config
   );

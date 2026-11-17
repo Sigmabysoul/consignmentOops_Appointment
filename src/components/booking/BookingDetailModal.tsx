@@ -29,6 +29,9 @@ import { formatDateDisplay } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
 import { OmWhatsAppBookingModal } from "@/components/booking/OmWhatsAppBookingModal";
+import { DelhiveryQuoteCard } from "@/components/delhivery/DelhiveryQuoteCard";
+import { DelhiveryBookingModal } from "@/components/delhivery/DelhiveryBookingModal";
+import { DELHIVERY_NAME, useDelhiveryStatus } from "@/components/delhivery/delhivery-client";
 import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
 import {
   ALL_STATES,
@@ -84,6 +87,8 @@ export function BookingDetailModal({
   const [isAssigning, setIsAssigning] = useState<string | null>(null);
   const [copiedRo, setCopiedRo] = useState(false);
   const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  const [delhiveryModalOpen, setDelhiveryModalOpen] = useState(false);
+  const delhiveryStatus = useDelhiveryStatus();
 
   // Initialize inputs whenever order changes or modal opens
   useEffect(() => {
@@ -604,6 +609,18 @@ export function BookingDetailModal({
                         </div>
                       </div>
 
+                      {/* Live Delhivery API quote + booking (Delhivery One only) */}
+                      {carrier.name === DELHIVERY_NAME && (
+                        <DelhiveryQuoteCard
+                          order={order}
+                          status={delhiveryStatus}
+                          weightKg={Number(Number(weightKg).toFixed(2)) || 0}
+                          invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
+                          rovCarrierRisk={rovCover === "carrier"}
+                          onBook={() => setDelhiveryModalOpen(true)}
+                        />
+                      )}
+
                       {/* Expandable Breakdown Drawer */}
                       {isExpanded && (
                         <div className="px-4 pb-4 pt-1 border-t border-slate-100 bg-white/70 text-xs space-y-2.5 animate-fade-in">
@@ -706,6 +723,19 @@ export function BookingDetailModal({
           </div>
         </div>
       </div>
+
+      {/* ── Delhivery One API Booking Window ── */}
+      <DelhiveryBookingModal
+        order={order}
+        isOpen={delhiveryModalOpen}
+        status={delhiveryStatus}
+        defaultWeightKg={Number(Number(weightKg).toFixed(2)) || 0}
+        defaultInvoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
+        defaultState={state}
+        rovCarrierRisk={rovCover === "carrier"}
+        onClose={() => setDelhiveryModalOpen(false)}
+        onOrderUpdated={onOrderUpdated}
+      />
 
       {/* ── OM Logistics WhatsApp Pickup Booking Window ── */}
       <OmWhatsAppBookingModal

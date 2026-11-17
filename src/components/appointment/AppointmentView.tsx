@@ -10,6 +10,7 @@ import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
+import { DelhiveryTrackingRefresh, DelhiveryTrackingTag } from "@/components/delhivery/DelhiveryTrackingTag";
 import {
   Calendar,
   CheckCircle2,
@@ -211,6 +212,8 @@ export function AppointmentView({
 
   return (
     <div className="space-y-4">
+      <DelhiveryTrackingRefresh orders={orders} onRefreshed={onOrderUpdated} />
+
       {/* ── Main Orders Appointment Table ── */}
       <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -510,6 +513,7 @@ export function AppointmentView({
                       <td className="py-3 px-3.5 align-top border-r border-slate-200">
                         <div className="space-y-1">
                           <StatusBadge status={order.status || order.courierStatus} size="sm" />
+                          <DelhiveryTrackingTag order={order} />
 
                           {isDelivered && order.deliveryDate && (
                             <div className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">

@@ -21,7 +21,8 @@ export const DELHIVERY_PATHS = {
   tat: "/tat/estimate",
   freightEstimate: "/freight/estimate",
   manifest: "/manifest",
-  appointment: "/appointments/lm",
+  /** Portal (2025) documents /v2 with appointment_slot; the older Postman collection used /appointments/lm with start/end times. */
+  appointment: "/v2/appointments/lm",
   pickupRequests: "/pickup_requests",
   pickupCancel: (id: string) => `/pickup_requests/${encodeURIComponent(id)}`,
   track: "/lrn/track",
@@ -34,6 +35,12 @@ export const DELHIVERY_PATHS = {
 } as const;
 
 export type DelhiveryLabelSize = "sm" | "md" | "a4" | "std";
+
+/** Last-mile appointment slots accepted by POST /v2/appointments/lm (Developer Portal list). */
+export { DELHIVERY_SLOT_OPTIONS as DELHIVERY_APPOINTMENT_SLOTS } from "@/lib/delhivery-types";
+import { DELHIVERY_SLOT_OPTIONS } from "@/lib/delhivery-types";
+
+export type DelhiveryAppointmentSlot = (typeof DELHIVERY_SLOT_OPTIONS)[number];
 
 /**
  * Per-IP limits Delhivery enforces over a 5 minute window. We stop at ~90% so a spike
