@@ -29,6 +29,8 @@ import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel } fr
 
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { DelhiveryDrawerSection } from "@/components/delhivery/DelhiveryDrawerSection";
+import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
+import { hasPodOnRecord } from "@/lib/pod";
 
 interface OrderDetailsDrawerProps {
   order: AppointmentOrder | null;
@@ -48,6 +50,8 @@ export function OrderDetailsDrawer({
   const [activeTab, setActiveTab] = useState<"edit" | "history">("edit");
   const [isSaving, setIsSaving] = useState(false);
   const [detailedOrder, setDetailedOrder] = useState<AppointmentOrder | null>(order);
+  // Delivered needs a POD: saving with status Delivered opens the POD form first
+  const [podFormOpen, setPodFormOpen] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -116,7 +120,17 @@ export function OrderDetailsDrawer({
 
   if (!order) return null;
 
-  const performSave = async () => {
+  const performSave = async (podJustUploaded = false) => {
+    const current = detailedOrder || order;
+    const becomingDelivered =
+      courierStatus.trim().toLowerCase() === "delivered" &&
+      (current.status || "").toLowerCase() !== "delivered";
+    if (becomingDelivered && !podJustUploaded && !hasPodOnRecord(current.customData)) {
+      setIsConfirmOpen(false);
+      setPodFormOpen(true);
+      return;
+    }
+
     setIsSaving(true);
     setValidationError(null);
 
@@ -728,7 +742,7 @@ export function OrderDetailsDrawer({
               : "primary"
           }
           isLoading={isSaving}
-          onConfirm={performSave}
+          onConfirm={() => performSave()}
           onCancel={() => setIsConfirmOpen(false)}
         />
       )}
@@ -753,7 +767,20 @@ export function OrderDetailsDrawer({
           }
         }}
       />
+
+      {podFormOpen && (
+        <MarkDeliveredModal
+          order={detailedOrder || order}
+          initialDeliveryDate={deliveryDate || null}
+          onClose={() => setPodFormOpen(false)}
+          onDelivered={(updated) => {
+            setPodFormOpen(false);
+            if (updated) setDetailedOrder((prev) => ({ ...(prev || order), ...updated }));
+            // Save the drawer's other edits (CN, appointment, remarks) now that Delivered is recorded
+            void performSave(true);
+          }}
+        />
+      )}
     </div>
   );
 }
-

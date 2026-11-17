@@ -11,6 +11,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { DelhiveryTrackingRefresh, DelhiveryTrackingTag } from "@/components/delhivery/DelhiveryTrackingTag";
+import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
+import { getPodRecord, podFileUrl } from "@/lib/pod";
 import {
   Calendar,
   CheckCircle2,
@@ -138,34 +140,9 @@ export function AppointmentView({
     }
   };
 
-  // Manual Status Action: Mark Delivered
-  const handleMarkDelivered = async (order: AppointmentOrder) => {
-    if (!confirm(`Mark consignment "${order.roPoNumber}" as Delivered? This will update delivery records and synchronize with the main consignment system.`)) {
-      return;
-    }
-    setIsUpdating(true);
-    try {
-      const res = await fetch(`/api/orders/${order.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "Delivered",
-          courierStatus: "Delivered",
-          deliveryDate: new Date().toISOString(),
-          remarks: "Marked as Delivered from Appointment Desk",
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to mark delivered");
-
-      showToast(`Consignment ${order.roPoNumber} marked as Delivered ✓`, "success");
-      onOrderUpdated();
-    } catch (err: any) {
-      showToast(err.message || "Failed to mark delivered", "error");
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  // Manual Status Action: Mark Delivered — opens the POD form (POD is mandatory)
+  const [deliverOrder, setDeliverOrder] = useState<AppointmentOrder | null>(null);
+  const handleMarkDelivered = (order: AppointmentOrder) => setDeliverOrder(order);
 
   // Manual Status Action: Submit GRN Issue
   const handleSubmitGrnIssue = async () => {
@@ -522,6 +499,18 @@ export function AppointmentView({
                             </div>
                           )}
 
+                          {isDelivered && getPodRecord(order.customData) && (
+                            <a
+                              href={podFileUrl(order.id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] font-semibold text-sky-700 hover:underline flex items-center gap-1"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>View POD</span>
+                            </a>
+                          )}
+
                           {isGrnIssue && (
                             <div className="text-[10px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 p-1 rounded max-w-[180px]">
                               <span className="font-bold">GRN Issue:</span> {order.grnReport || order.comment || "Discrepancy flagged"}
@@ -628,6 +617,16 @@ export function AppointmentView({
           </div>
         )}
       </div>
+
+      <MarkDeliveredModal
+        key={deliverOrder?.id || "none"}
+        order={deliverOrder}
+        onClose={() => setDeliverOrder(null)}
+        onDelivered={() => {
+          setDeliverOrder(null);
+          onOrderUpdated();
+        }}
+      />
 
       {/* ── Manual GRN Issue Modal ── */}
       {grnModalOrder && (

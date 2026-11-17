@@ -8,6 +8,7 @@ import {
   saveSingleAppointmentNote,
   deleteSingleAppointmentNote,
 } from "@/lib/appointment-notes";
+import { hasPodOnRecord } from "@/lib/pod";
 
 export const dynamic = "force-dynamic";
 
@@ -336,11 +337,23 @@ export async function PATCH(
       // Special handling per status
       const sLower = targetStatus.toLowerCase();
       if (sLower === "delivered") {
+        // POD is mandatory: Delivered is only reachable with a proof-of-delivery file on record
+        // (POST /api/orders/:id/deliver uploads it and marks the order Delivered in one step).
+        if (!hasPodOnRecord(existing.customData)) {
+          return NextResponse.json(
+            {
+              error: "Upload the POD (proof of delivery) to mark this order Delivered.",
+              code: "POD_REQUIRED",
+            },
+            { status: 400 }
+          );
+        }
         dataToUpdate.pickupDone = true;
         if (!dataToUpdate.deliveryDate && !existing.deliveryDate) {
           dataToUpdate.deliveryDate = new Date();
         }
-        dataToUpdate.grnStatus = body.grnStatus || existing.grnStatus || "Completed";
+        // The platform's GRN is reconciled in the main consignment app's Delivered tab
+        dataToUpdate.grnStatus = body.grnStatus || "Awaiting GRN";
         // Sync customData fulfillment status
         const existingCustom = (existing.customData as any) || {};
         dataToUpdate.customData = { ...existingCustom, fulfilmentStatus: "Delivered" };

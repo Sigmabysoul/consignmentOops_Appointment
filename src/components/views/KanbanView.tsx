@@ -6,6 +6,7 @@ import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
+import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
 import {
   Clock,
   Truck,
@@ -50,6 +51,8 @@ export function KanbanView({
 }: KanbanViewProps) {
   const { showToast } = useToast();
   const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
+  // Delivered requires a POD upload, so it opens the POD form instead of a one-tap status change
+  const [deliverOrder, setDeliverOrder] = useState<AppointmentOrder | null>(null);
 
   // Quick move status action
   const handleQuickStatusChange = async (
@@ -424,11 +427,7 @@ export function KanbanView({
                               <button
                                 type="button"
                                 disabled={isBusy}
-                                onClick={() =>
-                                  handleQuickStatusChange(order, "Delivered", {
-                                    deliveryDate: new Date().toISOString(),
-                                  })
-                                }
+                                onClick={() => setDeliverOrder(order)}
                                 className="px-2 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition cursor-pointer flex items-center gap-1"
                               >
                                 <CheckCircle2 className="w-2.5 h-2.5" />
@@ -458,6 +457,16 @@ export function KanbanView({
           );
         })}
       </div>
+
+      <MarkDeliveredModal
+        key={deliverOrder?.id || "none"}
+        order={deliverOrder}
+        onClose={() => setDeliverOrder(null)}
+        onDelivered={() => {
+          setDeliverOrder(null);
+          onOrderUpdated?.();
+        }}
+      />
     </div>
   );
 }

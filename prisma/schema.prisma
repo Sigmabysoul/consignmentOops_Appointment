@@ -535,6 +535,7 @@ model OrderDocument {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   order          ConsignmentOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  blob           DocumentBlob?
 
   @@index([orderId])
   @@index([roPoNumber])
@@ -572,4 +573,14 @@ model AppointmentNote {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@map("AppointmentNote")
+}
+
+/// File bytes for documents both apps must serve (POD, GRN report). The two apps run in separate
+/// containers without a shared disk, so these live in Postgres. Kept out of OrderDocument so that
+/// `include: { documents: true }` never pulls file bytes.
+model DocumentBlob {
+  documentId String        @id
+  data       Bytes
+  createdAt  DateTime      @default(now())
+  document   OrderDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
