@@ -1,3 +1,4 @@
+import { isVisibleInAppointmentApp } from "@/lib/order-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { id } = await params;
     const existing = await db.consignmentOrder.findUnique({ where: { id } });
-    if (!existing || existing.isDeleted) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!existing || !isVisibleInAppointmentApp(existing)) return NextResponse.json({ error: "Order not found" }, { status: 404 });
     if (CLOSED_STATUSES.includes(String(existing.status || "").toLowerCase())) {
       return NextResponse.json({ error: `This order is already "${existing.status}".` }, { status: 409 });
     }

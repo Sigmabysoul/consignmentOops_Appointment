@@ -297,8 +297,8 @@ export function BookingDetailModal({
                   </p>
                 </div>
 
-                {/* Weight in KG & Mode */}
-                <div className="grid grid-cols-2 gap-3">
+                {/* Weight in KG (all shipments are land surface — no transport mode to pick) */}
+                <div className="grid grid-cols-1 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Weight in Kg <span className="text-rose-500">*</span>
@@ -319,15 +319,6 @@ export function BookingDetailModal({
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Transport Mode
-                    </label>
-                    <div className="w-full text-xs bg-slate-100/80 border border-slate-200 rounded-lg p-2 font-bold text-slate-800 flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>Land / Surface Cargo</span>
-                    </div>
-                  </div>
                 </div>
 
                 {/* ODA Distance */}
@@ -518,8 +509,6 @@ export function BookingDetailModal({
                             </div>
 
                             <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5">
-                              <span>{carrier.serviceType}</span>
-                              <span>•</span>
                               <span className="flex items-center gap-1">
                                 <Clock className="w-3 h-3 text-slate-400" />
                                 <span>Transit: {carrier.estimatedTransitDays}</span>

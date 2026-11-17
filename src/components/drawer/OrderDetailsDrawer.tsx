@@ -67,7 +67,6 @@ export function OrderDetailsDrawer({
   const [courierStatus, setCourierStatus] = useState("Pending");
   const [deliveryDate, setDeliveryDate] = useState("");
   const [comment, setComment] = useState("");
-  const [grnReport, setGrnReport] = useState("");
   const [statusRemarks, setStatusRemarks] = useState("");
   const [personalNote, setPersonalNote] = useState("");
   const [personalNoteInfo, setPersonalNoteInfo] = useState<{
@@ -89,7 +88,6 @@ export function OrderDetailsDrawer({
     setCourierStatus(order.courierStatus || order.status || "Pending");
     setDeliveryDate(formatDateInputValue(order.deliveryDate));
     setComment(order.comment || "");
-    setGrnReport(order.grnReport || "");
     setStatusRemarks("");
     setPersonalNote(order.personalNote || "");
     setPersonalNoteInfo({
@@ -150,10 +148,6 @@ export function OrderDetailsDrawer({
         personalNote: personalNote.trim(),
       };
 
-      if (courierStatus.toLowerCase() === "grn issue") {
-        payload.grnStatus = "GRN Issue";
-        payload.grnReport = grnReport.trim() || comment.trim();
-      }
 
       const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
@@ -187,7 +181,7 @@ export function OrderDetailsDrawer({
     e.preventDefault();
     setValidationError(null);
 
-    // If changing to critical status (Delivered, Cancelled, GRN Issue), require confirmation
+    // If changing to a critical status (Delivered), require confirmation
     const oldStatus = (order.courierStatus || "Pending").toLowerCase();
     const newStatus = courierStatus.toLowerCase();
     if (newStatus !== oldStatus && ["delivered", "cancelled", "grn issue"].includes(newStatus)) {
@@ -204,8 +198,6 @@ export function OrderDetailsDrawer({
     "In Transit",
     "Appointment Scheduled",
     "Delivered",
-    "GRN Issue",
-    "Cancelled",
   ];
 
   return (
@@ -545,6 +537,12 @@ export function OrderDetailsDrawer({
                           {st}
                         </option>
                       ))}
+                      {/* A status set elsewhere (e.g. GRN Issue from the main app's GRN desk) is shown, not offered */}
+                      {courierStatus && !availableStatuses.includes(courierStatus) && (
+                        <option value={courierStatus} disabled>
+                          {courierStatus}
+                        </option>
+                      )}
                     </select>
                   </div>
 
@@ -564,31 +562,9 @@ export function OrderDetailsDrawer({
                       >
                         ✓ Delivered
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setCourierStatus("GRN Issue")}
-                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 hover:bg-rose-200 cursor-pointer"
-                      >
-                        ⚠️ GRN Issue
-                      </button>
                     </div>
                   </div>
                 </div>
-
-                {courierStatus.toLowerCase() === "grn issue" && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-2">
-                    <label className="block text-xs font-bold text-rose-900">
-                      GRN Discrepancy Details / Report
-                    </label>
-                    <textarea
-                      rows={2}
-                      placeholder="Specify GRN discrepancy (e.g. shortage of 5 units, box seal damaged, dock rejection)..."
-                      value={grnReport}
-                      onChange={(e) => setGrnReport(e.target.value)}
-                      className="w-full text-xs bg-white border border-rose-300 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500 resize-none"
-                    />
-                  </div>
-                )}
 
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">

@@ -74,12 +74,6 @@ export function AppointmentView({
 
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // GRN Issue Modal state
-  const [grnModalOrder, setGrnModalOrder] = useState<AppointmentOrder | null>(null);
-  const [grnIssueType, setGrnIssueType] = useState<string>("Shortage / Quantity Mismatch");
-  const [grnRemarks, setGrnRemarks] = useState<string>("");
-  const [isSubmittingGrn, setIsSubmittingGrn] = useState<boolean>(false);
-
   const handleCopy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -143,38 +137,6 @@ export function AppointmentView({
   // Manual Status Action: Mark Delivered — opens the POD form (POD is mandatory)
   const [deliverOrder, setDeliverOrder] = useState<AppointmentOrder | null>(null);
   const handleMarkDelivered = (order: AppointmentOrder) => setDeliverOrder(order);
-
-  // Manual Status Action: Submit GRN Issue
-  const handleSubmitGrnIssue = async () => {
-    if (!grnModalOrder) return;
-    setIsSubmittingGrn(true);
-    try {
-      const fullReport = `${grnIssueType}: ${grnRemarks || "No details provided"}`;
-      const res = await fetch(`/api/orders/${grnModalOrder.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "GRN Issue",
-          courierStatus: "GRN Issue",
-          grnStatus: "GRN Issue",
-          grnReport: fullReport,
-          comment: fullReport,
-          remarks: `GRN Issue logged: ${grnIssueType}`,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to log GRN issue");
-
-      showToast(`GRN Issue reported for ${grnModalOrder.roPoNumber}`, "success");
-      setGrnModalOrder(null);
-      setGrnRemarks("");
-      onOrderUpdated();
-    } catch (err: any) {
-      showToast(err.message || "Failed to log GRN issue", "error");
-    } finally {
-      setIsSubmittingGrn(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -536,22 +498,6 @@ export function AppointmentView({
                               </button>
                             )}
 
-                            {/* 2. Report GRN Issue Button */}
-                            {!isGrnIssue && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setGrnModalOrder(order);
-                                  setGrnIssueType("Shortage / Quantity Mismatch");
-                                  setGrnRemarks(order.grnReport || "");
-                                }}
-                                title="Change status manually to GRN Issue"
-                                className="px-2.5 py-1 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow-2xs transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                              >
-                                <AlertTriangle className="w-3.5 h-3.5" />
-                                <span>GRN Issue</span>
-                              </button>
-                            )}
                           </div>
 
                           <div className="flex items-center gap-2 pt-0.5">
@@ -628,109 +574,6 @@ export function AppointmentView({
         }}
       />
 
-      {/* ── Manual GRN Issue Modal ── */}
-      {grnModalOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
-            onClick={() => setGrnModalOrder(null)}
-          />
-
-          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-rose-200 p-5 space-y-4 z-10 text-slate-800 animate-scale-in">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-rose-100">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center">
-                  <AlertTriangle className="w-4 h-4 text-rose-600" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">
-                    Report Warehouse GRN Issue
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Consignment: <span className="font-mono font-bold text-rose-700">{grnModalOrder.roPoNumber}</span> ({grnModalOrder.channel})
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setGrnModalOrder(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Issue Category */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
-                Discrepancy Category
-              </label>
-              <select
-                value={grnIssueType}
-                onChange={(e) => setGrnIssueType(e.target.value)}
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400"
-              >
-                <option value="Shortage / Quantity Mismatch">Shortage / Quantity Mismatch</option>
-                <option value="Damaged Carton / Product">Damaged Carton / Product</option>
-                <option value="Gate Pass / Dock Rejection">Gate Pass / Dock Rejection</option>
-                <option value="Barcode / Label Unreadable">Barcode / Label Unreadable</option>
-                <option value="PO / Invoice Mismatch">PO / Invoice Mismatch</option>
-                <option value="Expired / Ro Window Closed">Expired / RO Window Closed</option>
-                <option value="Other Warehouse Exception">Other Warehouse Exception</option>
-              </select>
-            </div>
-
-            {/* Remarks Textarea */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
-                Issue Description / Warehouse Feedback
-              </label>
-              <textarea
-                rows={3}
-                value={grnRemarks}
-                onChange={(e) => setGrnRemarks(e.target.value)}
-                placeholder="Enter details from warehouse GRN team (e.g. 2 boxes rejected at dock 4 due to seal damage)..."
-                className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-400 resize-none"
-              />
-            </div>
-
-            {/* Notice */}
-            <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200/60 p-2.5 rounded-xl flex items-start gap-2">
-              <FileWarning className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>
-                Submitting this changes status to <strong className="font-bold">GRN Issue</strong> and records the discrepancy in the shared Consignment database for immediate resolution.
-              </span>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setGrnModalOrder(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingGrn}
-                onClick={handleSubmitGrnIssue}
-                className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg shadow-xs hover:shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {isSubmittingGrn ? (
-                  <span>Recording Issue...</span>
-                ) : (
-                  <>
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>Set Status to GRN Issue</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

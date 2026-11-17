@@ -1,3 +1,4 @@
+import { isVisibleInAppointmentApp } from "@/lib/order-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -46,7 +47,7 @@ export async function GET(
       getSingleAppointmentNote(id),
     ]);
 
-    if (!order) {
+    if (!order || !isVisibleInAppointmentApp(order)) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
@@ -90,7 +91,7 @@ export async function PATCH(
       where: { id },
     });
 
-    if (!existing) {
+    if (!existing || !isVisibleInAppointmentApp(existing)) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
@@ -321,6 +322,30 @@ export async function PATCH(
 
     // Direct Status Update (e.g. Delivered, GRN Issue, In Transit)
     const targetStatus = body.status !== undefined ? String(body.status).trim() : (body.courierStatus !== undefined ? String(body.courierStatus).trim() : null);
+
+    // GRN Issue is raised only from the main app's GRN desk (after the GRN report is checked);
+    // cancellation only in the main app with an Admin OTP.
+    if (targetStatus && targetStatus !== existing.status) {
+      const t = targetStatus.toLowerCase();
+      if (t === "grn issue" || t === "shortage" || t === "damaged") {
+        return NextResponse.json(
+          { error: "GRN issues are raised in the main consignment app's GRN desk, not here.", code: "GRN_VIA_MAIN_APP" },
+          { status: 400 }
+        );
+      }
+      if (t === "cancelled" || t === "canceled") {
+        return NextResponse.json(
+          { error: "Orders are cancelled only in the main consignment app (Admin OTP).", code: "CANCEL_VIA_MAIN_APP" },
+          { status: 400 }
+        );
+      }
+    }
+    if (body.grnStatus !== undefined || body.grnReport !== undefined) {
+      return NextResponse.json(
+        { error: "GRN fields are managed by the main consignment app's GRN desk.", code: "GRN_VIA_MAIN_APP" },
+        { status: 400 }
+      );
+    }
 
     if (targetStatus && targetStatus !== existing.status) {
       statusChanged = true;

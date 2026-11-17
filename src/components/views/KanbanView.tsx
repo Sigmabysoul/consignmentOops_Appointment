@@ -435,17 +435,6 @@ export function KanbanView({
                               </button>
                             )}
 
-                            {col.id !== "grn_issue" && col.id !== "remaining_pending" && (
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() => handleQuickStatusChange(order, "GRN Issue")}
-                                className="px-1.5 py-1 text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded transition cursor-pointer"
-                                title="Report GRN discrepancy"
-                              >
-                                ⚠️
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>

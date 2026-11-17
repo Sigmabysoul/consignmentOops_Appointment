@@ -77,7 +77,6 @@ export function FilterToolbar({
     "Appointment Scheduled",
     "Delivered",
     "GRN Issue",
-    "Cancelled",
   ];
 
   const sortOptions = [

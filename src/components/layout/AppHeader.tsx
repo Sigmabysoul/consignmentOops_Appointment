@@ -5,8 +5,6 @@ import {
   Boxes,
   TableProperties,
   Kanban,
-  CalendarDays,
-  LayoutDashboard,
   LogOut,
   ChevronDown,
   RefreshCw,
@@ -14,8 +12,6 @@ import {
   Truck,
   ExternalLink,
   Calendar,
-  Layers,
-  Hash,
   Sliders,
 } from "lucide-react";
 import { SessionUser, ActiveView } from "@/lib/types";
@@ -154,9 +150,6 @@ export function AppHeader({
     .substring(0, 2)
     .toUpperCase();
 
-  const activePlatformDef =
-    PLATFORMS.find((p) => p.code === selectedPlatform) || PLATFORMS[0];
-
   return (
     <header className="sticky top-0 z-30 select-none shadow-md">
       {/* ── ROW 1: Purple Gradient Navigation Bar (ConsignmentOps Brand Bar) ── */}
@@ -167,7 +160,7 @@ export function AppHeader({
         }}
       >
         <div className="flex items-center justify-between h-14 gap-2 sm:gap-4">
-          {/* LEFT: Branding + Active Platform Pill + Live DB */}
+          {/* LEFT: Branding */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg">
@@ -183,25 +176,6 @@ export function AppHeader({
               </div>
             </div>
 
-            {/* Active Platform Pill (ConsignmentOps aesthetic) */}
-            <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/25">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  activePlatformDef?.dotColor || "bg-white"
-                } shadow-sm shrink-0`}
-              />
-              <span className="text-white text-[11px] sm:text-xs font-bold truncate max-w-[90px] sm:max-w-none">
-                {activePlatformDef?.name || "All Channels"}
-              </span>
-            </div>
-
-            {/* Live DB Indicator */}
-            <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/15 backdrop-blur-sm border border-white/25">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shrink-0 animate-pulse" />
-              <span className="text-white text-[10px] font-bold tracking-wider">
-                LIVE DB
-              </span>
-            </div>
           </div>
 
           {/* MIDDLE: Operational View Switchers (1. Booking, 2. Appointment, 3. Kanban, Sheet) */}
@@ -296,29 +270,6 @@ export function AppHeader({
 
           {/* RIGHT: Actions & User Dropdown */}
           <div className="flex items-center gap-2">
-            {/* Rate Presets Button */}
-            {onOpenPresets && (
-              <button
-                onClick={onOpenPresets}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/25 bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                title="Configure OM Logistics rate cards, fuel surcharge, ODA matrix, and courier presets"
-              >
-                <Sliders className="w-3.5 h-3.5 opacity-90" />
-                <span className="hidden sm:inline">Rate Presets</span>
-              </button>
-            )}
-
-            {/* Quick jump to Main Consignment Operations App */}
-            <a
-              href="https://consignmentops.averretail.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/25 bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition shadow-xs"
-              title="Open Main Consignment App in new tab (Port 3000)"
-            >
-              <span>Consignment App</span>
-              <ExternalLink className="w-3 h-3 opacity-80" />
-            </a>
             {/* Refresh button */}
             {onRefresh && (
               <button
@@ -374,25 +325,29 @@ export function AppHeader({
                   </div>
 
                   <div className="px-2 py-1">
-                    <div className="px-2.5 py-1.5 text-[11px] text-slate-500 font-medium flex items-center justify-between">
-                      <span>Logistics WorkHub Mode</span>
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        Active
-                      </span>
-                    </div>
-
                     {onOpenPresets && (
                       <button
                         onClick={() => {
                           setUserMenuOpen(false);
                           onOpenPresets();
                         }}
-                        className="w-full flex items-center gap-2 px-2.5 py-2 mt-1 rounded-lg text-xs font-semibold text-slate-700 hover:bg-violet-50 hover:text-violet-900 transition cursor-pointer text-left"
+                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-violet-50 hover:text-violet-900 transition cursor-pointer text-left"
+                        title="OM Logistics rate cards, fuel surcharge, ODA matrix and courier presets"
                       >
                         <Sliders className="w-3.5 h-3.5 text-violet-600" />
-                        <span>Shipping Rate Presets</span>
+                        <span>Rate Presets</span>
                       </button>
                     )}
+                    <a
+                      href="https://consignmentops.averretail.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-violet-50 hover:text-violet-900 transition text-left"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-violet-600" />
+                      <span>Open Consignment App</span>
+                    </a>
                   </div>
 
                   <div className="pt-1 border-t border-slate-100 px-2">

@@ -8,6 +8,7 @@ import { getEffectiveCourierPartner } from "@/lib/courier-defaults";
 import {
   BOOKING_FILTER_CONDITIONS,
   APPOINTMENT_FILTER_CONDITIONS,
+  APPOINTMENT_APP_VISIBILITY,
 } from "@/lib/order-filters";
 import { parseDateInput } from "@/lib/date-utils";
 
@@ -40,12 +41,9 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortDir = (searchParams.get("sortDir") || "desc").toLowerCase() === "asc" ? "asc" : "desc";
 
+    // Drafts, New, cancelled and archived orders never reach the Appointment app
     const whereConditions: any = {
-      AND: [
-        {
-          OR: [{ isDeleted: false }, { isDeleted: null }],
-        },
-      ],
+      AND: [...APPOINTMENT_APP_VISIBILITY],
     };
 
     // Tab filter conditions

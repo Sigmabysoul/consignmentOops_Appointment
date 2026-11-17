@@ -1,3 +1,4 @@
+import { isVisibleInAppointmentApp } from "@/lib/order-filters";
 /**
  * Server-side glue between Delhivery API calls and ConsignmentOrder rows.
  *
@@ -40,10 +41,7 @@ export async function loadDelhiveryOrder(
   if (!user.isLogisticsAuthorized) return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
 
   const order = await db.consignmentOrder.findUnique({ where: { id } });
-  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  if (order.isDeleted || (order.status || "").toLowerCase() === "cancelled") {
-    return NextResponse.json({ error: "This order is cancelled or archived." }, { status: 409 });
-  }
+  if (!order || !isVisibleInAppointmentApp(order)) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (!getAllowedCouriersForChannel(order.channel).includes(DELHIVERY_COURIER_NAME)) {
     return NextResponse.json(
       { error: `Delhivery is not an allowed courier for ${order.channel} orders.` },

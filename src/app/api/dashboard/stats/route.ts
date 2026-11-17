@@ -5,6 +5,7 @@ import { normalizeChannelCode } from "@/lib/channel-aliases";
 import {
   BOOKING_FILTER_CONDITIONS,
   APPOINTMENT_FILTER_CONDITIONS,
+  APPOINTMENT_APP_VISIBILITY,
 } from "@/lib/order-filters";
 
 export const dynamic = "force-dynamic";
@@ -24,12 +25,9 @@ export async function GET(req: NextRequest) {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
+    // Drafts, New, cancelled and archived orders never count in the Appointment app
     const baseWhere = {
-      AND: [
-        {
-          OR: [{ isDeleted: false }, { isDeleted: null }],
-        },
-      ],
+      AND: [...APPOINTMENT_APP_VISIBILITY],
     };
 
     // Booking Desk specific query filter:
