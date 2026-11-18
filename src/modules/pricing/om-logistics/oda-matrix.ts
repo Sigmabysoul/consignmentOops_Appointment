@@ -1,4 +1,5 @@
 import { OdaBand } from "./types";
+import { findSlab, findSlabIndex } from "./slab-match";
 
 export interface OdaDistanceBandDef {
   minKm: number;
@@ -40,8 +41,8 @@ export function getOdaCharge(
     return { amount: 0 };
   }
 
-  // Check bounds
-  if (km > 350 || weightKg > 5000 || weightKg < 1) {
+  // Check bounds (the weight rows decide the weight range: 0.5 kg belongs to the 1–350 kg row)
+  if (km > 350 || !(weightKg > 0)) {
     return {
       amount: 0,
       error: "ODA outside matrix, request a quote",
@@ -49,9 +50,9 @@ export function getOdaCharge(
   }
 
   // Find distance column index
-  const colIdx = ODA_DISTANCE_BANDS.findIndex(
-    (b) => km >= b.minKm && km <= b.maxKm
-  );
+  // Bands are whole-number labelled (41–100, 101–160, …): 40.5 km → 41–100, 100.5 km → 101–160.
+  // ODA starts above 40 km, so the first band owns 40 < km <= 100.
+  const colIdx = findSlabIndex(ODA_DISTANCE_BANDS, km, (b) => ({ min: b.minKm, max: b.maxKm }));
   if (colIdx === -1) {
     return {
       amount: 0,
@@ -60,9 +61,8 @@ export function getOdaCharge(
   }
 
   const matrix = customMatrix || DEFAULT_ODA_MATRIX;
-  const row = matrix.find(
-    (r) => weightKg >= r.minKg && weightKg <= r.maxKg
-  );
+  // Weight rows are whole-number labelled too: 350.5 kg → 351–750 kg, 0.5 kg → 1–350 kg.
+  const row = findSlab(matrix, weightKg, (r) => ({ min: r.minKg, max: r.maxKg }));
   if (!row || typeof row.rates[colIdx] !== "number") {
     return {
       amount: 0,

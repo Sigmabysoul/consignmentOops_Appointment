@@ -5,13 +5,25 @@ import { db } from "@/lib/db";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { getChannelAliases } from "@/lib/channel-aliases";
 import { getAppointmentNotesMap } from "@/lib/appointment-notes";
-import { getEffectiveCourierPartner } from "@/lib/courier-defaults";
+import { getEffectiveCourierPartner, getCourierSpellings } from "@/lib/courier-defaults";
 import {
   BOOKING_FILTER_CONDITIONS,
   APPOINTMENT_FILTER_CONDITIONS,
   APPOINTMENT_APP_VISIBILITY,
+  DELIVERED_STATUSES,
+  KANBAN_STAGES,
+  KANBAN_STAGE_CONDITIONS,
+  getMetricConditions,
+  getPastDueConditions,
+  getKanbanStage,
+  hasInTransitMarker,
+  isDeliveredOrder,
+  isGrnIssueOrder,
 } from "@/lib/order-filters";
-import { parseDateInput } from "@/lib/date-utils";
+import { getIstQuickDateWindows, istDayRangeFromInput } from "@/lib/date-utils";
+
+/** Kanban loads each column separately (no 100-row page cap); each column shows at most this many cards. */
+const KANBAN_COLUMN_LIMIT = 200;
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +48,7 @@ export async function GET(req: NextRequest) {
     const quickDate = searchParams.get("quickDate")?.trim();
     const statusFilter = searchParams.get("courierStatus")?.trim();
     const deliveryFilter = searchParams.get("deliveryStatus")?.trim();
+    const metric = searchParams.get("metric")?.trim() || "";
     const dateType = (searchParams.get("dateType") || "appointmentDate").trim();
     const startDate = searchParams.get("startDate")?.trim();
     const endDate = searchParams.get("endDate")?.trim();
@@ -44,110 +57,37 @@ export async function GET(req: NextRequest) {
 
     // Drafts, New, cancelled and archived orders never reach the Appointment app
     const whereConditions: any = {
-      AND: [...APPOINTMENT_APP_VISIBILITY],
+      AND: [...APPOINTMENT_APP_VISIBILITY] as any[],
     };
 
-    // Tab filter conditions
+    const quickWindows = getIstQuickDateWindows();
+    const metricWindow = { todayStart: quickWindows.todayStart, tomorrowStart: quickWindows.tomorrowStart };
+
+    // Tab filter conditions. The metric-style tabs use exactly the dashboard card's conditions.
+    const TAB_METRIC_ALIASES: Record<string, string> = {
+      pending: "pending",
+      tracking_missing: "tracking_missing",
+      missing_tracking: "tracking_missing",
+      in_transit: "in_transit",
+      appointments: "appointment_scheduled",
+      appointment_scheduled: "appointment_scheduled",
+      delivered: "delivered",
+      grn_issues: "grn_issues",
+      grn_issue: "grn_issues",
+      cancelled: "cancelled",
+    };
     if (tab === "booking") {
-      whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push(...BOOKING_FILTER_CONDITIONS);
     } else if (tab === "appointment") {
-      whereConditions.AND = whereConditions.AND || [];
       whereConditions.AND.push(...APPOINTMENT_FILTER_CONDITIONS);
-    } else if (tab === "pending") {
-      whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push(
-        {
-          OR: [
-            { courierStatus: null },
-            { courierStatus: "" },
-            { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
-            { status: null },
-            { status: "" },
-            { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "Scheduled", "InProgress", "In Progress", "New", "new"] } },
-          ],
-        },
-        {
-          OR: [
-            { status: null },
-            { status: "" },
-            { status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] } },
-          ],
-        },
-        {
-          OR: [
-            { courierStatus: null },
-            { courierStatus: "" },
-            { courierStatus: { notIn: ["Delivered", "delivered", "DELIVERED", "In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "Cancelled", "cancelled"] } },
-          ],
-        }
-      );
-    } else if (tab === "tracking_missing" || tab === "missing_tracking") {
-      whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push({
-        OR: [{ trackingId: null }, { trackingId: "" }],
-        AND: [
-          {
-            OR: [
-              { status: null },
-              { status: "" },
-              { status: { notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"] } },
-            ],
-          },
-        ],
-      });
-    } else if (tab === "in_transit") {
-      whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push({
-        OR: [
-          { courierStatus: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "SHIPPED"] } },
-          { status: { in: ["In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched"] } },
-          {
-            AND: [
-              { pickupDone: true },
-              {
-                NOT: {
-                  courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] },
-                },
-              },
-            ],
-          },
-        ],
-      });
-    } else if (tab === "appointments" || tab === "appointment_scheduled") {
-      whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push({
-        OR: [
-          { appointmentId: { not: null, notIn: [""] } },
-          { appointmentDate: { not: null } },
-          { courierStatus: { in: ["Appointment Scheduled", "appointment scheduled"] } },
-        ],
-      });
-    } else if (tab === "delivered") {
-      whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push({
-        OR: [
-          { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
-          { status: { in: ["Delivered", "delivered", "DELIVERED", "COMPLETED", "Completed"] } },
-        ],
-      });
-    } else if (tab === "grn_issues" || tab === "grn_issue") {
-      whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push({
-        OR: [
-          { grnStatus: { contains: "issue", mode: "insensitive" } },
-          { status: { contains: "grn issue", mode: "insensitive" } },
-          { courierStatus: { contains: "grn issue", mode: "insensitive" } },
-        ],
-      });
-    } else if (tab === "cancelled") {
-      whereConditions.AND = whereConditions.AND || [];
-      whereConditions.AND.push({
-        OR: [
-          { status: { in: ["Cancelled", "cancelled", "CANCELLED", "CANCELED"] } },
-          { courierStatus: { in: ["Cancelled", "cancelled", "CANCELLED"] } },
-        ],
-      });
+    } else if (TAB_METRIC_ALIASES[tab]) {
+      whereConditions.AND.push(...(getMetricConditions(TAB_METRIC_ALIASES[tab], metricWindow) || []));
+    }
+
+    // Dashboard metric card drill-down: the list uses the very conditions its count uses
+    if (metric) {
+      const metricConditions = getMetricConditions(metric, metricWindow);
+      if (metricConditions) whereConditions.AND.push(...metricConditions);
     }
 
     // Channel filter (with multi-alias and legacy platform support)
@@ -156,9 +96,9 @@ export async function GET(req: NextRequest) {
       whereConditions.channel = { in: aliases, mode: "insensitive" };
     }
 
-    // Courier filter
+    // Courier filter (any stored spelling: "Delhivery" / "Delhivery One", "Om Logistics" / "OM Logistics" …)
     if (courier && courier !== "ALL") {
-      whereConditions.courierPartner = { equals: courier, mode: "insensitive" };
+      whereConditions.courierPartner = { in: getCourierSpellings(courier), mode: "insensitive" };
     }
 
     // Warehouse filter
@@ -166,10 +106,9 @@ export async function GET(req: NextRequest) {
       whereConditions.warehouseName = { contains: warehouse, mode: "insensitive" };
     }
 
-    // Specific Status filter
+    // Specific shipment-status filter (ANDed, so it combines with the delivery-state filter)
     if (statusFilter && statusFilter !== "ALL") {
       if (statusFilter.toLowerCase() === "pending") {
-        whereConditions.AND = whereConditions.AND || [];
         whereConditions.AND.push({
           OR: [
             { courierStatus: null },
@@ -181,33 +120,22 @@ export async function GET(req: NextRequest) {
           ],
         });
       } else {
-        whereConditions.courierStatus = { equals: statusFilter, mode: "insensitive" };
+        whereConditions.AND.push({ courierStatus: { equals: statusFilter, mode: "insensitive" } });
       }
     }
 
-    // Delivery Status filter
+    // Delivery-state filter. Delivered comes from the status written with the POD, never deliveryDate alone.
     if (deliveryFilter && deliveryFilter !== "ALL") {
       const df = deliveryFilter.toUpperCase();
       if (df === "DELIVERED") {
-        whereConditions.AND = whereConditions.AND || [];
-        whereConditions.AND.push({
-          OR: [
-            { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
-            { deliveryDate: { not: null } },
-          ],
-        });
+        whereConditions.AND.push(...(getMetricConditions("delivered", metricWindow) || []));
       } else if (df === "IN_TRANSIT" || df === "IN TRANSIT") {
-        whereConditions.courierStatus = { in: ["In Transit", "in transit", "IN TRANSIT"] };
+        whereConditions.AND.push(...APPOINTMENT_FILTER_CONDITIONS);
       } else if (df === "PENDING") {
-        whereConditions.AND = whereConditions.AND || [];
-        whereConditions.AND.push({
-          NOT: {
-            OR: [
-              { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
-              { deliveryDate: { not: null } },
-            ],
-          },
-        });
+        whereConditions.AND.push(
+          { OR: [{ status: null }, { status: { notIn: DELIVERED_STATUSES } }] },
+          { OR: [{ courierStatus: null }, { courierStatus: { notIn: DELIVERED_STATUSES } }] }
+        );
       }
     }
 
@@ -219,236 +147,67 @@ export async function GET(req: NextRequest) {
         ? (dateType === "appointmentDate" || !dateType || dateType === "pickupDate" ? "appointmentDate" : dateType)
         : (dateType || "appointmentDate");
 
-    // Quick Date presets (Yesterday, Today's All, Tomorrow's All, This Week, Past Due / Overdue)
+    // Quick Date presets on IST business days (Yesterday, Today, Tomorrow, This Week, Past Due).
+    // Every window is [start, end) — "This Week" ends before next Sunday 00:00 IST.
     if (quickDate && quickDate !== "all") {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-      const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
-      const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-      const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59, 999);
-      const weekStart = new Date(todayStart);
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      const weekEnd = new Date(weekStart.getTime() + 7 * 86400000);
-
-      whereConditions.AND = whereConditions.AND || [];
+      const w = quickWindows;
+      const range =
+        quickDate === "yesterday"
+          ? { gte: w.yesterdayStart, lt: w.todayStart }
+          : quickDate === "today"
+          ? { gte: w.todayStart, lt: w.tomorrowStart }
+          : quickDate === "tomorrow"
+          ? { gte: w.tomorrowStart, lt: w.dayAfterTomorrowStart }
+          : quickDate === "this_week"
+          ? { gte: w.weekStart, lt: w.weekEnd }
+          : null;
 
       if (tab === "booking") {
         // In booking section all filters are based on pickup date
-        if (quickDate === "yesterday") {
-          whereConditions.AND.push({ pickupDate: { gte: yesterdayStart, lte: yesterdayEnd } });
-        } else if (quickDate === "today") {
-          whereConditions.AND.push({ pickupDate: { gte: todayStart, lte: todayEnd } });
-        } else if (quickDate === "tomorrow") {
-          whereConditions.AND.push({ pickupDate: { gte: tomorrowStart, lte: tomorrowEnd } });
-        } else if (quickDate === "this_week") {
-          whereConditions.AND.push({ pickupDate: { gte: weekStart, lte: weekEnd } });
-        } else if (quickDate === "overdue") {
-          // Past due: order has passed its pickup date but haven't gotten in in-transit state
-          whereConditions.AND.push(
-            { pickupDate: { lt: todayStart } },
-            { pickupDone: false },
-            {
-              OR: [
-                { courierStatus: null },
-                { courierStatus: "" },
-                {
-                  courierStatus: {
-                    notIn: [
-                      "In Transit",
-                      "in transit",
-                      "IN TRANSIT",
-                      "Dispatched",
-                      "dispatched",
-                      "SHIPPED",
-                      "shipped",
-                      "Delivered",
-                      "delivered",
-                      "DELIVERED",
-                      "Cancelled",
-                      "cancelled",
-                    ],
-                  },
-                },
-              ],
-            },
-            {
-              OR: [
-                { status: null },
-                { status: "" },
-                {
-                  status: {
-                    notIn: [
-                      "In Transit",
-                      "in transit",
-                      "IN TRANSIT",
-                      "Dispatched",
-                      "dispatched",
-                      "Delivered",
-                      "delivered",
-                      "DELIVERED",
-                      "Cancelled",
-                      "CANCELLED",
-                      "Archive",
-                      "ARCHIVED",
-                    ],
-                  },
-                },
-              ],
-            }
-          );
-        }
+        if (range) whereConditions.AND.push({ pickupDate: range });
+        // Past due: pickup date before today (IST) and not yet in transit
+        else if (quickDate === "overdue") whereConditions.AND.push(...getPastDueConditions(w.todayStart));
       } else if (tab === "appointment") {
         // In appointment section all filters are based on appointment date
-        if (quickDate === "yesterday") {
-          whereConditions.AND.push({ appointmentDate: { gte: yesterdayStart, lte: yesterdayEnd } });
-        } else if (quickDate === "today") {
-          whereConditions.AND.push({ appointmentDate: { gte: todayStart, lte: todayEnd } });
-        } else if (quickDate === "tomorrow") {
-          whereConditions.AND.push({ appointmentDate: { gte: tomorrowStart, lte: tomorrowEnd } });
-        } else if (quickDate === "this_week") {
-          whereConditions.AND.push({ appointmentDate: { gte: weekStart, lte: weekEnd } });
-        } else if (quickDate === "overdue") {
+        if (range) whereConditions.AND.push({ appointmentDate: range });
+        else if (quickDate === "overdue") {
           whereConditions.AND.push(
-            { appointmentDate: { lt: todayStart } },
-            {
-              OR: [
-                { status: null },
-                { status: "" },
-                { status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] } },
-              ],
-            },
-            {
-              OR: [
-                { courierStatus: null },
-                { courierStatus: "" },
-                { courierStatus: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED"] } },
-              ],
-            }
+            { appointmentDate: { lt: w.todayStart } },
+            { OR: [{ status: null }, { status: "" }, { status: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"] } }] },
+            { OR: [{ courierStatus: null }, { courierStatus: "" }, { courierStatus: { notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED"] } }] }
           );
         }
       } else {
         // General / Kanban / All Data views
-        if (quickDate === "yesterday") {
+        if (range) {
           whereConditions.AND.push({
             OR: [
-              { appointmentDate: { gte: yesterdayStart, lte: yesterdayEnd } },
-              { pickupDate: { gte: yesterdayStart, lte: yesterdayEnd } },
-              { deliveryDate: { gte: yesterdayStart, lte: yesterdayEnd } },
-              { orderDate: { gte: yesterdayStart, lte: yesterdayEnd } },
-            ],
-          });
-        } else if (quickDate === "today") {
-          whereConditions.AND.push({
-            OR: [
-              { appointmentDate: { gte: todayStart, lte: todayEnd } },
-              { pickupDate: { gte: todayStart, lte: todayEnd } },
-              { deliveryDate: { gte: todayStart, lte: todayEnd } },
-              { orderDate: { gte: todayStart, lte: todayEnd } },
-            ],
-          });
-        } else if (quickDate === "tomorrow") {
-          whereConditions.AND.push({
-            OR: [
-              { appointmentDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-              { pickupDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-              { deliveryDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-              { orderDate: { gte: tomorrowStart, lte: tomorrowEnd } },
-            ],
-          });
-        } else if (quickDate === "this_week") {
-          whereConditions.AND.push({
-            OR: [
-              { appointmentDate: { gte: weekStart, lte: weekEnd } },
-              { pickupDate: { gte: weekStart, lte: weekEnd } },
-              { deliveryDate: { gte: weekStart, lte: weekEnd } },
-              { orderDate: { gte: weekStart, lte: weekEnd } },
+              { appointmentDate: range },
+              { pickupDate: range },
+              { deliveryDate: range },
+              { orderDate: range },
             ],
           });
         } else if (quickDate === "overdue") {
-          // Past due: order has passed its pickup date but haven't gotten in in-transit state
-          whereConditions.AND.push(
-            { pickupDate: { lt: todayStart } },
-            { pickupDone: false },
-            {
-              OR: [
-                { courierStatus: null },
-                { courierStatus: "" },
-                {
-                  courierStatus: {
-                    notIn: [
-                      "In Transit",
-                      "in transit",
-                      "IN TRANSIT",
-                      "Dispatched",
-                      "dispatched",
-                      "SHIPPED",
-                      "shipped",
-                      "Delivered",
-                      "delivered",
-                      "DELIVERED",
-                      "Cancelled",
-                      "cancelled",
-                    ],
-                  },
-                },
-              ],
-            },
-            {
-              OR: [
-                { status: null },
-                { status: "" },
-                {
-                  status: {
-                    notIn: [
-                      "In Transit",
-                      "in transit",
-                      "IN TRANSIT",
-                      "Dispatched",
-                      "dispatched",
-                      "Delivered",
-                      "delivered",
-                      "DELIVERED",
-                      "Cancelled",
-                      "CANCELLED",
-                      "Archive",
-                      "ARCHIVED",
-                    ],
-                  },
-                },
-              ],
-            }
-          );
+          whereConditions.AND.push(...getPastDueConditions(w.todayStart));
         }
       }
     }
 
-    // Date range filter
+    // Date range filter: YYYY-MM-DD bounds are whole IST days (end inclusive of that day)
     if (startDate || endDate) {
       const validDateFields = ["pickupDate", "appointmentDate", "deliveryDate", "orderDate", "createdAt"];
       const targetDateField = validDateFields.includes(effectiveDateType)
         ? effectiveDateType
         : (tab === "booking" ? "pickupDate" : "appointmentDate");
-      const dateRange: { gte?: Date; lte?: Date } = {};
+      const dateRange: { gte?: Date; lt?: Date } = {};
 
-      if (startDate) {
-        const start = parseDateInput(startDate);
-        if (start) {
-          start.setHours(0, 0, 0, 0);
-          dateRange.gte = start;
-        }
-      }
-      if (endDate) {
-        const end = parseDateInput(endDate);
-        if (end) {
-          end.setHours(23, 59, 59, 999);
-          dateRange.lte = end;
-        }
-      }
+      const startDay = istDayRangeFromInput(startDate);
+      if (startDay) dateRange.gte = startDay.start;
+      const endDay = istDayRangeFromInput(endDate);
+      if (endDay) dateRange.lt = endDay.end;
 
-      if (dateRange.gte || dateRange.lte) {
-        whereConditions.AND = whereConditions.AND || [];
+      if (dateRange.gte || dateRange.lt) {
         whereConditions.AND.push({ [targetDateField]: dateRange });
       }
     }
@@ -489,59 +248,84 @@ export async function GET(req: NextRequest) {
     ];
     const orderField = validSortFields.includes(sortBy) ? sortBy : "createdAt";
 
-    // Query DB in parallel for count and rows
-    const [total, orders, courierPresets] = await Promise.all([
-      db.consignmentOrder.count({ where: whereConditions }),
-      db.consignmentOrder.findMany({
-        where: whereConditions,
-        orderBy: { [orderField]: sortDir },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              city: true,
-              address: true,
-            },
-          },
-          items: {
-            select: {
-              id: true,
-              itemName: true,
-              totalQty: true,
-              boxCount: true,
-              lengthCm: true,
-              widthCm: true,
-              heightCm: true,
-              weightKg: true,
-              remainderQty: true,
-              remainderLengthCm: true,
-              remainderWidthCm: true,
-              remainderHeightCm: true,
-              remainderWeightKg: true,
-              boxDimensions: true,
-            },
-          },
-          auditLogs: {
-            orderBy: { timestamp: "desc" },
-            take: 1,
-            select: { userName: true, timestamp: true },
-          },
-          statusHistory: {
-            orderBy: { timestamp: "desc" },
-            take: 1,
-            select: { userName: true, timestamp: true },
-          },
+    const orderInclude = {
+      client: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          city: true,
+          address: true,
         },
-      }),
-      db.courierPreset.findMany({
-        where: { isActive: true },
-        select: { name: true, urlName: true, trackingUrlPattern: true },
-      }),
-    ]);
+      },
+      items: {
+        select: {
+          id: true,
+          itemName: true,
+          totalQty: true,
+          boxCount: true,
+          lengthCm: true,
+          widthCm: true,
+          heightCm: true,
+          weightKg: true,
+          remainderQty: true,
+          remainderLengthCm: true,
+          remainderWidthCm: true,
+          remainderHeightCm: true,
+          remainderWeightKg: true,
+          boxDimensions: true,
+        },
+      },
+      auditLogs: {
+        orderBy: { timestamp: "desc" as const },
+        take: 1,
+        select: { userName: true, timestamp: true },
+      },
+      statusHistory: {
+        orderBy: { timestamp: "desc" as const },
+        take: 1,
+        select: { userName: true, timestamp: true },
+      },
+    };
+
+    let total: number;
+    let orders: Awaited<ReturnType<typeof fetchPage>>;
+    let kanban: { counts: Record<string, number>; columnLimit: number } | null = null;
+    function fetchPage(where: any, skip: number, take: number) {
+      return db.consignmentOrder.findMany({
+        where,
+        orderBy: { [orderField]: sortDir },
+        skip,
+        take,
+        include: orderInclude,
+      });
+    }
+
+    if (tab === "kanban") {
+      // Kanban: one count + one capped query per column, using the same stage partition the board
+      // renders (getKanbanStage), so counts are exact and no column is starved by a page cap.
+      const perStage = await Promise.all(
+        KANBAN_STAGES.map(async (stage) => {
+          const where = { AND: [whereConditions, KANBAN_STAGE_CONDITIONS[stage]] };
+          const [count, rows] = await Promise.all([
+            db.consignmentOrder.count({ where }),
+            fetchPage(where, 0, KANBAN_COLUMN_LIMIT),
+          ]);
+          return { stage, count, rows };
+        })
+      );
+      const counts: Record<string, number> = {};
+      for (const p of perStage) counts[p.stage] = p.count;
+      kanban = { counts, columnLimit: KANBAN_COLUMN_LIMIT };
+      total = perStage.reduce((sum, p) => sum + p.count, 0);
+      orders = perStage.flatMap((p) => p.rows);
+    } else {
+      // Query DB in parallel for count and rows
+      [total, orders] = await Promise.all([
+        db.consignmentOrder.count({ where: whereConditions }),
+        fetchPage(whereConditions, (page - 1) * pageSize, pageSize),
+      ]);
+    }
 
     // Fetch personal internal notes isolated to Appointment application (safe self-healing)
     const orderIds = orders.map((o) => o.id);
@@ -554,17 +338,10 @@ export async function GET(req: NextRequest) {
       const latestUser =
         order.auditLogs?.[0]?.userName || order.statusHistory?.[0]?.userName || null;
 
-      const isDelivered =
-        (order.status || "").toLowerCase() === "delivered" ||
-        (order.courierStatus || "").toLowerCase() === "delivered" ||
-        !!order.deliveryDate;
-      const isInTransit =
-        (order.status || "").toLowerCase() === "in transit" ||
-        (order.courierStatus || "").toLowerCase() === "in transit";
-      const isGrnIssue =
-        (order.status || "").toLowerCase().includes("issue") ||
-        (order.grnStatus || "").toLowerCase().includes("issue") ||
-        (order.courierStatus || "").toLowerCase().includes("issue");
+      // Same classifier as the desks / Kanban; a deliveryDate alone never means Delivered
+      const isDelivered = isDeliveredOrder(order);
+      const isInTransit = hasInTransitMarker(order);
+      const isGrnIssue = isGrnIssueOrder(order);
 
       const computedDeliveryStatus = isGrnIssue
         ? "GRN Issue"
@@ -584,6 +361,7 @@ export async function GET(req: NextRequest) {
         trackingLink: order.trackingLink || null, // No automatic external URL generation
         lastUpdatedBy: latestUser,
         deliveryStatus: computedDeliveryStatus,
+        kanbanStage: getKanbanStage(order),
         personalNote: noteItem?.note || null,
         personalNoteUpdatedAt: noteItem?.updatedAt ? noteItem.updatedAt.toISOString() : null,
         personalNoteUpdatedBy: noteItem?.updatedBy || null,
@@ -592,12 +370,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       orders: enrichedOrders,
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
-      },
+      pagination: kanban
+        ? { page: 1, pageSize: orders.length, total, totalPages: 1 }
+        : {
+            page,
+            pageSize,
+            total,
+            totalPages: Math.ceil(total / pageSize),
+          },
+      ...(kanban ? { kanban } : {}),
     });
   } catch (error: any) {
     return NextResponse.json(

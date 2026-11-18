@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
+import { getKanbanStage, isOnAppointmentDesk, type KanbanStage } from "@/lib/order-filters";
 import {
   Clock,
   Truck,
@@ -26,6 +27,9 @@ import {
 
 interface KanbanViewProps {
   orders: AppointmentOrder[];
+  /** Exact per-column totals from the server (columns are loaded separately, capped at columnLimit). */
+  stageCounts?: Record<string, number>;
+  columnLimit?: number;
   isLoading: boolean;
   onOpenOrderDrawer: (order: AppointmentOrder) => void;
   onQuickNoteClick?: (order: AppointmentOrder) => void;
@@ -34,16 +38,21 @@ interface KanbanViewProps {
 
 interface KanbanColumn {
   id: string;
+  stage: KanbanStage;
   title: string;
   category: "remaining" | "gone" | "issue";
   icon: React.ReactNode;
   headerBg: string;
   badgeBg: string;
-  filter: (order: AppointmentOrder) => boolean;
 }
+
+/** The server tags each row with its stage; the shared classifier is the fallback (same rules). */
+const stageOf = (o: AppointmentOrder): KanbanStage => ((o as any).kanbanStage as KanbanStage) || getKanbanStage(o);
 
 export function KanbanView({
   orders,
+  stageCounts,
+  columnLimit,
   isLoading,
   onOpenOrderDrawer,
   onQuickNoteClick,
@@ -54,27 +63,20 @@ export function KanbanView({
   // Delivered requires a POD upload, so it opens the POD form instead of a one-tap status change
   const [deliverOrder, setDeliverOrder] = useState<AppointmentOrder | null>(null);
 
-  // Quick move status action
-  const handleQuickStatusChange = async (
-    order: AppointmentOrder,
-    newStatus: string,
-    extraData: Record<string, any> = {}
-  ) => {
+  // Quick milestone action: writes the shipment milestone (courierStatus) only — never the order
+  // status. In Transit comes only from the main app's BoxTrace gate; Delivered only with a POD.
+  const handleQuickMilestone = async (order: AppointmentOrder, milestone: string) => {
     setIsUpdatingId(order.id);
     try {
       const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          courierStatus: newStatus,
-          ...extraData,
-        }),
+        body: JSON.stringify({ courierStatus: milestone }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update status");
 
-      showToast(`Moved ${order.roPoNumber} to "${newStatus}"`, "success");
+      showToast(`Moved ${order.roPoNumber} to "${milestone}"`, "success");
       onOrderUpdated?.();
     } catch (err: any) {
       showToast(err.message || "Failed to update status", "error");
@@ -86,93 +88,59 @@ export function KanbanView({
   const columns: KanbanColumn[] = [
     {
       id: "remaining_pending",
+      stage: "remaining",
       title: "1. Remaining (To Book)",
       category: "remaining",
       icon: <Clock className="w-4 h-4 text-amber-600" />,
       headerBg: "bg-amber-50/90 border-amber-200 text-amber-950",
       badgeBg: "bg-amber-200 text-amber-950 font-bold",
-      filter: (o) => {
-        const s = (o.status || o.courierStatus || "pending").toLowerCase();
-        const isGone = s === "delivered" || s === "in transit" || s === "dispatched" || !!o.deliveryDate;
-        const isBooked = !!o.trackingId || s === "tracking assigned" || s === "appointment scheduled";
-        const isIssue = s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-        return !isGone && !isBooked && !isIssue;
-      },
     },
     {
       id: "booked_ready",
+      stage: "booked",
       title: "2. Booked (CN / Scheduled)",
       category: "remaining",
       icon: <CalendarCheck className="w-4 h-4 text-blue-600" />,
       headerBg: "bg-blue-50/90 border-blue-200 text-blue-950",
       badgeBg: "bg-blue-200 text-blue-950 font-bold",
-      filter: (o) => {
-        const s = (o.status || o.courierStatus || "").toLowerCase();
-        const isGone = s === "delivered" || s === "in transit" || s === "dispatched" || !!o.deliveryDate;
-        const isIssue = s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-        const isBooked = (!!o.trackingId || !!o.appointmentDate || s === "tracking assigned" || s === "appointment scheduled");
-        return !isGone && !isIssue && isBooked;
-      },
     },
     {
       id: "in_transit_gone",
+      stage: "in_transit",
       title: "3. Gone (In Transit / Road)",
       category: "gone",
       icon: <Truck className="w-4 h-4 text-indigo-600" />,
       headerBg: "bg-indigo-50/90 border-indigo-200 text-indigo-950",
       badgeBg: "bg-indigo-200 text-indigo-950 font-bold",
-      filter: (o) => {
-        const s = (o.status || o.courierStatus || "").toLowerCase();
-        const isDelivered = s === "delivered" || !!o.deliveryDate;
-        const isIssue = s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-        return !isDelivered && !isIssue && (s === "in transit" || s === "dispatched" || s === "shipped");
-      },
     },
     {
       id: "delivered_gone",
+      stage: "delivered",
       title: "4. Delivered (Completed)",
       category: "gone",
       icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" />,
       headerBg: "bg-emerald-50/90 border-emerald-200 text-emerald-950",
       badgeBg: "bg-emerald-200 text-emerald-950 font-bold",
-      filter: (o) => {
-        const s = (o.status || o.courierStatus || "").toLowerCase();
-        const isIssue = s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-        return !isIssue && (s === "delivered" || !!o.deliveryDate);
-      },
     },
     {
       id: "grn_issue",
+      stage: "grn_issue",
       title: "5. GRN Discrepancy",
       category: "issue",
       icon: <AlertTriangle className="w-4 h-4 text-rose-600" />,
       headerBg: "bg-rose-50/90 border-rose-200 text-rose-950",
       badgeBg: "bg-rose-200 text-rose-950 font-bold",
-      filter: (o) => {
-        const s = (o.status || o.courierStatus || "").toLowerCase();
-        return s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-      },
     },
   ];
 
-  // Calculate Gone vs Remaining summaries
-  const remainingCount = orders.filter((o) => {
-    const s = (o.status || o.courierStatus || "pending").toLowerCase();
-    const isGone = s === "delivered" || s === "in transit" || s === "dispatched" || !!o.deliveryDate;
-    const isIssue = s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-    return !isGone && !isIssue;
-  }).length;
+  // Column totals: exact server counts when available, otherwise the loaded rows
+  const loadedByStage = (stage: KanbanStage) => orders.filter((o) => stageOf(o) === stage);
+  const totalFor = (stage: KanbanStage) => stageCounts?.[stage] ?? loadedByStage(stage).length;
 
-  const goneCount = orders.filter((o) => {
-    const s = (o.status || o.courierStatus || "").toLowerCase();
-    const isIssue = s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-    return !isIssue && (s === "delivered" || s === "in transit" || s === "dispatched" || !!o.deliveryDate);
-  }).length;
-
-  const issueCount = orders.filter((o) => {
-    const s = (o.status || o.courierStatus || "").toLowerCase();
-    return s === "grn issue" || (o.grnStatus || "").toLowerCase().includes("issue");
-  }).length;
+  // Calculate Gone vs Remaining summaries (same stage partition as the columns)
+  const remainingCount = totalFor("remaining") + totalFor("booked");
+  const goneCount = totalFor("in_transit") + totalFor("delivered");
+  const issueCount = totalFor("grn_issue");
 
   if (isLoading) {
     return (
@@ -256,7 +224,8 @@ export function KanbanView({
       {/* ── Main Kanban Columns ── */}
       <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-thin">
         {columns.map((col) => {
-          const colOrders = orders.filter(col.filter);
+          const colOrders = loadedByStage(col.stage);
+          const colTotal = totalFor(col.stage);
 
           return (
             <div
@@ -270,9 +239,15 @@ export function KanbanView({
                   <h3 className="font-extrabold text-xs">{col.title}</h3>
                 </div>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full ${col.badgeBg}`}>
-                  {colOrders.length}
+                  {colTotal}
                 </span>
               </div>
+              {colOrders.length < colTotal && (
+                <div className="px-3 py-1 text-[10px] font-semibold text-slate-600 bg-white/70 border-b border-slate-200">
+                  Showing {colOrders.length} of {colTotal}
+                  {columnLimit ? ` (first ${columnLimit} by current sort)` : ""} — narrow with filters to see the rest
+                </div>
+              )}
 
               {/* Cards Container */}
               <div className="p-2.5 flex-1 space-y-2.5 overflow-y-auto max-h-[calc(100vh-280px)]">
@@ -398,32 +373,18 @@ export function KanbanView({
                               <button
                                 type="button"
                                 disabled={isBusy}
-                                onClick={() => handleQuickStatusChange(order, "Tracking Assigned")}
+                                onClick={() => handleQuickMilestone(order, "Tracking Assigned")}
                                 className="px-2 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-700 text-white rounded transition cursor-pointer flex items-center gap-1"
+                                title="Set the shipment milestone to Tracking Assigned"
                               >
                                 <span>Booked</span>
                                 <ArrowRight className="w-2.5 h-2.5" />
                               </button>
                             )}
 
-                            {(col.id === "remaining_pending" || col.id === "booked_ready") && (
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() =>
-                                  handleQuickStatusChange(order, "In Transit", {
-                                    pickupDone: true,
-                                    pickupDate: order.pickupDate || new Date().toISOString(),
-                                  })
-                                }
-                                className="px-2 py-1 text-[10px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded transition cursor-pointer flex items-center gap-1"
-                              >
-                                <span>Ship (Gone)</span>
-                                <Truck className="w-2.5 h-2.5" />
-                              </button>
-                            )}
+                            {/* No "Ship" action: In Transit is recorded only by the BoxTrace dual-scan gate in the main app */}
 
-                            {col.id === "in_transit_gone" && (
+                            {col.id === "in_transit_gone" && isOnAppointmentDesk(order) && (
                               <button
                                 type="button"
                                 disabled={isBusy}

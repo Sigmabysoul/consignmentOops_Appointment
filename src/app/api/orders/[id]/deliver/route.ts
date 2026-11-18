@@ -1,15 +1,41 @@
-import { isVisibleInAppointmentApp } from "@/lib/order-filters";
+import { isVisibleInAppointmentApp, isOnAppointmentDesk, isClosedOrder, type OrderStageFields } from "@/lib/order-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { toClientOrder } from "@/lib/order-redaction";
 import { db } from "@/lib/db";
-import { parseDateInput } from "@/lib/date-utils";
+import { parseDateInput, istDayStart } from "@/lib/date-utils";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { MAX_POD_BYTES, POD_ACCEPTED_EXTENSIONS, POD_DOC_TYPE, PodRecord, isAcceptedPodFile } from "@/lib/pod";
 
 export const dynamic = "force-dynamic";
 
-const CLOSED_STATUSES = ["delivered", "cancelled", "archive", "archived", "grn issue"];
+/** A refusal decided on the locked row (the transaction is rolled back). */
+class DeliverRefusal extends Error {
+  constructor(public httpStatus: number, public payload: Record<string, unknown>) {
+    super(String(payload.error || "Refused"));
+  }
+}
+
+/**
+ * Only an open, in-transit order (exactly the Appointment desk's rule) can be marked Delivered.
+ * Returns the refusal, or null when the order may be delivered.
+ */
+function deliverRefusal(order: OrderStageFields & { isDeleted?: boolean | null }): DeliverRefusal | null {
+  if (!isVisibleInAppointmentApp(order)) return new DeliverRefusal(404, { error: "Order not found" });
+  if (isClosedOrder(order)) {
+    return new DeliverRefusal(409, {
+      error: `This order is already "${order.status || order.courierStatus}".`,
+      code: "ORDER_CLOSED",
+    });
+  }
+  if (!isOnAppointmentDesk(order)) {
+    return new DeliverRefusal(409, {
+      error: "Only in-transit orders can be marked Delivered. Dispatch happens through the BoxTrace gate in the main consignment app.",
+      code: "NOT_IN_TRANSIT",
+    });
+  }
+  return null;
+}
 
 /**
  * POST multipart { file, deliveryDate?, remarks? } — Mark Delivered with mandatory POD.
@@ -24,11 +50,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const { id } = await params;
-    const existing = await db.consignmentOrder.findUnique({ where: { id } });
-    if (!existing || !isVisibleInAppointmentApp(existing)) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    if (CLOSED_STATUSES.includes(String(existing.status || "").toLowerCase())) {
-      return NextResponse.json({ error: `This order is already "${existing.status}".` }, { status: 409 });
-    }
+    // Fast pre-check before reading the upload; re-checked on the locked row below
+    const precheck = await db.consignmentOrder.findUnique({ where: { id } });
+    if (!precheck) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    const early = deliverRefusal(precheck);
+    if (early) return NextResponse.json(early.payload, { status: early.httpStatus });
 
     const form = await req.formData();
     const file = form.get("file");
@@ -50,7 +76,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (rawDate && String(rawDate).trim()) {
       const parsed = parseDateInput(String(rawDate));
       if (!parsed) return NextResponse.json({ error: "Invalid delivery date." }, { status: 400 });
-      if (parsed.getTime() > Date.now() + 24 * 60 * 60 * 1000) {
+      // At most the end of today in IST (business dates are Asia/Kolkata; servers run in UTC)
+      if (parsed.getTime() >= istDayStart(new Date(), 1).getTime()) {
         return NextResponse.json({ error: "Delivery date cannot be in the future." }, { status: 400 });
       }
       deliveryDate = parsed;
@@ -60,6 +87,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const actor = user.name || user.username;
 
     const updated = await db.$transaction(async (tx) => {
+      // Lock the row and re-read it: two concurrent Mark Delivered calls cannot both pass, and
+      // customData written meanwhile by the main app / Delhivery / Shiprocket is kept.
+      await tx.$queryRaw`SELECT id FROM "ConsignmentOrder" WHERE id = ${id} FOR UPDATE`;
+      const existing = await tx.consignmentOrder.findUnique({ where: { id } });
+      if (!existing) throw new DeliverRefusal(404, { error: "Order not found" });
+      const refusal = deliverRefusal(existing);
+      if (refusal) throw refusal;
+
       const doc = await tx.orderDocument.create({
         data: {
           orderId: id,
@@ -93,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         data: {
           status: "Delivered",
           courierStatus: "Delivered",
-          pickupDone: true,
+          // pickupDone is never written here: only the main app's BoxTrace gate sets it
           deliveryDate,
           grnStatus: "Awaiting GRN",
           customData: { ...custom, fulfilmentStatus: "Delivered", pod },
@@ -141,6 +176,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       order: { ...toClientOrder(updated), boxDimensionGroups: extractBoxDimensionGroups(updated) },
     });
   } catch (error: any) {
+    if (error instanceof DeliverRefusal) {
+      return NextResponse.json(error.payload, { status: error.httpStatus });
+    }
     console.error("[deliver] failed:", error);
     return NextResponse.json({ error: "Failed to mark delivered" }, { status: 500 });
   }

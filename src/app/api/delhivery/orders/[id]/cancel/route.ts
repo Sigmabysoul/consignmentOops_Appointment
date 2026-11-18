@@ -11,6 +11,7 @@ import {
   requireLrn,
   updateDelhivery,
 } from "@/lib/delhivery-orders";
+import { withoutShippingLabelBarcodes } from "@/lib/courier-booking-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       (o) => ({
         ...(o.trackingId === lr.lrn ? { trackingId: null } : {}),
         ...(o.courierPartner === DELHIVERY_COURIER_NAME ? { courierPartner: null } : {}),
-      })
+      }),
+      // The cancelled LR's box AWBs must no longer pass App 1's BoxTrace dispatch scan.
+      (custom, next) => withoutShippingLabelBarcodes(custom, next.awbs ?? [])
     );
     await auditDelhivery(user, order, "LR_CANCELLED", { lrn: lr.lrn, reason, requestId: res.requestId });
     return NextResponse.json({ delhivery: rec });

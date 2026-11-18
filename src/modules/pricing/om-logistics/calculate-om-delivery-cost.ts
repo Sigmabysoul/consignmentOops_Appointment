@@ -9,6 +9,7 @@ import {
 import { DEFAULT_OM_RATE_CARD } from "./om-rate-card";
 import { getZoneForState } from "./state-zone-mapping";
 import { getOdaCharge } from "./oda-matrix";
+import { findSlab } from "./slab-match";
 import { DEFAULT_OM_CONFIG } from "./pricing-config";
 
 export interface PricingOptions {
@@ -80,8 +81,12 @@ export function calculateOmDeliveryCost(
     const isLightSlab = W <= config.lightSlabMaxKg;
 
     // Find matching rate row by zone and weight slab
-    const matchingRow = rateCard.find(
-      (r) => r.zones.includes(zone) && W >= r.minKg && W <= r.maxKg
+    // Rows are whole-number labelled (0–250, 251–500, …): a fractional weight such as 250.5 kg
+    // belongs to the 251–500 row (prevMax < W <= maxKg), exact boundaries stay where they were.
+    const matchingRow = findSlab(
+      rateCard.filter((r) => r.zones.includes(zone)),
+      W,
+      (r) => ({ min: r.minKg, max: r.maxKg })
     );
 
     if (!matchingRow) {

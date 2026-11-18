@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { AppointmentOrder } from "@/lib/types";
 import type { ShiprocketPackage, ShiprocketServerStatus, ShiprocketShipmentRecord } from "@/lib/shiprocket-types";
+import { BoxDimensionGroup, distributeWeightCenti, groupWeightPerBoxKg } from "@/lib/dimension-helper";
 
 let statusPromise: Promise<ShiprocketServerStatus | null> | null = null;
 
@@ -52,27 +53,57 @@ export function extractPincode(address: string): string {
   return all ? all[all.length - 1].replace(/\s/g, "") : "";
 }
 
-/** "West Bengal (Kolkata)" → { state: "West Bengal", city: "Kolkata" }. */
+/** City part of a zone label that is a real city name; "Other" / "Rest of …" are not cities. */
+const NOT_A_CITY = /^(other|others|rest(\s+of.*)?|outside.*|remaining.*)$/i;
+
+/**
+ * "West Bengal (Kolkata)" → { state: "West Bengal", city: "Kolkata" }.
+ * "West Bengal (Other)" → { state: "West Bengal", city: "" } — the operator must type the city.
+ */
 export function splitStateCity(value: string): { state: string; city: string } {
   const m = /^(.*?)\s*\((.*)\)\s*$/.exec(value || "");
-  return m ? { state: m[1].trim(), city: m[2].trim() } : { state: (value || "").trim(), city: "" };
+  if (!m) return { state: (value || "").trim(), city: "" };
+  const city = m[2].trim();
+  return { state: m[1].trim(), city: NOT_A_CITY.test(city) ? "" : city };
 }
 
 /**
- * Package groups from the order's box dimension groups. Weight per box comes from the group;
- * when a group has none, the total weight is split evenly in integer grams (no float drift).
+ * Package groups from the order's carton groups (weight = PER BOX, as built by
+ * extractBoxDimensionGroups). When groups carry no weight, `totalWeightKg` is split over all boxes
+ * in integer 0.01 kg units, so Σ units × weight equals the total exactly (rows may differ by
+ * 0.01 kg per box).
  */
 export function defaultPackages(order: AppointmentOrder, totalWeightKg: number): ShiprocketPackage[] {
-  const groups = (order.boxDimensionGroups || []).filter((g) => g.boxCount > 0);
+  const groups = ((order.boxDimensionGroups || []) as BoxDimensionGroup[]).filter((g) => g.boxCount > 0);
+  const allWeighed = groups.length > 0 && groups.every((g) => (groupWeightPerBoxKg(g) ?? 0) > 0);
+  if (allWeighed) {
+    return groups.map((g) => ({
+      units: g.boxCount,
+      lengthCm: Number(g.lengthCm || 0),
+      widthCm: Number(g.widthCm || 0),
+      heightCm: Number(g.heightCm || 0),
+      weightKg: Number(Number(groupWeightPerBoxKg(g)).toFixed(2)),
+    }));
+  }
   const boxes = groups.reduce((s, g) => s + g.boxCount, 0);
-  const fallbackPerBox = boxes > 0 && totalWeightKg > 0 ? Math.round((totalWeightKg * 1000) / boxes) / 1000 : 0;
-  return groups.map((g) => ({
-    units: g.boxCount,
-    lengthCm: Number(g.lengthCm || 0),
-    widthCm: Number(g.widthCm || 0),
-    heightCm: Number(g.heightCm || 0),
-    weightKg: Number(Number(g.weightKg && g.weightKg > 0 ? g.weightKg : fallbackPerBox).toFixed(2)),
-  }));
+  let leftCenti = totalWeightKg > 0 ? Math.round(totalWeightKg * 100) : 0;
+  let leftBoxes = boxes;
+  const out: ShiprocketPackage[] = [];
+  for (const g of groups) {
+    const share = leftBoxes > 0 ? Math.round((leftCenti * g.boxCount) / leftBoxes) : 0;
+    leftCenti -= share;
+    leftBoxes -= g.boxCount;
+    for (const part of distributeWeightCenti(share, g.boxCount)) {
+      out.push({
+        units: part.count,
+        lengthCm: Number(g.lengthCm || 0),
+        widthCm: Number(g.widthCm || 0),
+        heightCm: Number(g.heightCm || 0),
+        weightKg: part.centi / 100,
+      });
+    }
+  }
+  return out;
 }
 
 export const packagesReady = (p: ShiprocketPackage[]) =>

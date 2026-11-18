@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPodRecord } from "@/lib/pod";
+import { isVisibleInAppointmentApp } from "@/lib/order-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!user.isLogisticsAuthorized) return new NextResponse("Forbidden", { status: 403 });
 
   const { id } = await params;
-  const order = await db.consignmentOrder.findUnique({ where: { id }, select: { customData: true } });
-  const pod = getPodRecord(order?.customData);
+  const order = await db.consignmentOrder.findUnique({
+    where: { id },
+    select: { customData: true, status: true, courierStatus: true, isDeleted: true, isArchived: true },
+  });
+  // Same visibility rule as every other route: hidden (draft / cancelled / archived / deleted) → 404
+  if (!order || !isVisibleInAppointmentApp(order)) return new NextResponse("Not Found", { status: 404 });
+  const pod = getPodRecord(order.customData);
   if (!pod) return new NextResponse("No POD on file", { status: 404 });
 
   const doc = await db.orderDocument.findUnique({

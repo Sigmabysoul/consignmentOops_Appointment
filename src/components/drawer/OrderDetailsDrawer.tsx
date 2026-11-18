@@ -1,7 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/ui/DateInput";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Calendar,
@@ -25,9 +25,9 @@ import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "
 import { useToast } from "@/components/ui/Toast";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
-import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel } from "@/lib/courier-defaults";
+import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel, isSameCourier } from "@/lib/courier-defaults";
+import { APP2_COURIER_MILESTONES, isDeliveredOrder, isOnAppointmentDesk } from "@/lib/order-filters";
 
-import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
 import { DelhiveryDrawerSection } from "@/components/delhivery/DelhiveryDrawerSection";
 import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
 import { ShiprocketDrawerSection } from "@/components/shiprocket/ShiprocketDrawerSection";
@@ -51,11 +51,10 @@ export function OrderDetailsDrawer({
   const [activeTab, setActiveTab] = useState<"edit" | "history">("edit");
   const [isSaving, setIsSaving] = useState(false);
   const [detailedOrder, setDetailedOrder] = useState<AppointmentOrder | null>(order);
-  // Delivered needs a POD: saving with status Delivered opens the POD form first
+  // Delivered needs a POD: "Mark Delivered" opens the POD form (POST /api/orders/[id]/deliver)
   const [podFormOpen, setPodFormOpen] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isPricingModalOpen, setIsPricingModalOpen] = useState(false);
 
   // Form Fields
@@ -74,21 +73,39 @@ export function OrderDetailsDrawer({
     updatedAt: string | null;
     updatedBy: string | null;
   }>({ updatedAt: null, updatedBy: null });
+  // Values the form opened with: only fields the operator actually changed are sent on save, so an
+  // untouched field never overwrites what the main app / courier integrations wrote meanwhile.
+  const initialRef = useRef<Record<string, string>>({});
 
   // Sync state when order changes & fetch full details (including history and audit logs)
   useEffect(() => {
     if (!order) return;
 
     const defaultCourier = isAmazonChannel(order.channel) ? "Amazon ATS" : "";
-    setTrackingId(order.trackingId || "");
-    setCourierPartner(order.courierPartner || defaultCourier);
-    setTrackingLink(order.trackingLink || "");
-    setAppointmentId(order.appointmentId || "");
-    setAppointmentDate(formatDateInputValue(order.appointmentDate));
-    setAppointmentSlot(order.appointmentSlot || "");
-    setCourierStatus(order.courierStatus || order.status || "Pending");
-    setDeliveryDate(formatDateInputValue(order.deliveryDate));
-    setComment(order.comment || "");
+    const initial = {
+      trackingId: order.trackingId || "",
+      courierPartner: order.courierPartner || defaultCourier,
+      trackingLink: order.trackingLink || "",
+      appointmentId: order.appointmentId || "",
+      appointmentDate: formatDateInputValue(order.appointmentDate),
+      appointmentSlot: order.appointmentSlot || "",
+      // The milestone lives in courierStatus; the order status belongs to the main app
+      courierStatus: order.courierStatus || "Pending",
+      deliveryDate: formatDateInputValue(order.deliveryDate),
+      comment: order.comment || "",
+      personalNote: order.personalNote || "",
+    };
+    // The stored courier (not the channel default) is what "unchanged" is measured against
+    initialRef.current = { ...initial, courierPartner: order.courierPartner || "" };
+    setTrackingId(initial.trackingId);
+    setCourierPartner(initial.courierPartner);
+    setTrackingLink(initial.trackingLink);
+    setAppointmentId(initial.appointmentId);
+    setAppointmentDate(initial.appointmentDate);
+    setAppointmentSlot(initial.appointmentSlot);
+    setCourierStatus(initial.courierStatus);
+    setDeliveryDate(initial.deliveryDate);
+    setComment(initial.comment);
     setStatusRemarks("");
     setPersonalNote(order.personalNote || "");
     setPersonalNoteInfo({
@@ -105,6 +122,7 @@ export function OrderDetailsDrawer({
         if (data.order) {
           setDetailedOrder(data.order);
           if (data.order.personalNote !== undefined) {
+            initialRef.current = { ...initialRef.current, personalNote: data.order.personalNote || "" };
             setPersonalNote(data.order.personalNote || "");
             setPersonalNoteInfo({
               updatedAt: data.order.personalNoteUpdatedAt || null,
@@ -119,36 +137,36 @@ export function OrderDetailsDrawer({
 
   if (!order) return null;
 
-  const performSave = async (podJustUploaded = false) => {
-    const current = detailedOrder || order;
-    const becomingDelivered =
-      courierStatus.trim().toLowerCase() === "delivered" &&
-      (current.status || "").toLowerCase() !== "delivered";
-    if (becomingDelivered && !podJustUploaded && !hasPodOnRecord(current.customData)) {
-      setIsConfirmOpen(false);
-      setPodFormOpen(true);
-      return;
-    }
+  const current = detailedOrder || order;
+  const deliveredWithPod = isDeliveredOrder(current) && hasPodOnRecord(current.customData);
+  const canMarkDelivered = isOnAppointmentDesk(current);
 
+  /** Sends only the fields that differ from what the drawer opened with; never the order status. */
+  const performSave = async (afterDelivery = false) => {
     setIsSaving(true);
     setValidationError(null);
 
     try {
-      const payload: Record<string, any> = {
-        trackingId: trackingId.trim(),
-        courierPartner: courierPartner.trim(),
-        trackingLink: trackingLink.trim(),
-        appointmentId: appointmentId.trim(),
-        appointmentDate: appointmentDate ? appointmentDate : null,
-        appointmentSlot: appointmentSlot.trim(),
-        status: courierStatus.trim(),
-        courierStatus: courierStatus.trim(),
-        deliveryDate: deliveryDate ? deliveryDate : null,
-        comment: comment.trim(),
-        remarks: statusRemarks.trim(),
-        personalNote: personalNote.trim(),
-      };
+      const init = initialRef.current;
+      const payload: Record<string, any> = {};
+      const changed = (key: string, value: string) => value.trim() !== (init[key] || "").trim();
+      if (changed("trackingId", trackingId)) payload.trackingId = trackingId.trim();
+      // Courier: never re-send an unchanged courier ("Delhivery" == "Delhivery One"); "" only when explicitly cleared
+      if (!isSameCourier(courierPartner, init.courierPartner)) payload.courierPartner = courierPartner.trim();
+      if (changed("trackingLink", trackingLink)) payload.trackingLink = trackingLink.trim();
+      if (changed("appointmentId", appointmentId)) payload.appointmentId = appointmentId.trim();
+      if (changed("appointmentDate", appointmentDate)) payload.appointmentDate = appointmentDate || null;
+      if (changed("appointmentSlot", appointmentSlot)) payload.appointmentSlot = appointmentSlot.trim();
+      if (!afterDelivery && changed("courierStatus", courierStatus)) payload.courierStatus = courierStatus.trim();
+      if (!afterDelivery && deliveredWithPod && changed("deliveryDate", deliveryDate)) payload.deliveryDate = deliveryDate || null;
+      if (changed("comment", comment)) payload.comment = comment.trim();
+      if (changed("personalNote", personalNote)) payload.personalNote = personalNote.trim();
 
+      if (Object.keys(payload).length === 0) {
+        if (!afterDelivery) showToast("No changes to save", "success");
+        return;
+      }
+      if (statusRemarks.trim()) payload.remarks = statusRemarks.trim();
 
       const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
@@ -166,11 +184,14 @@ export function OrderDetailsDrawer({
       showToast("Logistics information updated successfully", "success");
       onOrderUpdated();
 
-      // Refresh drawer details
+      // Refresh drawer details; the saved values become the new baseline
       if (data.order) {
         setDetailedOrder(data.order);
       }
-      setIsConfirmOpen(false);
+      initialRef.current = {
+        ...init,
+        ...Object.fromEntries(Object.entries(payload).map(([k, v]) => [k, v == null ? "" : String(v)])),
+      };
     } catch (err: any) {
       showToast(err.message || "Failed to save updates", "error");
     } finally {
@@ -181,25 +202,12 @@ export function OrderDetailsDrawer({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
-
-    // If changing to a critical status (Delivered), require confirmation
-    const oldStatus = (order.courierStatus || "Pending").toLowerCase();
-    const newStatus = courierStatus.toLowerCase();
-    if (newStatus !== oldStatus && ["delivered", "cancelled", "grn issue"].includes(newStatus)) {
-      setIsConfirmOpen(true);
-      return;
-    }
-
     await performSave();
   };
 
-  const availableStatuses = [
-    "Pending",
-    "Tracking Assigned",
-    "In Transit",
-    "Appointment Scheduled",
-    "Delivered",
-  ];
+  // Milestones this app may write (courierStatus only). In Transit is set by the main app's BoxTrace
+  // gate, Delivered by "Mark Delivered" with a POD, GRN Issue by the main app's GRN desk.
+  const availableStatuses: string[] = [...APP2_COURIER_MILESTONES];
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
@@ -401,6 +409,10 @@ export function OrderDetailsDrawer({
                       className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
                     >
                       <option value="">Select courier partner...</option>
+                      {/* A courier set in the main app that this desk does not offer (e.g. "Local") is shown, kept as-is */}
+                      {courierPartner && !getAllowedCouriersForChannel(order?.channel).includes(courierPartner) && (
+                        <option value={courierPartner}>{courierPartner}</option>
+                      )}
                       {getAllowedCouriersForChannel(order?.channel).map((courierName) => {
                         const isRec = isFlipkartFbfOrFksb(order?.channel) && courierName === "Ekart";
                         return (
@@ -508,11 +520,17 @@ export function OrderDetailsDrawer({
                     <label className="block text-xs font-medium text-slate-700 mb-1">
                       Delivery Date (When Delivered)
                     </label>
-                    <DateInput
-                      value={deliveryDate}
-                      onChange={(e) => setDeliveryDate(e.target.value)}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                    />
+                    {deliveredWithPod ? (
+                      <DateInput
+                        value={deliveryDate}
+                        onChange={(e) => setDeliveryDate(e.target.value)}
+                        className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      />
+                    ) : (
+                      <div className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-500">
+                        {current.deliveryDate ? formatDateDisplay(current.deliveryDate) : "Recorded by Mark Delivered (POD)"}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -554,16 +572,16 @@ export function OrderDetailsDrawer({
                     </label>
                     <div className="flex items-center gap-1.5 pt-1">
                       <StatusBadge status={courierStatus} />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCourierStatus("Delivered");
-                          if (!deliveryDate) setDeliveryDate(new Date().toISOString().split("T")[0]);
-                        }}
-                        className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 cursor-pointer"
-                      >
-                        ✓ Delivered
-                      </button>
+                      {canMarkDelivered && (
+                        <button
+                          type="button"
+                          onClick={() => setPodFormOpen(true)}
+                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 cursor-pointer"
+                          title="Mark Delivered — upload the POD (proof of delivery)"
+                        >
+                          ✓ Mark Delivered
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -705,26 +723,6 @@ export function OrderDetailsDrawer({
         </div>
       </div>
 
-      {/* Confirmation Dialog for Important Status Transitions */}
-      {isConfirmOpen && (
-        <ConfirmationDialog
-          isOpen={true}
-          title={`Confirm Shipment Status: ${courierStatus}`}
-          message={`Are you sure you want to transition order "${order.roPoNumber}" to "${courierStatus}"? This update will be recorded in the shared consignment database and audit logs.`}
-          confirmLabel={`Confirm & Set to ${courierStatus}`}
-          variant={
-            courierStatus.toLowerCase() === "cancelled"
-              ? "danger"
-              : courierStatus.toLowerCase() === "grn issue"
-              ? "warning"
-              : "primary"
-          }
-          isLoading={isSaving}
-          onConfirm={() => performSave()}
-          onCancel={() => setIsConfirmOpen(false)}
-        />
-      )}
-
       {/* ── Order Detail & Multi-Carrier Price Comparison Window ── */}
       <BookingDetailModal
         order={detailedOrder || order}
@@ -749,7 +747,7 @@ export function OrderDetailsDrawer({
       {podFormOpen && (
         <MarkDeliveredModal
           order={detailedOrder || order}
-          initialDeliveryDate={deliveryDate || null}
+          initialDeliveryDate={null}
           onClose={() => setPodFormOpen(false)}
           onDelivered={(updated) => {
             setPodFormOpen(false);

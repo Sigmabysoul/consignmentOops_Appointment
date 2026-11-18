@@ -31,9 +31,16 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
-import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog";
+import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
+import { hasPodOnRecord } from "@/lib/pod";
+import {
+  APP2_COURIER_MILESTONES,
+  isClosedOrder,
+  isDeliveredOrder,
+  isOnAppointmentDesk,
+} from "@/lib/order-filters";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
-import { isFlipkartFbfOrFksb, getAllowedCouriersForChannel } from "@/lib/courier-defaults";
+import { isFlipkartFbfOrFksb, getAllowedCouriersForChannel, isSameCourier } from "@/lib/courier-defaults";
 
 interface OrdersTableProps {
   orders: AppointmentOrder[];
@@ -128,12 +135,8 @@ export function OrdersTable({
   } | null>(null);
   const [isSavingInline, setIsSavingInline] = useState(false);
 
-  // Status Change Confirmation Dialog State
-  const [confirmStatusModal, setConfirmStatusModal] = useState<{
-    orderId: string;
-    roPoNumber: string;
-    newStatus: string;
-  } | null>(null);
+  // Delivered needs a POD: choosing "Delivered" opens the POD form (POST /api/orders/[id]/deliver)
+  const [deliverOrder, setDeliverOrder] = useState<AppointmentOrder | null>(null);
 
   // Private Personal Note Quick Editor Modal State
   const [activeNoteModal, setActiveNoteModal] = useState<{
@@ -142,11 +145,15 @@ export function OrdersTable({
   } | null>(null);
   const [isSavingNote, setIsSavingNote] = useState(false);
 
+  // Value each inline edit started from: an unchanged value is never sent back to the server
+  const [inlineInitial, setInlineInitial] = useState<string>("");
+
   const startInlineEdit = (order: AppointmentOrder, field: string, currentValue: string | null) => {
     let initialVal = currentValue || "";
     if (field === "appointmentDate" || field === "deliveryDate") {
       initialVal = formatDateInputValue(currentValue);
     }
+    setInlineInitial(initialVal);
     setInlineEditing({
       orderId: order.id,
       field,
@@ -158,47 +165,23 @@ export function OrdersTable({
     setInlineEditing(null);
   };
 
-  const executeStatusUpdate = async (orderId: string, newStatus: string) => {
-    setIsSavingInline(true);
-    try {
-      const res = await fetch(`/api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          courierStatus: newStatus,
-          remarks: `Shipment status changed to ${newStatus} via inline desk table`,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to update status");
-      }
-
-      showToast(`Status updated to "${newStatus}"`, "success");
-      setConfirmStatusModal(null);
-      setInlineEditing(null);
-      onOrderUpdated();
-    } catch (err: any) {
-      showToast(err.message || "Failed to save status", "error");
-    } finally {
-      setIsSavingInline(false);
-    }
-  };
-
   const saveInlineEdit = async () => {
     if (!inlineEditing) return;
 
-    if (
-      inlineEditing.field === "courierStatus" &&
-      ["Delivered", "Cancelled", "GRN Issue"].includes(inlineEditing.value)
-    ) {
+    const unchanged =
+      inlineEditing.field === "courierPartner"
+        ? isSameCourier(inlineEditing.value, inlineInitial)
+        : inlineEditing.value.trim() === inlineInitial.trim();
+    if (unchanged) {
+      setInlineEditing(null);
+      return;
+    }
+
+    // Delivered is never a plain status change: it needs the POD upload
+    if (inlineEditing.field === "courierStatus" && inlineEditing.value === "Delivered") {
       const ord = orders.find((o) => o.id === inlineEditing.orderId);
-      setConfirmStatusModal({
-        orderId: inlineEditing.orderId,
-        roPoNumber: ord?.roPoNumber || "Consignment",
-        newStatus: inlineEditing.value,
-      });
+      setInlineEditing(null);
+      if (ord) setDeliverOrder(ord);
       return;
     }
 
@@ -256,6 +239,7 @@ export function OrdersTable({
     }
   };
 
+  // Filter options (read-only): every milestone an order can carry, whoever set it
   const availableStatuses = [
     "Pending",
     "Tracking Assigned",
@@ -265,6 +249,8 @@ export function OrdersTable({
     "GRN Issue",
     "Cancelled",
   ];
+  // Milestones this desk may write (courierStatus only); "Delivered" opens the POD form
+  const editableMilestones: string[] = [...APP2_COURIER_MILESTONES];
 
   const sortOptions = [
     { value: "appointmentDate", label: "Appointment Date" },
@@ -684,8 +670,11 @@ export function OrdersTable({
                 const isEditingDeliveryDate =
                   inlineEditing?.orderId === order.id && inlineEditing?.field === "deliveryDate";
 
-                const isDelivered =
-                  (order.courierStatus || "").toLowerCase() === "delivered" || !!order.deliveryDate;
+                // Delivered only from the status written with the POD; a deliveryDate alone is not Delivered
+                const isDelivered = isDeliveredOrder(order);
+                const canDeliver = isOnAppointmentDesk(order);
+                const canCorrectDeliveryDate = isDelivered && hasPodOnRecord(order.customData);
+                const milestoneLocked = isClosedOrder(order);
 
                 return (
                   <tr
@@ -778,6 +767,10 @@ export function OrdersTable({
                             autoFocus
                           >
                             <option value="">Select courier...</option>
+                            {/* A courier set in the main app that is not offered here (e.g. "Local") stays selectable as-is */}
+                            {inlineInitial && !getAllowedCouriersForChannel(order.channel).includes(inlineInitial) && (
+                              <option value={inlineInitial}>{inlineInitial}</option>
+                            )}
                             {getAllowedCouriersForChannel(order.channel).map((courierName) => {
                               const isRec = isFlipkartFbfOrFksb(order.channel) && courierName === "Ekart";
                               return (
@@ -1087,11 +1080,18 @@ export function OrdersTable({
                             className="text-xs bg-white border border-violet-400 rounded px-1.5 py-0.5 focus:outline-none"
                             autoFocus
                           >
-                            {availableStatuses.map((st) => (
+                            {/* A milestone set elsewhere (e.g. In Transit from BoxTrace) is shown, not offered */}
+                            {!editableMilestones.includes(inlineInitial) && (
+                              <option value={inlineInitial} disabled>
+                                {inlineInitial}
+                              </option>
+                            )}
+                            {editableMilestones.map((st) => (
                               <option key={st} value={st}>
                                 {st}
                               </option>
                             ))}
+                            {canDeliver && <option value="Delivered">Delivered (upload POD)</option>}
                           </select>
                           <button
                             onClick={saveInlineEdit}
@@ -1110,19 +1110,21 @@ export function OrdersTable({
                       ) : (
                         <div className="flex items-center gap-1.5 group/field">
                           <StatusBadge status={order.courierStatus || "Pending"} size="sm" />
-                          <button
-                            onClick={() =>
-                              startInlineEdit(
-                                order,
-                                "courierStatus",
-                                order.courierStatus || "Pending"
-                              )
-                            }
-                            className="opacity-0 group-hover/field:opacity-100 p-0.5 text-slate-400 hover:text-violet-600 rounded transition cursor-pointer"
-                            title="Change shipment status"
-                          >
-                            <Edit2 className="w-2.5 h-2.5" />
-                          </button>
+                          {!milestoneLocked && (
+                            <button
+                              onClick={() =>
+                                startInlineEdit(
+                                  order,
+                                  "courierStatus",
+                                  order.courierStatus || "Pending"
+                                )
+                              }
+                              className="opacity-0 group-hover/field:opacity-100 p-0.5 text-slate-400 hover:text-violet-600 rounded transition cursor-pointer"
+                              title="Change shipment status"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -1173,15 +1175,18 @@ export function OrdersTable({
                               </span>
                             )}
                           </div>
-                          <button
-                            onClick={() =>
-                              startInlineEdit(order, "deliveryDate", order.deliveryDate)
-                            }
-                            className="opacity-0 group-hover/field:opacity-100 p-0.5 text-slate-400 hover:text-violet-600 rounded transition cursor-pointer"
-                            title="Set delivery date"
-                          >
-                            <Edit2 className="w-2.5 h-2.5" />
-                          </button>
+                          {/* Set by Mark Delivered (POD); only a Delivered order's date can be corrected here */}
+                          {canCorrectDeliveryDate && (
+                            <button
+                              onClick={() =>
+                                startInlineEdit(order, "deliveryDate", order.deliveryDate)
+                              }
+                              className="opacity-0 group-hover/field:opacity-100 p-0.5 text-slate-400 hover:text-violet-600 rounded transition cursor-pointer"
+                              title="Correct delivery date"
+                            >
+                              <Edit2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
                         </div>
                       )}
                     </td>
@@ -1290,27 +1295,16 @@ export function OrdersTable({
         </div>
       </div>
 
-      {/* ── Status Transition Confirmation Dialog ── */}
-      {confirmStatusModal && (
-        <ConfirmationDialog
-          isOpen={true}
-          title={`Confirm Shipment Status: ${confirmStatusModal.newStatus}`}
-          message={`Are you sure you want to transition order "${confirmStatusModal.roPoNumber}" to "${confirmStatusModal.newStatus}"? This update will be recorded in the shared consignment database and audit logs.`}
-          confirmLabel={`Mark as ${confirmStatusModal.newStatus}`}
-          variant={
-            confirmStatusModal.newStatus === "Cancelled"
-              ? "danger"
-              : confirmStatusModal.newStatus === "GRN Issue"
-              ? "warning"
-              : "primary"
-          }
-          isLoading={isSavingInline}
-          onConfirm={() =>
-            executeStatusUpdate(confirmStatusModal.orderId, confirmStatusModal.newStatus)
-          }
-          onCancel={() => setConfirmStatusModal(null)}
-        />
-      )}
+      {/* ── Mark Delivered (POD mandatory) ── */}
+      <MarkDeliveredModal
+        key={deliverOrder?.id || "none"}
+        order={deliverOrder}
+        onClose={() => setDeliverOrder(null)}
+        onDelivered={() => {
+          setDeliverOrder(null);
+          onOrderUpdated();
+        }}
+      />
 
       {/* ── 🔒 Isolated Personal Note Quick Editor Modal ── */}
       {activeNoteModal && (

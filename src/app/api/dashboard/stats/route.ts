@@ -6,7 +6,10 @@ import {
   BOOKING_FILTER_CONDITIONS,
   APPOINTMENT_FILTER_CONDITIONS,
   APPOINTMENT_APP_VISIBILITY,
+  getMetricConditions,
+  type MetricKey,
 } from "@/lib/order-filters";
+import { getIstQuickDateWindows } from "@/lib/date-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +23,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
     }
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    // "Today" is the IST business day (servers run in UTC)
+    const { todayStart, tomorrowStart } = getIstQuickDateWindows();
 
     // Drafts, New, cancelled and archived orders never count in the Appointment app
     const baseWhere = {
@@ -38,6 +39,11 @@ export async function GET(req: NextRequest) {
         ...BOOKING_FILTER_CONDITIONS,
       ],
     };
+
+    // Each metric card counts exactly what its drill-down list (GET /api/orders?metric=…) shows
+    const metricWhere = (key: MetricKey) => ({
+      AND: [...baseWhere.AND, ...(getMetricConditions(key, { todayStart, tomorrowStart }) || [])],
+    });
 
     // Appointment Desk specific query filter:
     // Only orders that are in transit / dispatched, not delivered / cancelled
@@ -72,144 +78,28 @@ export async function GET(req: NextRequest) {
       }),
 
       // Tracking missing (not cancelled, not delivered, missing trackingId)
-      db.consignmentOrder.count({
-        where: {
-          AND: [
-            ...baseWhere.AND,
-            { OR: [{ trackingId: null }, { trackingId: "" }] },
-            {
-              OR: [
-                { status: null },
-                { status: "" },
-                {
-                  status: {
-                    notIn: ["Cancelled", "CANCELLED", "Delivered", "DELIVERED", "Archive", "ARCHIVED"],
-                  },
-                },
-              ],
-            },
-          ],
-        },
-      }),
+      db.consignmentOrder.count({ where: metricWhere("tracking_missing") }),
 
       // In transit (Appointment Desk)
-      db.consignmentOrder.count({
-        where: appointmentWhere,
-      }),
+      db.consignmentOrder.count({ where: metricWhere("in_transit") }),
 
       // Appointment scheduled
-      db.consignmentOrder.count({
-        where: {
-          AND: [
-            ...baseWhere.AND,
-            {
-              OR: [
-                { appointmentId: { not: null, notIn: [""] } },
-                { appointmentDate: { not: null } },
-                { courierStatus: { in: ["Appointment Scheduled", "appointment scheduled"] } },
-              ],
-            },
-          ],
-        },
-      }),
+      db.consignmentOrder.count({ where: metricWhere("appointment_scheduled") }),
 
-      // Scheduled today
-      db.consignmentOrder.count({
-        where: {
-          AND: [
-            ...baseWhere.AND,
-            {
-              appointmentDate: {
-                gte: todayStart,
-                lte: todayEnd,
-              },
-            },
-          ],
-        },
-      }),
+      // Scheduled today (appointment date on today's IST day)
+      db.consignmentOrder.count({ where: metricWhere("scheduled_today") }),
 
       // Delivered
-      db.consignmentOrder.count({
-        where: {
-          AND: [
-            ...baseWhere.AND,
-            {
-              OR: [
-                { courierStatus: { in: ["Delivered", "delivered", "DELIVERED"] } },
-                { status: { in: ["Delivered", "delivered", "DELIVERED", "COMPLETED", "Completed"] } },
-              ],
-            },
-          ],
-        },
-      }),
+      db.consignmentOrder.count({ where: metricWhere("delivered") }),
 
       // GRN Issues
-      db.consignmentOrder.count({
-        where: {
-          AND: [
-            ...baseWhere.AND,
-            {
-              OR: [
-                { grnStatus: { contains: "issue", mode: "insensitive" } },
-                { status: { contains: "grn issue", mode: "insensitive" } },
-                { courierStatus: { contains: "grn issue", mode: "insensitive" } },
-              ],
-            },
-          ],
-        },
-      }),
+      db.consignmentOrder.count({ where: metricWhere("grn_issues") }),
 
       // Pending
-      db.consignmentOrder.count({
-        where: {
-          AND: [
-            ...baseWhere.AND,
-            {
-              OR: [
-                { courierStatus: null },
-                { courierStatus: "" },
-                { courierStatus: { in: ["Pending", "pending", "PENDING"] } },
-                { status: null },
-                { status: "" },
-                { status: { in: ["Draft", "draft", "DRAFT", "Pending", "pending", "Scheduled", "InProgress", "In Progress", "New", "new"] } },
-              ],
-            },
-            {
-              OR: [
-                { status: null },
-                { status: "" },
-                {
-                  status: {
-                    notIn: ["Delivered", "delivered", "DELIVERED", "Cancelled", "CANCELLED", "Archive", "ARCHIVED"],
-                  },
-                },
-              ],
-            },
-            {
-              OR: [
-                { courierStatus: null },
-                { courierStatus: "" },
-                { courierStatus: { notIn: ["Delivered", "delivered", "DELIVERED", "In Transit", "in transit", "IN TRANSIT", "Dispatched", "dispatched", "Cancelled", "cancelled"] } },
-              ],
-            },
-          ],
-        },
-      }),
+      db.consignmentOrder.count({ where: metricWhere("pending") }),
 
       // Cancelled
-      db.consignmentOrder.count({
-        where: {
-          AND: [
-            ...baseWhere.AND,
-            {
-              OR: [
-                { status: { in: ["Cancelled", "cancelled", "CANCELLED", "CANCELED"] } },
-                { courierStatus: { in: ["Cancelled", "cancelled", "CANCELLED"] } },
-              ],
-            },
-          ],
-        },
-      }),
+      db.consignmentOrder.count({ where: metricWhere("cancelled") }),
 
       // Channels breakdown (All Data)
       db.consignmentOrder.groupBy({

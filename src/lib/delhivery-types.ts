@@ -88,6 +88,9 @@ export interface DelhiveryShipmentRecord {
     expectedPackageCount: number;
     requestedAt: string;
     requestedBy: string;
+    /** submitting = claim written before the call; requested = Delhivery answered;
+     *  unknown_outcome = timed out after sending. Absent on records from before the claim. */
+    state?: "submitting" | "requested" | "unknown_outcome";
     cancelledAt?: string;
     cancelledBy?: string;
   };

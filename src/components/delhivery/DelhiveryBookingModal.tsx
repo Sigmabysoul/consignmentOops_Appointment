@@ -5,6 +5,8 @@ import { AlertCircle, FileUp, Plus, Trash2, Truck, X } from "lucide-react";
 import type { AppointmentOrder } from "@/lib/types";
 import type { DelhiveryServerStatus, DelhiveryShipmentRecord } from "@/lib/delhivery-types";
 import { ALL_STATES } from "@/modules/pricing/om-logistics";
+import { BoxDimensionGroup, mergeGroupsByDimensions } from "@/lib/dimension-helper";
+import { effectiveManifestState } from "@/lib/courier-booking-guards";
 import { useToast } from "@/components/ui/Toast";
 import { delhiveryApi, extractPincode, orderAddress, readDelhiveryRecord, rupees } from "./delhivery-client";
 import { DelhiveryStatusNote } from "./DelhiveryStatusNote";
@@ -84,7 +86,9 @@ export function DelhiveryBookingModal({
       phone: "",
       email: "",
     });
-    const groups = (order.boxDimensionGroups || []).filter((g) => g.boxCount > 0);
+    // One row per box size (Delhivery `dimensions`): rows that only differ in per-box weight
+    // are merged; the weight goes in as the consignment total below.
+    const groups = mergeGroupsByDimensions((order.boxDimensionGroups || []) as BoxDimensionGroup[]).filter((g) => g.boxCount > 0);
     setBoxes(
       groups.length
         ? groups.map((g) => ({
@@ -208,7 +212,8 @@ export function DelhiveryBookingModal({
 
   if (!isOpen) return null;
 
-  const state = record.manifest?.state;
+  // A job still "pending" long after submission is shown as an unknown outcome (admin can rebook).
+  const state = effectiveManifestState(record.manifest);
   const booked = Boolean(record.lrn && !record.cancelled);
   const showForm = !booked && state !== "pending" && state !== "submitting";
   const bookingBlocked = !status?.configured || !status.bookingEnabled || !status.warehouseConfigured;
@@ -368,7 +373,7 @@ export function DelhiveryBookingModal({
                 ))}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className={label}>Total weight (kg) *</label>
+                    <label className={label}>Total weight, all boxes (kg) *</label>
                     <input className={input} inputMode="decimal" value={weightKg} onChange={(e) => setWeightKg(e.target.value.replace(/[^\d.]/g, ""))} />
                   </div>
                   <div>

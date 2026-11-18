@@ -1,14 +1,194 @@
 import { AppointmentOrder } from "./types";
 import { ALL_STATES } from "@/modules/pricing/om-logistics/state-zone-mapping";
 import { OmDeliveryInput } from "@/modules/pricing/om-logistics/types";
-import { extractBoxDimensionGroups } from "./dimension-helper";
+import { summarizeCartons, weightToKgFactor } from "./dimension-helper";
 
 /**
- * Intelligent Destination State Auto-Detector from Consignment Order data.
- * Checks deliveredTo address, warehouseAddress, warehouseName, and client data.
+ * Indian PIN code prefix → destination state label (labels match ALL_STATES).
+ * Longest prefix wins (5 → 4 → 3 → 2 digits). Sources: India Post PIN zone/circle table.
+ * Kolkata metro (700/711/712) and Guwahati (781) are split out because OM Logistics prices them
+ * as separate zones.
  */
-export function detectStateFromOrder(order: any): string {
-  if (!order) return "West Bengal (Kolkata)";
+const PIN_PREFIX_STATE: Record<string, string> = {
+  // 4/5-digit overrides
+  "6050": "Puducherry",
+  "6051": "Puducherry",
+  "6825": "Lakshadweep",
+  "39621": "Dadra & Nagar Haveli and Daman & Diu",
+  "39622": "Dadra & Nagar Haveli and Daman & Diu",
+  "39623": "Dadra & Nagar Haveli and Daman & Diu",
+  "39624": "Dadra & Nagar Haveli and Daman & Diu",
+  // 3-digit overrides
+  "160": "Chandigarh",
+  "194": "Ladakh",
+  "246": "Uttarakhand",
+  "248": "Uttarakhand",
+  "249": "Uttarakhand",
+  "262": "Uttarakhand",
+  "263": "Uttarakhand",
+  "403": "Goa",
+  "700": "West Bengal (Kolkata)",
+  "711": "West Bengal (Kolkata)",
+  "712": "West Bengal (Kolkata)",
+  "737": "Sikkim",
+  "744": "Andaman & Nicobar",
+  "781": "Assam (Guwahati)",
+  "790": "Arunachal Pradesh",
+  "791": "Arunachal Pradesh",
+  "792": "Arunachal Pradesh",
+  "793": "Meghalaya",
+  "794": "Meghalaya",
+  "795": "Manipur",
+  "796": "Mizoram",
+  "797": "Nagaland",
+  "798": "Nagaland",
+  "799": "Tripura",
+  "814": "Jharkhand",
+  "815": "Jharkhand",
+  "816": "Jharkhand",
+  "822": "Jharkhand",
+  "825": "Jharkhand",
+  "826": "Jharkhand",
+  "827": "Jharkhand",
+  "828": "Jharkhand",
+  "829": "Jharkhand",
+  "831": "Jharkhand",
+  "832": "Jharkhand",
+  "833": "Jharkhand",
+  "834": "Jharkhand",
+  "835": "Jharkhand",
+  // 2-digit circles
+  "11": "Delhi",
+  "12": "Haryana",
+  "13": "Haryana",
+  "14": "Punjab",
+  "15": "Punjab",
+  "17": "Himachal Pradesh",
+  "18": "Jammu & Kashmir",
+  "19": "Jammu & Kashmir",
+  "20": "Uttar Pradesh",
+  "21": "Uttar Pradesh",
+  "22": "Uttar Pradesh",
+  "23": "Uttar Pradesh",
+  "24": "Uttar Pradesh",
+  "25": "Uttar Pradesh",
+  "26": "Uttar Pradesh",
+  "27": "Uttar Pradesh",
+  "28": "Uttar Pradesh",
+  "30": "Rajasthan",
+  "31": "Rajasthan",
+  "32": "Rajasthan",
+  "33": "Rajasthan",
+  "34": "Rajasthan",
+  "36": "Gujarat",
+  "37": "Gujarat",
+  "38": "Gujarat",
+  "39": "Gujarat",
+  "40": "Maharashtra",
+  "41": "Maharashtra",
+  "42": "Maharashtra",
+  "43": "Maharashtra",
+  "44": "Maharashtra",
+  "45": "Madhya Pradesh",
+  "46": "Madhya Pradesh",
+  "47": "Madhya Pradesh",
+  "48": "Madhya Pradesh",
+  "49": "Chhattisgarh",
+  "50": "Telangana",
+  "51": "Andhra Pradesh",
+  "52": "Andhra Pradesh",
+  "53": "Andhra Pradesh",
+  "56": "Karnataka",
+  "57": "Karnataka",
+  "58": "Karnataka",
+  "59": "Karnataka",
+  "60": "Tamil Nadu",
+  "61": "Tamil Nadu",
+  "62": "Tamil Nadu",
+  "63": "Tamil Nadu",
+  "64": "Tamil Nadu",
+  "67": "Kerala",
+  "68": "Kerala",
+  "69": "Kerala",
+  "70": "West Bengal (Other)",
+  "71": "West Bengal (Other)",
+  "72": "West Bengal (Other)",
+  "73": "West Bengal (Other)",
+  "74": "West Bengal (Other)",
+  "75": "Odisha",
+  "76": "Odisha",
+  "77": "Odisha",
+  "78": "Assam (Other)",
+  "80": "Bihar",
+  "81": "Bihar",
+  "82": "Bihar",
+  "83": "Jharkhand",
+  "84": "Bihar",
+  "85": "Bihar",
+};
+
+/** State label for a 6-digit Indian PIN code, or null when the prefix is not a known circle. */
+export function stateFromPincode(pin: string | null | undefined): string | null {
+  const p = String(pin ?? "").replace(/\s/g, "");
+  if (!/^[1-9]\d{5}$/.test(p)) return null;
+  for (const len of [5, 4, 3, 2]) {
+    const hit = PIN_PREFIX_STATE[p.slice(0, len)];
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Last 6-digit PIN code in a text ("… Kolkata 700 091" → "700091"), or "". */
+export function findPincode(text: string | null | undefined): string {
+  const all = String(text ?? "").match(/(?<!\d)[1-9]\d{2}\s?\d{3}(?!\d)/g);
+  return all ? all[all.length - 1].replace(/\s/g, "") : "";
+}
+
+/**
+ * Keyword → state rules, checked in order with WORD BOUNDARIES so "Delhivery Indore FC" never
+ * matches Delhi (it matches Indore → Madhya Pradesh). City-specific rules come before
+ * state-name rules, so "Kolkata, West Bengal" resolves to the Kolkata zone.
+ */
+const KEYWORD_RULES: Array<[RegExp, string]> = [
+  [/\b(kolkata|calcutta|howrah|hooghly|hugli|dankuni|tiljala|salt\s*lake|new\s*town)\b/, "West Bengal (Kolkata)"],
+  [/\b(west\s*bengal|bengal|siliguri|asansol|durgapur|kharagpur)\b/, "West Bengal (Other)"],
+  [/\b(guwahati|gauhati|dispur|kamrup)\b/, "Assam (Guwahati)"],
+  [/\bassam\b/, "Assam (Other)"],
+  [/\b(maharashtra|mumbai|bombay|bhiwandi|pune|nagpur|thane|navi\s*mumbai|nashik|aurangabad)\b/, "Maharashtra"],
+  [/\b(new\s+)?delhi\b/, "Delhi"],
+  [/\b(haryana|gurgaon|gurugram|kundli|faridabad|panipat|sonipat|sonepat|bahadurgarh|rewari|manesar)\b/, "Haryana"],
+  [/\b(karnataka|bangalore|bengaluru|mysore|mysuru|hubli|hosur)\b/, "Karnataka"],
+  [/\b(telangana|hyderabad|secunderabad)\b/, "Telangana"],
+  [/\b(tamil\s*nadu|chennai|madras|coimbatore|madurai)\b/, "Tamil Nadu"],
+  [/\b(gujarat|ahmedabad|surat|vadodara|baroda|rajkot)\b/, "Gujarat"],
+  [/\b(uttar\s*pradesh|noida|greater\s*noida|ghaziabad|lucknow|kanpur|agra|varanasi|meerut)\b/, "Uttar Pradesh"],
+  [/\b(uttarakhand|dehradun|haridwar|rudrapur|haldwani)\b/, "Uttarakhand"],
+  [/\b(rajasthan|jaipur|jodhpur|udaipur)\b/, "Rajasthan"],
+  [/\b(punjab|ludhiana|amritsar|mohali|jalandhar)\b/, "Punjab"],
+  [/\bchandigarh\b/, "Chandigarh"],
+  [/\b(madhya\s*pradesh|indore|bhopal|gwalior|jabalpur)\b/, "Madhya Pradesh"],
+  [/\b(chhattisgarh|raipur|bilaspur)\b/, "Chhattisgarh"],
+  [/\b(odisha|orissa|bhubaneswar|cuttack)\b/, "Odisha"],
+  [/\b(jharkhand|ranchi|jamshedpur|dhanbad)\b/, "Jharkhand"],
+  [/\b(bihar|patna)\b/, "Bihar"],
+  [/\b(kerala|kochi|cochin|trivandrum|thiruvananthapuram|kozhikode)\b/, "Kerala"],
+  [/\b(andhra\s*pradesh|andhra|vijayawada|visakhapatnam|vizag|guntur)\b/, "Andhra Pradesh"],
+  [/\b(goa|panaji|verna)\b/, "Goa"],
+  [/\b(puducherry|pondicherry)\b/, "Puducherry"],
+];
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Destination state (OM zone label from ALL_STATES) detected from the order's delivery address
+ * and warehouse name. Returns null when nothing matches — the operator must then pick the state
+ * (no silent default: a wrong zone means a wrong quote).
+ *
+ * Order: PIN code in the delivery address → keywords (word-boundary) in address + warehouse
+ * name → exact state names → PIN code in the warehouse name.
+ */
+export function detectStateFromOrder(order: any): string | null {
+  if (!order) return null;
 
   const rawDeliveredTo =
     (order.customData as any)?.deliveredTo ||
@@ -16,239 +196,40 @@ export function detectStateFromOrder(order: any): string {
     order.warehouseAddress ||
     order.client?.address ||
     "";
-
   const rawWarehouse = order.warehouseName || "";
+
+  const addressPinState = stateFromPincode(findPincode(rawDeliveredTo));
+  if (addressPinState) return addressPinState;
+
   const combined = `${rawDeliveredTo} ${rawWarehouse}`.toLowerCase();
-
-  // 1. Kolkata Local vs Rest of West Bengal
-  if (
-    combined.includes("kolkata") ||
-    combined.includes("calcutta") ||
-    combined.includes("howrah") ||
-    combined.includes("hooghly") ||
-    combined.includes("dankuni") ||
-    combined.includes("tiljala") ||
-    /\b700\d{3}\b/.test(combined) ||
-    /\b711\d{3}\b/.test(combined) ||
-    /\b712\d{3}\b/.test(combined)
-  ) {
-    return "West Bengal (Kolkata)";
+  for (const [re, label] of KEYWORD_RULES) {
+    if (re.test(combined)) return label;
   }
-  if (
-    combined.includes("west bengal") ||
-    /\bbengal\b/.test(combined) ||
-    combined.includes("siliguri") ||
-    combined.includes("asansol")
-  ) {
-    return "West Bengal (Other)";
-  }
-
-  // 2. Guwahati vs Rest of Assam
-  if (combined.includes("guwahati") || combined.includes("dispur") || combined.includes("kamrup")) {
-    return "Assam (Guwahati)";
-  }
-  if (combined.includes("assam")) {
-    return "Assam (Other)";
-  }
-
-  // 3. Maharashtra & Major Hubs
-  if (
-    combined.includes("maharashtra") ||
-    combined.includes("mumbai") ||
-    combined.includes("bhiwandi") ||
-    combined.includes("pune") ||
-    combined.includes("nagpur") ||
-    combined.includes("thane") ||
-    combined.includes("navi mumbai") ||
-    /\b4[0-4]\d{4}\b/.test(combined)
-  ) {
-    return "Maharashtra";
-  }
-
-  // 4. Delhi & NCR
-  if (combined.includes("delhi") || combined.includes("new delhi") || /\b110\d{3}\b/.test(combined)) {
-    return "Delhi";
-  }
-
-  // 5. Haryana (Kundli, Gurgaon, etc.)
-  if (
-    combined.includes("haryana") ||
-    combined.includes("gurgaon") ||
-    combined.includes("gurugram") ||
-    combined.includes("kundli") ||
-    combined.includes("faridabad") ||
-    combined.includes("panipat") ||
-    combined.includes("sonipat") ||
-    /\b12[1-5]\d{3}\b/.test(combined) ||
-    /\b13\d{4}\b/.test(combined)
-  ) {
-    return "Haryana";
-  }
-
-  // 6. Karnataka (Bangalore, etc.)
-  if (
-    combined.includes("karnataka") ||
-    combined.includes("bangalore") ||
-    combined.includes("bengaluru") ||
-    combined.includes("hosur") ||
-    /\b560\d{3}\b/.test(combined)
-  ) {
-    return "Karnataka";
-  }
-
-  // 7. Telangana (Hyderabad, etc.)
-  if (
-    combined.includes("telangana") ||
-    combined.includes("hyderabad") ||
-    combined.includes("secunderabad") ||
-    /\b500\d{3}\b/.test(combined)
-  ) {
-    return "Telangana";
-  }
-
-  // 8. Tamil Nadu (Chennai, etc.)
-  if (
-    combined.includes("tamil nadu") ||
-    combined.includes("chennai") ||
-    combined.includes("coimbatore") ||
-    /\b600\d{3}\b/.test(combined)
-  ) {
-    return "Tamil Nadu";
-  }
-
-  // 9. Gujarat (Ahmedabad, Surat, etc.)
-  if (
-    combined.includes("gujarat") ||
-    combined.includes("ahmedabad") ||
-    combined.includes("surat") ||
-    combined.includes("vadodara") ||
-    /\b380\d{3}\b/.test(combined)
-  ) {
-    return "Gujarat";
-  }
-
-  // 10. Uttar Pradesh (Noida, Ghaziabad, Lucknow, etc.)
-  if (
-    combined.includes("uttar pradesh") ||
-    combined.includes("noida") ||
-    combined.includes("greater noida") ||
-    combined.includes("ghaziabad") ||
-    combined.includes("lucknow") ||
-    combined.includes("kanpur") ||
-    /\b201\d{3}\b/.test(combined) ||
-    /\b226\d{3}\b/.test(combined)
-  ) {
-    return "Uttar Pradesh";
-  }
-
-  // 11. Rajasthan (Jaipur, etc.)
-  if (combined.includes("rajasthan") || combined.includes("jaipur")) {
-    return "Rajasthan";
-  }
-
-  // 12. Punjab (Ludhiana, etc.)
-  if (combined.includes("punjab") || combined.includes("ludhiana") || combined.includes("amritsar") || combined.includes("mohali")) {
-    return "Punjab";
-  }
-
-  // 13. Madhya Pradesh (Indore, Bhopal, etc.)
-  if (combined.includes("madhya pradesh") || combined.includes("indore") || combined.includes("bhopal")) {
-    return "Madhya Pradesh";
-  }
-
-  // 14. Odisha (Bhubaneswar, Cuttack, etc.)
-  if (combined.includes("odisha") || combined.includes("orissa") || combined.includes("bhubaneswar")) {
-    return "Odisha";
-  }
-
-  // 15. Bihar (Patna, etc.)
-  if (combined.includes("bihar") || combined.includes("patna")) {
-    return "Bihar";
-  }
-
-  // 16. Jharkhand (Ranchi, Jamshedpur)
-  if (combined.includes("jharkhand") || combined.includes("ranchi") || combined.includes("jamshedpur")) {
-    return "Jharkhand";
-  }
-
-  // 17. Kerala (Kochi, Trivandrum)
-  if (combined.includes("kerala") || combined.includes("kochi") || combined.includes("cochin")) {
-    return "Kerala";
-  }
-
-  // 18. Andhra Pradesh (Vijayawada, Visakhapatnam)
-  if (combined.includes("andhra") || combined.includes("vijayawada") || combined.includes("visakhapatnam")) {
-    return "Andhra Pradesh";
-  }
-
-  // Direct check against all states
   for (const s of ALL_STATES) {
-    if (combined.includes(s.toLowerCase())) {
-      return s;
+    const plain = s.replace(/\s*\(.*\)\s*$/, "").toLowerCase();
+    if (new RegExp(`\\b${escapeRe(plain)}\\b`).test(combined)) {
+      // "Assam (Guwahati)" / "West Bengal (Kolkata)" style labels need the city: use the "Other" label.
+      const other = ALL_STATES.find((x) => x.toLowerCase() === `${plain} (other)`);
+      return /\(/.test(s) ? other ?? s : s;
     }
   }
 
-  return "West Bengal (Kolkata)";
+  return stateFromPincode(findPincode(rawWarehouse));
 }
 
 /**
- * Calculates total shipment weight from order box dimension groups or explicit weight fields.
+ * Total shipment weight (kg, exact 2 dp).
+ * App 1 stores weightKg as the ORDER TOTAL (full boxes + remainder carton), so the total is the
+ * sum of the carton groups built by extractBoxDimensionGroups — which equals order.weightKg for
+ * order-level data and Σ item weights for multi-item orders. Never weightKg × boxCount.
+ * Returns 0 when the order carries no weight at all (the estimator then needs operator input).
  */
 export function getOrderTotalWeightKg(order: any): number {
-  if (!order) return 50;
-
-  // 1. Direct boxDimensionGroups check if already provided on order
-  if (Array.isArray(order.boxDimensionGroups) && order.boxDimensionGroups.length > 0) {
-    let sum = 0;
-    for (const g of order.boxDimensionGroups) {
-      const count =
-        typeof g.boxCount === "number"
-          ? g.boxCount
-          : typeof g.count === "number"
-          ? g.count
-          : 1;
-      const wt =
-        typeof g.weightKg === "number"
-          ? g.weightKg
-          : typeof g.weight === "number"
-          ? g.weight
-          : 0;
-      sum += count * wt;
-    }
-    if (sum > 0) return Number(sum.toFixed(2));
-  }
-
-  // 2. Check explicit order weight
-  let calculatedWeight = 0;
-  if (typeof order.weightKg === "number" && order.weightKg > 0) {
-    const boxCount = typeof order.boxCount === "number" && order.boxCount > 0 ? order.boxCount : 1;
-    calculatedWeight += order.weightKg * boxCount;
-  }
-
-  if (typeof order.remainderWeightKg === "number" && order.remainderWeightKg > 0) {
-    calculatedWeight += order.remainderWeightKg;
-  }
-
-  if (calculatedWeight > 0) {
-    return Number(calculatedWeight.toFixed(2));
-  }
-
-  // 2. Compute from dimension groups
-  const groups = extractBoxDimensionGroups(order);
-  let groupSum = 0;
-  for (const g of groups) {
-    if (typeof g.weightKg === "number" && g.weightKg > 0) {
-      groupSum += g.weightKg * (g.boxCount || 1);
-    }
-  }
-
-  if (groupSum > 0) {
-    return Number(groupSum.toFixed(2));
-  }
-
-  // 3. Fallback: estimate roughly based on total boxes (e.g. 15 kg per box) or default
-  const totalBoxes = order.boxCount || 1;
-  return totalBoxes * 12;
+  if (!order) return 0;
+  const summary = summarizeCartons(order);
+  if (summary.totalWeightKg !== null && summary.totalWeightKg > 0) return summary.totalWeightKg;
+  const direct = typeof order.weightKg === "number" && order.weightKg > 0 ? order.weightKg * weightToKgFactor(order.weightUnit) : 0;
+  return direct > 0 ? Number(direct.toFixed(2)) : 0;
 }
 
 /**
@@ -291,13 +272,15 @@ export function getOrderInvoiceValue(order: any): number {
  * Builds ready-to-use initial logistics input for the delivery estimator.
  */
 export function getInitialLogisticsInput(order: AppointmentOrder): OmDeliveryInput {
-  const state = detectStateFromOrder(order);
+  // "" = not detected: the booking UI requires the operator to choose the state.
+  const state = detectStateFromOrder(order) ?? "";
   const weightKg = getOrderTotalWeightKg(order);
   const invoiceValue = getOrderInvoiceValue(order);
 
   return {
     state,
-    weightKg: weightKg > 0 ? weightKg : 50,
+    // 0 = unknown: the operator must enter the weight (no invented default that prices a fake load).
+    weightKg: weightKg > 0 ? weightKg : 0,
     mode: "surface",
     odaDistanceKm: 0,
     appointmentDelivery: true, // deliveries are appointment-based by default

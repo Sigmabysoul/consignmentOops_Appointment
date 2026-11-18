@@ -23,6 +23,13 @@ import {
   updateDelhivery,
 } from "@/lib/delhivery-orders";
 import type { DelhiveryShipmentRecord } from "@/lib/delhivery-types";
+import { requireBookingDeskOrder } from "@/lib/courier-booking-desk";
+import {
+  DELHIVERY_PENDING_STALE_MINUTES,
+  effectiveManifestState,
+  otherCarrierRefusal,
+  withShippingLabelBarcodes,
+} from "@/lib/courier-booking-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -39,13 +46,17 @@ const NOT_SENT_KINDS = new Set(["invalid_input", "config", "booking_disabled", "
  *
  * Duplicate-LR protection: the order row is locked and a "submitting" claim is written before
  * the call. A second request (double click, second tab) is refused. If the call's outcome is
- * unknown (timeout after sending), resubmitting requires `override: true` from an ADMIN.
+ * unknown (timeout after sending, or a job still "pending" after DELHIVERY_PENDING_STALE_MINUTES),
+ * resubmitting requires `override: true` from an ADMIN.
+ * Only orders on the Booking desk can be booked, and never while Shiprocket holds a live booking.
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const ctx = await loadDelhiveryOrder(req, id);
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
+  const offDesk = await requireBookingDeskOrder(order.id, "Delhivery One");
+  if (offDesk) return offDesk;
   const notConfigured = notConfiguredResponse();
   if (notConfigured) return notConfigured;
 
@@ -92,17 +103,19 @@ export async function POST(req: NextRequest, { params }: Params) {
   // ---- claim (row lock) ----
   const config = getDelhiveryConfig();
   let refusal: string | null = null;
-  await updateDelhivery(order.id, (rec) => {
-    let state = rec.manifest?.state;
-    // A claim left behind by a crashed request: we cannot know whether it reached Delhivery.
-    if (state === "submitting" && Date.now() - Date.parse(rec.manifest!.submittedAt) > 2 * 60 * 1000) {
-      state = "unknown_outcome";
-    }
+  await updateDelhivery(order.id, (rec, locked) => {
+    // A claim left behind by a crashed request, or a job whose status never resolved: we cannot
+    // know whether it reached Delhivery / created an LR.
+    const state = effectiveManifestState(rec.manifest);
+    const otherCarrier = otherCarrierRefusal("delhivery", locked.customData as any);
     if (rec.lrn && !rec.cancelled) refusal = `This order is already booked with Delhivery (LR ${rec.lrn}).`;
+    else if (otherCarrier) refusal = otherCarrier;
     else if (state === "submitting" || state === "pending") refusal = "A Delhivery booking for this order is already in progress.";
     else if (state === "unknown_outcome" && !(override && user.role === "ADMIN")) {
       refusal =
-        "The last booking attempt timed out and may have created an LR. Check the Delhivery One panel first; an admin can then resubmit.";
+        rec.manifest?.state === "pending"
+          ? `Delhivery has not confirmed the last booking for over ${DELHIVERY_PENDING_STALE_MINUTES} minutes and it may have created an LR. Check the Delhivery One panel first; an admin can then resubmit.`
+          : "The last booking attempt timed out and may have created an LR. Check the Delhivery One panel first; an admin can then resubmit.";
     }
     if (refusal) return rec;
     return {
@@ -180,7 +193,10 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   const current = readDelhivery(order);
   const jobId = current.manifest?.jobId;
-  if ((current.lrn && !current.cancelled) || !jobId || current.manifest?.state !== "pending") return NextResponse.json({ delhivery: current });
+  // Keep polling a job that went stale (unknown_outcome with a job id): a late success still
+  // records the LR instead of leaving a paid booking invisible.
+  const pollable = current.manifest?.state === "pending" || (current.manifest?.state === "unknown_outcome" && Boolean(jobId));
+  if ((current.lrn && !current.cancelled) || !jobId || !pollable) return NextResponse.json({ delhivery: current });
   const notConfigured = notConfiguredResponse();
   if (notConfigured) return notConfigured;
 
@@ -206,12 +222,28 @@ export async function GET(req: NextRequest, { params }: Params) {
         if (mapped.state === "failed") {
           return { ...r, manifest: { ...manifest, state: "failed", message: mapped.message || "Delhivery rejected the booking." } };
         }
+        // Still unresolved long after submission: stop treating it as "in progress" so an admin
+        // can check the Delhivery One panel and resubmit (same handling as a timed-out submit).
+        if (r.manifest?.state === "pending" && effectiveManifestState(r.manifest) === "unknown_outcome") {
+          return {
+            ...r,
+            manifest: {
+              ...manifest,
+              state: "unknown_outcome",
+              message: `Delhivery did not confirm this booking within ${DELHIVERY_PENDING_STALE_MINUTES} minutes. Check the Delhivery One panel before booking again.`,
+            },
+          };
+        }
         return { ...r, manifest };
       },
       (o) =>
         mapped.state === "success" && mapped.lrn
           ? { courierPartner: DELHIVERY_COURIER_NAME, ...(o.trackingId?.trim() ? {} : { trackingId: mapped.lrn }) }
-          : {}
+          : {},
+      // Box AWBs → customData.shippingLabelBarcodes, the list App 1's BoxTrace dispatch gate
+      // checks carrier-label scans against (kept de-duplicated; existing entries untouched).
+      (custom, next) =>
+        mapped.state === "success" && mapped.lrn ? withShippingLabelBarcodes(custom, next.awbs ?? []) : custom
     );
     if (mapped.state === "success") await auditDelhivery(user, order, "BOOKED", { lrn: mapped.lrn, awbs: mapped.awbs.length });
     if (mapped.state === "failed") await auditDelhivery(user, order, "MANIFEST_REJECTED", { message: mapped.message });

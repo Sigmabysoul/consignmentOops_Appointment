@@ -12,6 +12,8 @@ import {
   updateShiprocket,
 } from "@/lib/shiprocket-orders";
 import type { ShiprocketAddress } from "@/lib/shiprocket-types";
+import { requireBookingDeskOrder } from "@/lib/courier-booking-desk";
+import { otherCarrierRefusal } from "@/lib/courier-booking-guards";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
@@ -29,6 +31,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const ctx = await loadShiprocketOrder(req, id);
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
+  const offDesk = await requireBookingDeskOrder(order.id, "Shiprocket Cargo");
+  if (offDesk) return offDesk;
   const notConfigured = notConfiguredResponse();
   if (notConfigured) return notConfigured;
 
@@ -70,9 +74,18 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const override = body.override === true && user.role === "ADMIN";
   let refusal: string | null = null;
-  await updateShiprocket(order.id, (rec) => {
+  await updateShiprocket(order.id, (rec, locked) => {
     const state = isStaleClaim(rec.order?.state, rec.order?.submittedAt) ? "unknown_outcome" : rec.order?.state;
-    if (rec.shipment?.state === "done") refusal = `Already booked with Shiprocket (waybill ${rec.waybill || "pending"}).`;
+    const shipmentState = isStaleClaim(rec.shipment?.state, rec.shipment?.submittedAt) ? "unknown_outcome" : rec.shipment?.state;
+    const otherCarrier = otherCarrierRefusal("shiprocket", locked.customData as any);
+    if (shipmentState === "done") refusal = `Already booked with Shiprocket (waybill ${rec.waybill || "pending"}).`;
+    else if (otherCarrier) refusal = otherCarrier;
+    // Never wipe a carrier booking (step 2) that is in flight or may have gone through — not even
+    // with the admin override, which only re-runs step 1.
+    else if (shipmentState === "submitting") refusal = "A Shiprocket carrier booking for this order is in progress. Wait for it to finish.";
+    else if (shipmentState === "unknown_outcome")
+      refusal =
+        "The last Shiprocket carrier booking timed out and may have gone through. Check the Shiprocket Cargo panel and retry step 2 (book carrier) instead of creating a new order.";
     else if (state === "submitting") refusal = "A Shiprocket order for this consignment is already being created.";
     else if (state === "done" && !override) refusal = `Shiprocket order ${rec.order?.orderId} already exists — book a carrier for it instead.`;
     else if (state === "unknown_outcome" && !override)

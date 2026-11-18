@@ -74,7 +74,33 @@ JWT_SECRET=<same value as the consignment app JWT_SECRET>
 APP_URL=https://appointment.averretail.com
 PORT=3001
 NODE_ENV=production
+
+# Delhivery One B2B API — "Get live quote" stays disabled until USERNAME + PASSWORD are set
+DELHIVERY_ENV=test                 # "production" for the live Delhivery API
+DELHIVERY_USERNAME=
+DELHIVERY_PASSWORD=
+DELHIVERY_WAREHOUSE_NAME=          # pickup warehouse name as registered with Delhivery
+DELHIVERY_SOURCE_PIN=700100
+DELHIVERY_BOOKING_ENABLED=false    # "true" to allow real bookings
+
+# Shiprocket Cargo B2B API — "Get live rates" stays disabled until REFRESH_TOKEN + CLIENT_ID are set
+SHIPROCKET_REFRESH_TOKEN=
+SHIPROCKET_CLIENT_ID=              # numeric
+SHIPROCKET_BOOKING_ENABLED=false
+SHIPROCKET_SENDER_WAREHOUSE_NAME=
+SHIPROCKET_SENDER_ADDRESS_LINE1=
+SHIPROCKET_SENDER_ADDRESS_LINE2=
+SHIPROCKET_SENDER_PINCODE=700100
+SHIPROCKET_SENDER_CITY=Kolkata
+SHIPROCKET_SENDER_STATE=West Bengal
+SHIPROCKET_SENDER_CONTACT_NAME=
+SHIPROCKET_SENDER_CONTACT_EMAIL=
+SHIPROCKET_SENDER_CONTACT_PHONE=
 ```
+
+> **Docker Compose build pack:** a variable only reaches the container if `docker-compose.yml`
+> lists it under `environment:`. When you add a new server variable, add it there too, or the
+> app will not see it even though it is set in Coolify.
 
 > **Security Note:** Never commit production credentials to git. Set them strictly in the Coolify environment settings.
 

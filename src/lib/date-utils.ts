@@ -92,6 +92,74 @@ export function formatDateInputValue(dateValue: string | Date | null | undefined
 /** Placeholder text for date fields, matching the display format. */
 export const DATE_DISPLAY_PLACEHOLDER = "DD Mon YYYY";
 
+/*
+ * IST business-day boundaries (servers run in UTC; India has no DST).
+ * An IST calendar day D runs from (D 00:00 UTC − 5h30m) to (D+1 00:00 UTC − 5h30m), end exclusive.
+ * Every stored form lands on its IST day with these bounds: App 1 date-only values (D 06:30Z = noon
+ * IST), this app's parsed YYYY-MM-DD (D 00:00Z = 05:30 IST) and real timestamps
+ * (e.g. 2026-11-18T19:30Z = 01:00 IST on 19 Nov).
+ */
+export const IST_OFFSET_MS = 330 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Start (as a UTC instant) of the IST calendar day y-m-d (m is 1-based). */
+export function istDayStartFromParts(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month - 1, day) - IST_OFFSET_MS);
+}
+
+/** Start of the IST day containing `now`, shifted by `offsetDays` whole days. */
+export function istDayStart(now: Date = new Date(), offsetDays = 0): Date {
+  const startMs = Math.floor((now.getTime() + IST_OFFSET_MS) / DAY_MS) * DAY_MS - IST_OFFSET_MS;
+  return new Date(startMs + offsetDays * DAY_MS);
+}
+
+/** True when both instants fall on the same IST calendar day. */
+export function isSameIstDay(a: Date | null | undefined, b: Date | null | undefined): boolean {
+  if (!a || !b) return false;
+  return istDayStart(a).getTime() === istDayStart(b).getTime();
+}
+
+/**
+ * IST day [start, end) for a filter bound: "YYYY-MM-DD", "DD/MM/YYYY" and "25 Dec 2026" are read as
+ * IST calendar days; anything else is parsed and floored to its IST day.
+ */
+export function istDayRangeFromInput(value: string | null | undefined): { start: Date; end: Date } | null {
+  if (!value || !String(value).trim()) return null;
+  const str = String(value).trim();
+  let start: Date | null = null;
+  const ymd = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const dmy = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  const dMonY = str.match(/^(\d{1,2})[\s/-]([A-Za-z]{3,9})[\s/-](\d{4})$/);
+  if (ymd) start = istDayStartFromParts(Number(ymd[1]), Number(ymd[2]), Number(ymd[3]));
+  else if (dmy) start = istDayStartFromParts(Number(dmy[3]), Number(dmy[2]), Number(dmy[1]));
+  else if (dMonY && MONTH_INDEX[dMonY[2].toLowerCase()] !== undefined) {
+    start = istDayStartFromParts(Number(dMonY[3]), MONTH_INDEX[dMonY[2].toLowerCase()] + 1, Number(dMonY[1]));
+  } else {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) start = istDayStart(d);
+  }
+  if (!start || isNaN(start.getTime())) return null;
+  return { start, end: new Date(start.getTime() + DAY_MS) };
+}
+
+/**
+ * Quick-date windows on IST days. All `*End` values are exclusive (use `lt`).
+ * The week runs Sunday 00:00 IST → next Sunday 00:00 IST.
+ */
+export function getIstQuickDateWindows(now: Date = new Date()) {
+  const todayStart = istDayStart(now);
+  const istWeekday = new Date(todayStart.getTime() + IST_OFFSET_MS).getUTCDay(); // 0 = Sunday
+  const weekStart = new Date(todayStart.getTime() - istWeekday * DAY_MS);
+  return {
+    yesterdayStart: istDayStart(now, -1),
+    todayStart,
+    tomorrowStart: istDayStart(now, 1),
+    dayAfterTomorrowStart: istDayStart(now, 2),
+    weekStart,
+    weekEnd: new Date(weekStart.getTime() + 7 * DAY_MS),
+  };
+}
+
 export function parseDateInput(value: any): Date | null {
   if (!value) return null;
   if (value instanceof Date) return isNaN(value.getTime()) ? null : value;

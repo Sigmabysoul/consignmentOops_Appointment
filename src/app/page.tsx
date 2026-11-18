@@ -57,6 +57,17 @@ export default function AppointmentDashboard() {
   const [endDate, setEndDate] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Dashboard metric drill-down: the sheet shows exactly the rows the clicked card counts
+  const [metricFilter, setMetricFilter] = useState<{ key: string; label: string } | null>(null);
+  // Kanban column totals from the server (the board loads each column separately)
+  const [kanbanMeta, setKanbanMeta] = useState<{ counts: Record<string, number>; columnLimit: number } | null>(null);
+
+  // Switching views always starts at page 1 and drops a metric drill-down
+  const selectView = useCallback((view: ActiveView) => {
+    setActiveView(view);
+    setPage(1);
+    setMetricFilter(null);
+  }, []);
 
   // Selected Order for Drawer
   const [selectedDrawerOrder, setSelectedDrawerOrder] = useState<AppointmentOrder | null>(null);
@@ -103,21 +114,21 @@ export default function AppointmentDashboard() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.altKey && e.key === "1") {
         e.preventDefault();
-        setActiveView("booking");
+        selectView("booking");
       } else if (e.altKey && e.key === "2") {
         e.preventDefault();
-        setActiveView("appointment");
+        selectView("appointment");
       } else if (e.altKey && e.key === "3") {
         e.preventDefault();
-        setActiveView("kanban");
+        selectView("kanban");
       } else if (e.altKey && e.key === "4") {
         e.preventDefault();
-        setActiveView("sheet");
+        selectView("sheet");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [selectView]);
 
   // 1. Check Authentication on Mount
   useEffect(() => {
@@ -193,11 +204,11 @@ export default function AppointmentDashboard() {
       setIsLoadingOrders(true);
     }
 
-    const effectivePageSize =
-      activeView === "kanban" || activeView === "timeline" ? 100 : pageSize;
+    // Kanban is loaded per column by the server (exact counts, no page cap); the timeline shows up to 100
+    const effectivePageSize = activeView === "timeline" ? 100 : pageSize;
 
     const params = new URLSearchParams({
-      page: String(page),
+      page: String(activeView === "kanban" ? 1 : page),
       pageSize: String(effectivePageSize),
       search: searchTerm,
       tab: activeView,
@@ -213,6 +224,7 @@ export default function AppointmentDashboard() {
       sortBy,
       sortDir,
     });
+    if (metricFilter) params.set("metric", metricFilter.key);
 
     fetch(`/api/orders?${params.toString()}`)
       .then((res) => {
@@ -224,6 +236,7 @@ export default function AppointmentDashboard() {
           setOrders(data.orders);
           setTotalOrders(data.pagination.total);
           setTotalPages(data.pagination.totalPages);
+          setKanbanMeta(data.kanban || null);
         }
       })
       .catch((err) => {
@@ -253,6 +266,7 @@ export default function AppointmentDashboard() {
     endDate,
     sortBy,
     sortDir,
+    metricFilter,
   ]);
 
   // Refetch when filters or pagination change
@@ -364,6 +378,7 @@ export default function AppointmentDashboard() {
     setSortBy("createdAt");
     setSortDir("desc");
     setPage(1);
+    setMetricFilter(null);
   };
 
   if (isAuthLoading) {
@@ -387,7 +402,7 @@ export default function AppointmentDashboard() {
       <AppHeader
         user={currentUser}
         activeView={activeView}
-        onSelectView={setActiveView}
+        onSelectView={selectView}
         selectedPlatform={selectedChannel}
         onSelectPlatform={(platform) => {
           setSelectedChannel(platform);
@@ -410,12 +425,20 @@ export default function AppointmentDashboard() {
           <div className="space-y-6">
             <MetricCards
               stats={stats}
-              onSelectMetric={(statusKey) => {
-                if (statusKey === "delivered") setSelectedDeliveryStatus("DELIVERED");
-                else if (statusKey === "in_transit") setSelectedDeliveryStatus("IN_TRANSIT");
-                else if (statusKey === "pending") setSelectedStatus("Pending");
-                else if (statusKey === "appointments") setQuickDate("today");
-                setActiveView("sheet");
+              onSelectMetric={(cardId) => {
+                // Open the sheet with exactly the conditions the card's count uses (server-side
+                // getMetricConditions), clearing other filters that the count does not apply.
+                const METRIC_FOR_CARD: Record<string, { key: string; label: string } | null> = {
+                  all: null,
+                  tracking_missing: { key: "tracking_missing", label: "Tracking Missing" },
+                  in_transit: { key: "in_transit", label: "In Transit" },
+                  appointments: { key: "scheduled_today", label: "Scheduled Today" },
+                  delivered: { key: "delivered", label: "Delivered" },
+                  grn_issues: { key: "grn_issues", label: "GRN Discrepancies" },
+                };
+                handleResetFilters();
+                selectView("sheet");
+                setMetricFilter(METRIC_FOR_CARD[cardId] ?? null);
               }}
             />
 
@@ -446,8 +469,8 @@ export default function AppointmentDashboard() {
                     <div
                       key={wh}
                       onClick={() => {
+                        selectView("sheet");
                         setSelectedWarehouse(wh);
-                        setActiveView("sheet");
                       }}
                       className="text-xs text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer flex items-center justify-between"
                     >
@@ -541,6 +564,25 @@ export default function AppointmentDashboard() {
           />
         )}
 
+        {metricFilter && activeView === "sheet" && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="px-2.5 py-1 rounded-full bg-violet-50 border border-violet-200 text-violet-800 font-semibold">
+              Showing metric: {metricFilter.label} ({totalOrders})
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setMetricFilter(null);
+                setPage(1);
+              }}
+              className="px-2 py-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer flex items-center gap-1"
+            >
+              <X className="w-3 h-3" />
+              <span>Clear</span>
+            </button>
+          </div>
+        )}
+
         {/* Part 1: Booking & Pickup Desk (Priority: Pickup Data & Dimensions) */}
         {activeView === "booking" && (
           <div className="flex-1">
@@ -564,7 +606,7 @@ export default function AppointmentDashboard() {
                 })
               }
               onSwitchToAppointment={(order) => {
-                setActiveView("appointment");
+                selectView("appointment");
                 if (order) setSelectedDrawerOrder(order);
               }}
             />
@@ -602,6 +644,8 @@ export default function AppointmentDashboard() {
           <div className="flex-1">
             <KanbanView
               orders={orders}
+              stageCounts={kanbanMeta?.counts}
+              columnLimit={kanbanMeta?.columnLimit}
               isLoading={isLoadingOrders}
               onOpenOrderDrawer={(order) => setSelectedDrawerOrder(order)}
               onQuickNoteClick={(order) =>

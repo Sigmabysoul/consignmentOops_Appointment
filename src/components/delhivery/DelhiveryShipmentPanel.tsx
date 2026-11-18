@@ -126,7 +126,10 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
 
   const est = record.estimate;
   const act = record.actualFreight;
-  const pickupActive = record.pickup && !record.pickup.cancelledAt;
+  // A pickup request that timed out may or may not exist at Delhivery: an admin who checked the
+  // Delhivery One panel gets the form back (the retry is sent with override).
+  const pickupUnknown = Boolean(record.pickup && !record.pickup.cancelledAt && record.pickup.state === "unknown_outcome");
+  const pickupActive = record.pickup && !record.pickup.cancelledAt && !(pickupUnknown && status?.isAdmin);
 
   const box = "p-3 rounded-xl border border-slate-200 bg-white space-y-2";
   const h = "font-extrabold text-[11px] uppercase tracking-wide text-slate-900 flex items-center gap-1.5";
@@ -296,6 +299,14 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
                   <div className="text-[11px] text-slate-500">
                     {record.pickup!.id ? `Pickup ID ${record.pickup!.id}` : "Pickup ID not recognised"} · by {record.pickup!.requestedBy}
                   </div>
+                  {record.pickup!.state === "submitting" && (
+                    <div className="text-[11px] font-semibold text-amber-700">Being sent to Delhivery…</div>
+                  )}
+                  {pickupUnknown && (
+                    <div className="text-[11px] font-semibold text-amber-700">
+                      The request timed out and may not have reached Delhivery. Check the Delhivery One panel; an admin can retry.
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -329,14 +340,14 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
                       () =>
                         delhiveryApi(
                           `/orders/${order.id}/pickup`,
-                          postJson({ date: pickupDate, time: pickupTime, expectedPackageCount: parseInt(pickupCount, 10) })
+                          postJson({ date: pickupDate, time: pickupTime, expectedPackageCount: parseInt(pickupCount, 10), override: pickupUnknown })
                         ),
                       "Pickup requested"
                     )
                   }
                   className={`${btn} col-span-3 justify-center bg-red-600 hover:bg-red-700 text-white`}
                 >
-                  Request pickup
+                  {pickupUnknown ? "I've checked: request pickup again" : "Request pickup"}
                 </button>
                 <p className="col-span-3 text-[10px] text-slate-500">Delhivery needs one day's notice for pickups.</p>
               </div>

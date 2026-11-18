@@ -61,6 +61,8 @@ export function ShippingPresetsModal({
   const [odaMatrix, setOdaMatrix] = useState<OdaBand[]>([]);
   const [omWhatsAppConfig, setOmWhatsAppConfig] = useState<OmWhatsAppConfig>(DEFAULT_OM_WHATSAPP_CONFIG);
   const [stateSearch, setStateSearch] = useState("");
+  // Server decides (admin only); false until the GET says otherwise.
+  const [canEdit, setCanEdit] = useState(false);
 
   // Load presets on open
   useEffect(() => {
@@ -70,6 +72,7 @@ export function ShippingPresetsModal({
     fetch("/api/shipping-presets")
       .then((res) => res.json())
       .then((data) => {
+        setCanEdit(data?.canEdit === true);
         if (data.presets) {
           const p = data.presets as UnifiedShippingPresets;
           setOmRateCard(p.omRateCard || []);
@@ -1006,7 +1009,8 @@ export function ShippingPresetsModal({
         <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
           <button
             type="button"
-            disabled={isResetting || isLoading}
+            disabled={isResetting || isLoading || !canEdit}
+            title={canEdit ? undefined : "Only an admin can reset rate cards"}
             onClick={handleResetDefaults}
             className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
           >
@@ -1015,6 +1019,9 @@ export function ShippingPresetsModal({
           </button>
 
           <div className="flex items-center gap-2">
+            {!canEdit && !isLoading && (
+              <span className="text-[11px] font-semibold text-amber-800">View only: an admin must save rate-card changes.</span>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -1025,7 +1032,8 @@ export function ShippingPresetsModal({
 
             <button
               type="button"
-              disabled={isSaving || isLoading}
+              disabled={isSaving || isLoading || !canEdit}
+              title={canEdit ? undefined : "Only an admin can save rate cards"}
               onClick={handleSave}
               className="px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer disabled:opacity-50"
             >

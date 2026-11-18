@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { BoxDimensionGroup, formatTabSeparatedBoxRow } from "@/lib/dimension-helper";
+import { BoxDimensionGroup, formatTabSeparatedBoxRow, summarizeCartons } from "@/lib/dimension-helper";
 import { formatDecimalNumber } from "@/lib/courier-defaults";
 import { Copy, Check, Sparkles, Layers, ArrowRight } from "lucide-react";
 
@@ -97,6 +97,9 @@ export function BoxDimensionCopyHelper({
     copyToClipboard(dim, `${group.id}-dim`);
   };
 
+  // Order total (exact 2 dp, = the order's weightKg): rows show the weight of ONE box.
+  const summary = summarizeCartons(groups || []);
+
   if (!groups || groups.length === 0) {
     return (
       <div className="text-[11px] text-slate-400 italic flex items-center gap-1.5 py-1">
@@ -139,7 +142,7 @@ export function BoxDimensionCopyHelper({
                 <button
                   type="button"
                   onClick={() => handleCopyRowTsv(g)}
-                  title="Copy full row (Tab-separated: Count, L, B, H, Wt)"
+                  title="Copy full row (Tab-separated: Count, L, B, H, Wt per box)"
                   className="flex items-center gap-1 text-[9px] font-semibold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 px-1.5 py-0.5 rounded transition cursor-pointer"
                 >
                   {copiedKey === tsvKey ? (
@@ -235,7 +238,7 @@ export function BoxDimensionCopyHelper({
                   <button
                     type="button"
                     onClick={() => handleFieldClick(g, "weightKg", formatDecimalNumber(g.weightKg))}
-                    title="Click to copy Weight"
+                    title="Click to copy the weight of ONE box"
                     className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 cursor-pointer transition ${
                       copiedKey === wtKey
                         ? "bg-emerald-600 text-white shadow-xs"
@@ -244,7 +247,7 @@ export function BoxDimensionCopyHelper({
                         : "bg-slate-100 text-slate-800 hover:bg-slate-200"
                     }`}
                   >
-                    <span className="text-[9px] text-slate-500 font-sans">Wt:</span>
+                    <span className="text-[9px] text-slate-500 font-sans">Wt/box:</span>
                     <span>{formatDecimalNumber(g.weightKg)}</span>
                     {copiedKey === wtKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
                   </button>
@@ -253,6 +256,12 @@ export function BoxDimensionCopyHelper({
             </div>
           );
         })}
+        {summary.totalBoxes > 0 && (
+          <div className="text-[10px] font-semibold text-slate-600 px-0.5">
+            Total: {summary.totalBoxes} box{summary.totalBoxes > 1 ? "es" : ""}
+            {summary.totalWeightKg !== null ? ` · ${formatDecimalNumber(summary.totalWeightKg)} kg` : ""}
+          </div>
+        )}
       </div>
     );
   }
@@ -450,7 +459,7 @@ export function BoxDimensionCopyHelper({
                   }`}
                 >
                   <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
-                    <span>5. Weight ({group.weightUnit})</span>
+                    <span>5. Wt/box ({group.weightUnit})</span>
                     {copiedKey === wtKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
                   </div>
                   <div className="text-sm font-mono font-extrabold mt-1">
@@ -461,6 +470,18 @@ export function BoxDimensionCopyHelper({
             </div>
           );
         })}
+      </div>
+
+      {/* Order totals (weights above are per box) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+        <span>
+          Total: {summary.totalBoxes} box{summary.totalBoxes === 1 ? "" : "es"}
+          {summary.totalWeightKg !== null ? ` · ${formatDecimalNumber(summary.totalWeightKg)} kg` : " · weight pending"}
+        </span>
+        <span className="text-[10px] font-semibold text-slate-500">
+          Weights shown are per box. Rows of the same size can differ by 0.01 kg so the boxes add up to
+          the exact order total.
+        </span>
       </div>
 
       {/* Productivity Tip */}

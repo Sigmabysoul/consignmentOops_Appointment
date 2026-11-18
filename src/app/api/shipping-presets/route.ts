@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       presets,
+      // Rate cards and the OM WhatsApp number are admin-only to change (POST/DELETE below).
+      canEdit: user.role === "ADMIN",
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -39,6 +41,9 @@ export async function POST(req: NextRequest) {
     }
     if (!user.isLogisticsAuthorized) {
       return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
+    }
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Only an admin can change rate cards and shipping presets." }, { status: 403 });
     }
 
     const body = await req.json();
@@ -72,6 +77,9 @@ export async function DELETE(req: NextRequest) {
     }
     if (!user.isLogisticsAuthorized) {
       return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
+    }
+    if (user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Only an admin can reset rate cards and shipping presets." }, { status: 403 });
     }
 
     const defaults = await resetShippingPresets(

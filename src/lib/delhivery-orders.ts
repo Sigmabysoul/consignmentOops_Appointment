@@ -65,19 +65,21 @@ export async function requireLogisticsUser(req: Request): Promise<SessionUser | 
  */
 export async function updateDelhivery(
   orderId: string,
-  patch: (current: DelhiveryShipmentRecord) => DelhiveryShipmentRecord,
-  orderFields?: (order: OrderRow) => Record<string, unknown>
+  patch: (current: DelhiveryShipmentRecord, order: OrderRow) => DelhiveryShipmentRecord,
+  orderFields?: (order: OrderRow, next: DelhiveryShipmentRecord) => Record<string, unknown>,
+  /** Other customData keys to change in the same locked write (e.g. shippingLabelBarcodes). */
+  customExtra?: (custom: Record<string, any>, next: DelhiveryShipmentRecord) => Record<string, any>
 ): Promise<DelhiveryShipmentRecord> {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ConsignmentOrder" WHERE id = ${orderId} FOR UPDATE`;
     const order = await tx.consignmentOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new Error("Order not found");
-    const custom = { ...((order.customData as Record<string, any>) || {}) };
-    const next = patch(readDelhivery(order));
-    custom.delhivery = next;
+    const next = patch(readDelhivery(order), order);
+    let custom: Record<string, any> = { ...((order.customData as Record<string, any>) || {}), delhivery: next };
+    if (customExtra) custom = { ...customExtra(custom, next), delhivery: next };
     await tx.consignmentOrder.update({
       where: { id: orderId },
-      data: { customData: custom, ...(orderFields ? orderFields(order) : {}) },
+      data: { customData: custom, ...(orderFields ? orderFields(order, next) : {}) },
     });
     return next;
   });

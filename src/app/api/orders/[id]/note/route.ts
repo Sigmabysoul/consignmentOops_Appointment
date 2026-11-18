@@ -5,6 +5,17 @@ import {
   saveSingleAppointmentNote,
   deleteSingleAppointmentNote,
 } from "@/lib/appointment-notes";
+import { db } from "@/lib/db";
+import { isVisibleInAppointmentApp } from "@/lib/order-filters";
+
+/** Notes exist only for orders this app can see (hidden orders → 404, like every order route). */
+async function isOrderVisible(id: string): Promise<boolean> {
+  const order = await db.consignmentOrder.findUnique({
+    where: { id },
+    select: { status: true, courierStatus: true, isDeleted: true, isArchived: true },
+  });
+  return isVisibleInAppointmentApp(order);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +34,9 @@ export async function GET(
     }
 
     const { id } = await params;
+    if (!(await isOrderVisible(id))) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
     const note = await getSingleAppointmentNote(id);
 
     return NextResponse.json({
@@ -54,6 +68,9 @@ export async function POST(
     }
 
     const { id } = await params;
+    if (!(await isOrderVisible(id))) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
     const body = await req.json();
     const noteContent = body.note !== undefined ? String(body.note).trim() : "";
 
@@ -104,6 +121,9 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    if (!(await isOrderVisible(id))) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
     await deleteSingleAppointmentNote(id);
 
     return NextResponse.json({ success: true, message: "Personal note removed" });

@@ -55,18 +55,62 @@ export function getDefaultCourierForChannel(channel?: string | null): string | n
 }
 
 /**
- * Returns the effective courier partner for display and persistence.
+ * Spellings the main consignment app (and older data) uses for the same couriers, keyed by a
+ * lower-case, space-collapsed form. Unknown names (e.g. "Local") are returned trimmed, unchanged.
+ */
+const COURIER_ALIASES: Record<string, string> = {
+  "delhivery": "Delhivery One",
+  "delhivery one": "Delhivery One",
+  "delhivery b2b": "Delhivery One",
+  "om": "OM Logistics",
+  "om logistics": "OM Logistics",
+  "om logistic": "OM Logistics",
+  "omlogistics": "OM Logistics",
+  "ekart": "Ekart",
+  "ekart logistics": "Ekart",
+  "e-kart": "Ekart",
+  "amazon ats": "Amazon ATS",
+  "amazon": "Amazon ATS",
+  "ats": "Amazon ATS",
+  "shiprocket": "Shiprocket Cargo",
+  "shiprocket cargo": "Shiprocket Cargo",
+  "local": "Local",
+};
+
+/** Canonical courier name (case/alias-insensitive); "" for empty input. */
+export function normalizeCourierName(name?: string | null): string {
+  const trimmed = name ? String(name).trim() : "";
+  if (!trimmed) return "";
+  const key = trimmed.toLowerCase().replace(/[\s_]+/g, " ");
+  return COURIER_ALIASES[key] || trimmed;
+}
+
+/** Every known spelling of the same courier (for case-insensitive DB filters). */
+export function getCourierSpellings(name?: string | null): string[] {
+  const canonical = normalizeCourierName(name);
+  if (!canonical) return [];
+  const spellings = Object.keys(COURIER_ALIASES).filter((k) => COURIER_ALIASES[k] === canonical);
+  return Array.from(new Set([canonical, String(name).trim(), ...spellings]));
+}
+
+/** True when two stored/requested courier names mean the same courier. */
+export function isSameCourier(a?: string | null, b?: string | null): boolean {
+  return normalizeCourierName(a).toLowerCase() === normalizeCourierName(b).toLowerCase();
+}
+
+/**
+ * Returns the effective courier partner for display.
+ * Empty → the channel default (Amazon ATS for Amazon); an allowed courier in any spelling → its
+ * canonical name; anything else (e.g. "Local" set in the main app) → shown as stored, never hidden.
  */
 export function getEffectiveCourierPartner(
   channel?: string | null,
   courierPartner?: string | null
 ): string | null {
   if (courierPartner && courierPartner.trim() !== "") {
-    // If the assigned courier is not allowed for this channel, enforce channel rules
+    const normalized = normalizeCourierName(courierPartner);
     const allowed = getAllowedCouriersForChannel(channel);
-    if (allowed.includes(courierPartner.trim())) {
-      return courierPartner.trim();
-    }
+    return allowed.includes(normalized) ? normalized : courierPartner.trim();
   }
   return getDefaultCourierForChannel(channel);
 }
@@ -90,7 +134,7 @@ export function resolveCourierForChannel(
   channel: string | null | undefined,
   requested: unknown
 ): { ok: true; courier: string | null } | { ok: false; allowed: string[] } {
-  const name = requested ? String(requested).trim() : "";
+  const name = normalizeCourierName(requested ? String(requested) : "");
   if (!name) return { ok: true, courier: null };
   const allowed = getAllowedCouriersForChannel(channel);
   const match = allowed.find((c) => c.toLowerCase() === name.toLowerCase());

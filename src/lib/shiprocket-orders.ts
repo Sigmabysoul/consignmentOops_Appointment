@@ -47,17 +47,21 @@ export async function loadShiprocketOrder(req: Request, id: string): Promise<{ u
 export async function updateShiprocket(
   orderId: string,
   patch: (current: ShiprocketShipmentRecord, order: OrderRow) => ShiprocketShipmentRecord,
-  orderFields?: (order: OrderRow, next: ShiprocketShipmentRecord) => Record<string, unknown>
+  orderFields?: (order: OrderRow, next: ShiprocketShipmentRecord) => Record<string, unknown>,
+  /** Other customData keys to change in the same locked write (e.g. shippingLabelBarcodes). */
+  customExtra?: (custom: Record<string, any>, next: ShiprocketShipmentRecord) => Record<string, any>
 ): Promise<ShiprocketShipmentRecord> {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "ConsignmentOrder" WHERE id = ${orderId} FOR UPDATE`;
     const order = await tx.consignmentOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new Error("Order not found");
     const next = patch(readShiprocket(order), order);
+    let custom: Record<string, any> = { ...((order.customData as Record<string, any>) || {}), shiprocket: next };
+    if (customExtra) custom = { ...customExtra(custom, next), shiprocket: next };
     await tx.consignmentOrder.update({
       where: { id: orderId },
       data: {
-        customData: { ...((order.customData as Record<string, any>) || {}), shiprocket: next } as any,
+        customData: custom as any,
         ...(orderFields ? orderFields(order, next) : {}),
       },
     });

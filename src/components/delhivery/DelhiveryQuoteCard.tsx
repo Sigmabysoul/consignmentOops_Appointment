@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Clock, RefreshCw, Truck, XCircle } from "luc
 import type { AppointmentOrder } from "@/lib/types";
 import type { DelhiveryEstimateResult, DelhiveryServerStatus } from "@/lib/delhivery-types";
 import { formatDateTimeDisplay } from "@/lib/date-utils";
+import { BoxDimensionGroup, mergeGroupsByDimensions } from "@/lib/dimension-helper";
 import { delhiveryApi, extractPincode, orderAddress, postJson, readDelhiveryRecord, rupees } from "./delhivery-client";
 import { DelhiveryProvisionalNote, DelhiveryStatusNote } from "./DelhiveryStatusNote";
 
@@ -32,7 +33,8 @@ export function DelhiveryQuoteCard({ order, status, weightKg, invoiceValue, rovC
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.id]);
 
-  const boxes = (order.boxDimensionGroups || [])
+  // One entry per box size; weight is sent separately as the consignment total.
+  const boxes = mergeGroupsByDimensions((order.boxDimensionGroups || []) as BoxDimensionGroup[])
     .filter((g) => g.lengthCm && g.widthCm && g.heightCm && g.boxCount > 0)
     .map((g) => ({ lengthCm: g.lengthCm, widthCm: g.widthCm, heightCm: g.heightCm, boxCount: g.boxCount }));
 

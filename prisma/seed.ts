@@ -16,10 +16,10 @@ async function main() {
   const iqbalHash = await bcrypt.hash("iqbal123", 10);
   const dispatchHash = await bcrypt.hash("dispatch123", 10);
 
-  // 2. Users
+  // 2. Users — created only when missing; an existing account is never reset
   const admin = await prisma.user.upsert({
     where: { username: "admin" },
-    update: { passwordHash: adminHash, role: Role.ADMIN },
+    update: {}, // existing users (shared with the main app) keep their password and role
     create: {
       username: "admin",
       name: "System Administrator",
@@ -31,7 +31,7 @@ async function main() {
 
   const iqbal = await prisma.user.upsert({
     where: { username: "iqbal" },
-    update: { passwordHash: iqbalHash, role: Role.MANAGER },
+    update: {}, // existing users (shared with the main app) keep their password and role
     create: {
       username: "iqbal",
       name: "Mohammad Iqbal",
@@ -43,7 +43,7 @@ async function main() {
 
   const dispatch = await prisma.user.upsert({
     where: { username: "dispatch" },
-    update: { passwordHash: dispatchHash, role: Role.STAFF },
+    update: {}, // existing users (shared with the main app) keep their password and role
     create: {
       username: "dispatch",
       name: "Logistics & Dispatch Desk",
@@ -53,21 +53,17 @@ async function main() {
     },
   });
 
-  console.log("👤 Created users: admin, iqbal, dispatch");
+  console.log("👤 Ensured users exist (created if missing): admin, iqbal, dispatch");
 
-  // 3. Couriers Presets (Strictly the 4 active couriers)
+  // 3. Courier presets this app needs. CourierPreset is shared with the main app (it also keeps
+  //    e.g. "Shiprocket Cargo", "Ekart Logistics", "Local"), so the seed only upserts its own rows
+  //    and never deletes anything.
   const couriers = [
     { name: "OM Logistics", urlName: "om-logistics", trackingUrlPattern: "https://trackcourier.io/track-and-trace/om-logistics/{trackingId}", sortOrder: 1 },
     { name: "Delhivery One", urlName: "delhivery-courier", trackingUrlPattern: "https://trackcourier.io/track-and-trace/delhivery-courier/{trackingId}", sortOrder: 2 },
     { name: "Ekart", urlName: "ekart-logistics", trackingUrlPattern: "https://trackcourier.io/track-and-trace/ekart-logistics/{trackingId}", sortOrder: 3 },
     { name: "Amazon ATS", urlName: "amazon-ats", trackingUrlPattern: "https://trackcourier.io/track-and-trace/amazon-ats/{trackingId}", sortOrder: 4 },
   ];
-
-  // Deactivate any dummy couriers not in the approved list
-  const approvedNames = couriers.map((c) => c.name);
-  await prisma.courierPreset.deleteMany({
-    where: { name: { notIn: approvedNames } },
-  });
 
   for (const cr of couriers) {
     const existing = await prisma.courierPreset.findFirst({ where: { name: cr.name } });
@@ -93,7 +89,7 @@ async function main() {
       });
     }
   }
-  console.log("🚚 Seeded approved courier presets: OM Logistics, Delhivery One, Ekart, Amazon ATS");
+  console.log("🚚 Upserted courier presets: OM Logistics, Delhivery One, Ekart, Amazon ATS (others untouched)");
 
   // 4. Sample Consignment Orders with Box Dimensions & Pickup Data
   const existingOrders = await prisma.consignmentOrder.count();

@@ -1,7 +1,7 @@
 /**
  * Single source for the session-signing secret (edge-runtime safe; shared by middleware and auth).
- * AUTH_SECRET or JWT_SECRET. Must equal the consignment app's JWT_SECRET for its
- * consignment_session cookie to be accepted here.
+ * JWT_SECRET (what the consignment app reads), falling back to AUTH_SECRET. Must equal the
+ * consignment app's JWT_SECRET for its consignment_session cookie to be accepted here.
  *
  * Production: a secret must be set, >= 32 chars and not one of the secrets published in this
  * repository; otherwise this throws (fail closed). Development: dev-only fallback.
@@ -19,11 +19,11 @@ let cached: Uint8Array | null = null;
 
 export function getJwtSecretKey(): Uint8Array {
   if (cached) return cached;
-  const secret = process.env.AUTH_SECRET || process.env.JWT_SECRET;
+  const secret = process.env.JWT_SECRET || process.env.AUTH_SECRET;
   if (process.env.NODE_ENV === "production") {
     if (!secret || secret.length < 32 || secret.includes("CHANGE_ME") || KNOWN_PUBLIC_SECRETS.has(secret)) {
       throw new Error(
-        "CRITICAL SECURITY ERROR: AUTH_SECRET/JWT_SECRET must be set to a strong (32+ char), non-published value in production."
+        "CRITICAL SECURITY ERROR: JWT_SECRET (or AUTH_SECRET) must be set to a strong (32+ char), non-published value in production."
       );
     }
   }

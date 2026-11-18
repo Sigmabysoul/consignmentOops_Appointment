@@ -21,6 +21,8 @@ import {
   type OrderRow,
 } from "@/lib/shiprocket-orders";
 import { SHIPROCKET_COURIER_NAME, type ShiprocketShipmentRecord } from "@/lib/shiprocket-types";
+import { requireBookingDeskOrder } from "@/lib/courier-booking-desk";
+import { otherCarrierRefusal, withShippingLabelBarcodes } from "@/lib/courier-booking-guards";
 
 export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
@@ -45,6 +47,10 @@ function applyShipment(r: ShiprocketShipmentRecord, m: MappedShipment): Shiprock
   };
 }
 
+/** Box (child) waybills → customData.shippingLabelBarcodes for App 1's BoxTrace dispatch gate. */
+const boxAwbsToLabelList = (custom: Record<string, any>, next: ShiprocketShipmentRecord) =>
+  next.shipment?.state === "done" && next.childWaybills?.length ? withShippingLabelBarcodes(custom, next.childWaybills) : custom;
+
 const orderFieldsFor = (o: OrderRow, next: ShiprocketShipmentRecord) => {
   const docket = next.lrn || next.waybill;
   return {
@@ -62,6 +68,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const ctx = await loadShiprocketOrder(req, id);
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
+  const offDesk = await requireBookingDeskOrder(order.id, "Shiprocket Cargo");
+  if (offDesk) return offDesk;
   const notConfigured = notConfiguredResponse();
   if (notConfigured) return notConfigured;
 
@@ -94,9 +102,18 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const override = body.override === true && user.role === "ADMIN";
   let refusal: string | null = null;
-  await updateShiprocket(order.id, (rec) => {
+  await updateShiprocket(order.id, (rec, locked) => {
     const state = isStaleClaim(rec.shipment?.state, rec.shipment?.submittedAt) ? "unknown_outcome" : rec.shipment?.state;
+    const otherCarrier = otherCarrierRefusal("shiprocket", locked.customData as any);
+    // Step 1 may have been re-run (admin override) between our read and this lock: book only the
+    // Shiprocket order we validated the carrier against.
+    const sameOrder =
+      rec.order?.state === "done" &&
+      rec.order.orderId === input.orderId &&
+      rec.order.carriers.some((c) => c.deliveryPartnerId === carrier.deliveryPartnerId && c.modeId === carrier.modeId);
     if (state === "done") refusal = `Already booked (shipment ${rec.shipment?.shipmentId}, waybill ${rec.waybill || "pending"}).`;
+    else if (otherCarrier) refusal = otherCarrier;
+    else if (!sameOrder) refusal = "The Shiprocket order changed while booking. Reload and choose the carrier again.";
     else if (state === "submitting") refusal = "This shipment is already being booked.";
     else if (state === "unknown_outcome" && !override)
       refusal = "The last booking attempt timed out and may have gone through. Check the Shiprocket Cargo panel; an admin can then retry.";
@@ -119,7 +136,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           { ...r, shipment: { ...r.shipment!, state: m.shipmentId ? "done" : "unknown_outcome", shipmentId: m.shipmentId, message: m.apiError } },
           m
         ),
-      orderFieldsFor
+      orderFieldsFor,
+      boxAwbsToLabelList
     );
     await auditShiprocket(user, order, "BOOKED", { shipmentId: m.shipmentId, waybill: m.waybill, carrier: carrier.deliveryPartnerName, override });
     return NextResponse.json({ shiprocket: rec });
@@ -148,7 +166,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (notConfigured) return notConfigured;
   try {
     const m = mapShipment((await getShipment(current.shipment.shipmentId)).data);
-    const rec = await updateShiprocket(ctx.order.id, (r) => applyShipment(r, m), orderFieldsFor);
+    const rec = await updateShiprocket(ctx.order.id, (r) => applyShipment(r, m), orderFieldsFor, boxAwbsToLabelList);
     return NextResponse.json({ shiprocket: rec });
   } catch (err) {
     return shiprocketErrorResponse(err, "shipment details");

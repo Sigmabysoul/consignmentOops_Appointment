@@ -51,6 +51,7 @@ import {
   getOrderInvoiceValue,
   getInitialLogisticsInput,
 } from "@/lib/order-logistics-autofill";
+import type { UnifiedShippingPresets } from "@/lib/shipping-presets-storage";
 
 interface BookingDetailModalProps {
   order: AppointmentOrder | null;
@@ -74,8 +75,11 @@ export function BookingDetailModal({
   const { showToast } = useToast();
 
   // Inputs State
-  const [state, setState] = useState<string>("West Bengal (Kolkata)");
-  const [weightKg, setWeightKg] = useState<number>(50);
+  // "" = destination state not detected: the operator must choose it before any quote/booking.
+  const [state, setState] = useState<string>("");
+  const [weightKg, setWeightKg] = useState<number>(0);
+  // Saved rate presets (ShippingPresetsModal). null = not loaded yet → built-in defaults.
+  const [presets, setPresets] = useState<UnifiedShippingPresets | null>(null);
   const [odaDistanceKm, setOdaDistanceKm] = useState<number>(0);
   const [appointmentDelivery, setAppointmentDelivery] = useState<boolean>(true);
   const [rovCover, setRovCover] = useState<"none" | "shipper" | "carrier">("none");
@@ -106,6 +110,24 @@ export function BookingDetailModal({
     setExpandedCarrierId(null);
   }, [order, isOpen]);
 
+  // Load the saved rate cards / zone map / ODA matrix / per-courier presets every time the
+  // modal opens, so edits made in Shipping Presets are what the quotes use.
+  useEffect(() => {
+    if (!isOpen) return;
+    let alive = true;
+    fetch("/api/shipping-presets")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (alive && data?.presets) setPresets(data.presets as UnifiedShippingPresets);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [isOpen]);
+
+  const stateMissing = !state;
+
   // Live Pure Pricing & Multi-Carrier Comparison (Strictly Land Surface & Channel Filtered)
   const comparisonResult: MultiCarrierComparisonResponse = useMemo(() => {
     const input: OmDeliveryInput = {
@@ -117,8 +139,19 @@ export function BookingDetailModal({
       rovCover,
       invoiceValue: Number(Number(invoiceValue).toFixed(2)) || 0,
     };
-    return compareShippingCarriers(input, { channel: order?.channel });
-  }, [state, weightKg, odaDistanceKm, appointmentDelivery, rovCover, invoiceValue, order?.channel]);
+    return compareShippingCarriers(input, {
+      channel: order?.channel,
+      ...(presets
+        ? {
+            customRateCard: presets.omRateCard,
+            customStateZoneMap: presets.stateZoneMap,
+            customOdaMatrix: presets.odaMatrix,
+            customConfig: presets.omConfig,
+            carrierPresets: presets.carrierPresets,
+          }
+        : {}),
+    });
+  }, [state, weightKg, odaDistanceKm, appointmentDelivery, rovCover, invoiceValue, order?.channel, presets]);
 
   if (!isOpen || !order) return null;
 
@@ -287,24 +320,39 @@ export function BookingDetailModal({
                   <select
                     value={state}
                     onChange={(e) => setState(e.target.value)}
-                    className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    className={`w-full text-xs bg-white border rounded-lg p-2 font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 ${
+                      stateMissing ? "border-rose-400 ring-2 ring-rose-200" : "border-slate-300"
+                    }`}
                   >
+                    <option value="" disabled>
+                      Select destination state…
+                    </option>
                     {ALL_STATES.map((s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Auto-detected from warehouse address. Determines OM Logistics zone.
-                  </p>
+                  {stateMissing ? (
+                    <p className="text-[10px] text-rose-700 font-bold mt-1 flex items-start gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0 mt-px" />
+                      <span>
+                        Destination state could not be detected from the address or PIN code. Choose it
+                        before quoting or booking.
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Auto-detected from the delivery address / PIN code. Determines the OM Logistics zone.
+                    </p>
+                  )}
                 </div>
 
                 {/* Weight in KG (all shipments are land surface — no transport mode to pick) */}
                 <div className="grid grid-cols-1 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Weight in Kg <span className="text-rose-500">*</span>
+                      Total shipment weight (kg, all boxes) <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative">
                       <input
@@ -416,8 +464,19 @@ export function BookingDetailModal({
 
             {/* ── Right Column: Shipping Price Comparison Cards (7 Cols) ── */}
             <div className="lg:col-span-7 space-y-4">
+              {stateMissing && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Destination state required.</strong> It was not found in the delivery address or
+                    PIN code. Pick it in the estimator on the left: quotes, courier assignment and API
+                    bookings stay locked until then.
+                  </span>
+                </div>
+              )}
+
               {/* Best Price Summary Pill */}
-              {comparisonResult.lowestCostCarrierName && (
+              {!stateMissing && comparisonResult.lowestCostCarrierName && (
                 <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-300/80 flex items-center justify-between text-xs text-emerald-950">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -533,7 +592,7 @@ export function BookingDetailModal({
 
                           <button
                             type="button"
-                            disabled={hasError || isAssigning === carrier.name}
+                            disabled={hasError || stateMissing || isAssigning === carrier.name}
                             onClick={() => {
                               // OM Logistics is booked over WhatsApp: Assign opens the pickup draft,
                               // which assigns OM Logistics when the message is sent.
@@ -595,7 +654,7 @@ export function BookingDetailModal({
                       </div>
 
                       {/* Live Delhivery API quote + booking (Delhivery One only) */}
-                      {carrier.name === DELHIVERY_NAME && (
+                      {carrier.name === DELHIVERY_NAME && !stateMissing && (
                         <DelhiveryQuoteCard
                           order={order}
                           status={delhiveryStatus}
@@ -607,7 +666,7 @@ export function BookingDetailModal({
                       )}
 
                       {/* Live Shiprocket Cargo rates + booking */}
-                      {carrier.name === SHIPROCKET_COURIER_NAME && (
+                      {carrier.name === SHIPROCKET_COURIER_NAME && !stateMissing && (
                         <ShiprocketQuoteCard
                           order={order}
                           status={shiprocketStatus}

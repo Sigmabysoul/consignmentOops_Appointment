@@ -16,18 +16,22 @@ export async function POST(req: NextRequest) {
   const notConfigured = notConfiguredResponse();
   if (notConfigured) return notConfigured;
 
+  // Every exclusion lives in SQL, before ORDER BY … LIMIT: otherwise delivered / archived /
+  // closed rows (oldest updatedAt first) fill the window and active LRs are never refreshed.
   const candidates = await db.$queryRaw<{ id: string; customData: unknown }[]>`
     SELECT id, "customData" FROM "ConsignmentOrder"
     WHERE "customData"->'delhivery'->>'lrn' IS NOT NULL
-      AND "customData"->'delhivery'->'cancelled' IS NULL
+      AND COALESCE(jsonb_typeof("customData"->'delhivery'->'cancelled'), 'null') = 'null'
       AND COALESCE("isDeleted", false) = false
-      AND COALESCE(status, '') NOT IN ('Cancelled', 'Delivered')
+      AND COALESCE("isArchived", false) = false
+      AND LOWER(COALESCE(status, '')) NOT IN ('cancelled', 'canceled', 'delivered', 'archive', 'archived', 'grn issue', 'rejected')
+      AND LOWER(COALESCE("courierStatus", '')) NOT IN ('cancelled', 'canceled', 'delivered', 'grn issue')
+      AND UPPER(COALESCE("customData"->'delhivery'->'tracking'->>'status', '')) NOT IN ('DELIVERED', 'RETURN_DELIVERED', 'LOST')
     ORDER BY "updatedAt" ASC
-    LIMIT 500`;
+    LIMIT ${MAX_PER_RUN}`;
   const active = candidates
     .map((o) => ({ id: o.id, rec: readDelhivery(o) }))
-    .filter(({ rec }) => rec.lrn && !rec.cancelled && !["DELIVERED", "RETURN_DELIVERED", "LOST"].includes(rec.tracking?.status || ""))
-    .slice(0, MAX_PER_RUN);
+    .filter(({ rec }) => rec.lrn && !rec.cancelled && !["DELIVERED", "RETURN_DELIVERED", "LOST"].includes(rec.tracking?.status || ""));
 
   let refreshed = 0;
   const failures: { orderId: string; error: string }[] = [];
