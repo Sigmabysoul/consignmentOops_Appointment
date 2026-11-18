@@ -1,6 +1,7 @@
 import { isVisibleInAppointmentApp } from "@/lib/order-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { toClientOrder } from "@/lib/order-redaction";
 import { db } from "@/lib/db";
 import { parseDateInput } from "@/lib/date-utils";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     return NextResponse.json({
       success: true,
-      order: { ...updated, boxDimensionGroups: extractBoxDimensionGroups(updated) },
+      order: { ...toClientOrder(updated), boxDimensionGroups: extractBoxDimensionGroups(updated) },
     });
   } catch (error: any) {
     console.error("[deliver] failed:", error);

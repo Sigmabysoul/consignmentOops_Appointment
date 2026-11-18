@@ -5,7 +5,6 @@ import {
   X,
   Truck,
   Package,
-  Layers,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -17,10 +16,8 @@ import {
   DollarSign,
   Shield,
   Clock,
-  Info,
   ChevronDown,
   ChevronUp,
-  MessageSquare,
 } from "lucide-react";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
@@ -415,20 +412,6 @@ export function BookingDetailModal({
                 </div>
               </div>
 
-              {/* 1-Click Box Dimensions Paste Helper */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-violet-600" />
-                    <span>Copy Dimensions for Carrier Booking</span>
-                  </span>
-                </div>
-                <BoxDimensionCopyHelper
-                  groups={order.boxDimensionGroups || []}
-                  compact={false}
-                  orderNumber={order.roPoNumber}
-                />
-              </div>
             </div>
 
             {/* ── Right Column: Shipping Price Comparison Cards (7 Cols) ── */}
@@ -548,29 +531,23 @@ export function BookingDetailModal({
                             </div>
                           )}
 
-                          {/* WhatsApp Booking Button for OM Logistics */}
-                          {carrier.isOmLogistics && (
-                            <button
-                              type="button"
-                              onClick={() => setWhatsAppModalOpen(true)}
-                              className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                              title="Draft WhatsApp Pickup Booking for OM Logistics"
-                            >
-                              <MessageSquare className="w-3.5 h-3.5" />
-                              <span>WhatsApp Booking</span>
-                            </button>
-                          )}
-
                           <button
                             type="button"
                             disabled={hasError || isAssigning === carrier.name}
                             onClick={() => {
+                              // OM Logistics is booked over WhatsApp: Assign opens the pickup draft,
+                              // which assigns OM Logistics when the message is sent.
                               if (carrier.isOmLogistics) {
                                 setWhatsAppModalOpen(true);
                               } else {
                                 handleAssignCarrier(carrier.name);
                               }
                             }}
+                            title={
+                              carrier.isOmLogistics
+                                ? "Assign OM Logistics and draft the WhatsApp pickup booking"
+                                : `Assign ${carrier.name} to this order`
+                            }
                             className={`px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                               isCurrentAssigned
                                 ? "bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700"
@@ -592,20 +569,28 @@ export function BookingDetailModal({
                             )}
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedCarrierId(isExpanded ? null : carrier.id)
-                            }
-                            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-                            title="Toggle breakdown details"
-                          >
-                            {isExpanded ? (
-                              <ChevronUp className="w-4 h-4" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4" />
-                            )}
-                          </button>
+                          {!carrier.liveQuoteOnly && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedCarrierId(isExpanded ? null : carrier.id)
+                              }
+                              aria-expanded={isExpanded}
+                              className={`px-2 py-1.5 rounded-lg text-[11px] font-bold border transition cursor-pointer flex items-center gap-1 whitespace-nowrap ${
+                                isExpanded
+                                  ? "bg-slate-800 text-white border-slate-800"
+                                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
+                              }`}
+                              title="Show the cost breakdown"
+                            >
+                              <span>Breakdown</span>
+                              {isExpanded ? (
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              ) : (
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -646,27 +631,13 @@ export function BookingDetailModal({
                             </div>
                           ) : (
                             <>
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-slate-600">
-                                <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                                  <span className="text-[10px] text-slate-400 block font-semibold">Freight Charge</span>
-                                  <span className="font-bold text-slate-900 text-xs">₹{carrier.breakdown.freight.toFixed(2)}</span>
-                                </div>
-                                <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                                  <span className="text-[10px] text-slate-400 block font-semibold">Fuel & Docket</span>
-                                  <span className="font-bold text-slate-900 text-xs">₹{(carrier.breakdown.fuel + carrier.breakdown.cnOrDocket).toFixed(2)}</span>
-                                </div>
-                                <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                                  <span className="text-[10px] text-slate-400 block font-semibold">Appt & ODA</span>
-                                  <span className="font-bold text-slate-900 text-xs">₹{(carrier.breakdown.appointment + carrier.breakdown.oda).toFixed(2)}</span>
-                                </div>
-                                <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                                  <span className="text-[10px] text-slate-400 block font-semibold">GST (18%)</span>
-                                  <span className="font-bold text-slate-900 text-xs">₹{carrier.breakdown.gst.toFixed(2)}</span>
-                                </div>
-                              </div>
+                              <CostBreakdownTable carrier={carrier} actualWeightKg={Number(Number(weightKg).toFixed(2)) || 0} />
 
                               {carrier.notes && carrier.notes.length > 0 && (
                                 <div className="text-[10px] text-slate-500 space-y-0.5 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                                  <div className="font-bold text-slate-600 mb-0.5">
+                                    {carrier.isOmLogistics ? "Commercial terms" : "Rate card"}
+                                  </div>
                                   {carrier.notes.map((n, idx) => (
                                     <div key={idx} className="flex items-start gap-1">
                                       <span className="text-violet-500 font-bold">•</span>
@@ -684,22 +655,16 @@ export function BookingDetailModal({
                 })}
               </div>
 
-              {/* Informational Guidance Box from OM Logistics Spec */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5 text-slate-600">
-                <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Important Commercial & Fulfillment Terms (OM Logistics)</span>
-                </div>
-                <ul className="text-[11px] space-y-1 list-disc pl-4 text-slate-500">
-                  <li>Transit time is about 8–9 days from Kolkata (12–14 days for Northeast & Special locations).</li>
-                  <li>Give one day's prior notice before pickup from Kolkata facility (PIN 700100).</li>
-                  <li>
-                    An e-way bill is required for every shipment with invoice value &gt; ₹50,000.
-                    Transporter ID: <strong className="font-mono text-slate-800">88AAECO4660K1Z7</strong>.
-                  </li>
-                  <li>Payment terms are 7 days from the date of booking.</li>
-                </ul>
-              </div>
+            </div>
+
+            {/* ── Full-width: 1-Click Box Dimensions for carrier portals ── */}
+            <div className="lg:col-span-12">
+              <BoxDimensionCopyHelper
+                groups={order.boxDimensionGroups || []}
+                compact={false}
+                wide={true}
+                orderNumber={order.roPoNumber}
+              />
             </div>
           </div>
         </div>
@@ -771,6 +736,61 @@ export function BookingDetailModal({
           setWhatsAppModalOpen(false);
         }}
       />
+    </div>
+  );
+}
+
+const formatInr = (n: number) =>
+  `₹${Number(n.toFixed(2)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Itemised cost breakdown for one carrier: every charge it levies, then subtotal, GST and total. */
+function CostBreakdownTable({ carrier, actualWeightKg }: { carrier: CarrierComparisonItem; actualWeightKg: number }) {
+  const lines = carrier.chargeLines || [];
+  return (
+    <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+      <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500">
+        <span className="font-extrabold text-slate-700 uppercase tracking-wider">Cost breakdown</span>
+        {carrier.zone && (
+          <span>
+            Zone: <strong className="text-slate-700">{carrier.zone}</strong>
+          </span>
+        )}
+        <span>
+          Billed weight: <strong className="text-slate-700">{carrier.chargeableWeightKg.toFixed(2)} kg</strong>
+          {carrier.chargeableWeightKg > actualWeightKg && actualWeightKg > 0 && (
+            <span> (actual {actualWeightKg.toFixed(2)} kg)</span>
+          )}
+        </span>
+      </div>
+      <table className="w-full text-[11px]">
+        <tbody className="divide-y divide-slate-100">
+          {lines.map((line) => (
+            <tr key={line.key} className={line.applied ? "text-slate-700" : "text-slate-400"}>
+              <td className="py-1.5 px-3 font-semibold whitespace-nowrap align-top">{line.label}</td>
+              <td className="py-1.5 px-3 align-top">{line.basis}</td>
+              <td className="py-1.5 px-3 text-right font-mono font-bold whitespace-nowrap align-top">
+                {line.applied ? formatInr(line.amount) : "—"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="border-t border-slate-200 bg-slate-50/70">
+          <tr className="text-slate-700">
+            <td className="py-1.5 px-3 font-semibold" colSpan={2}>Subtotal (before GST)</td>
+            <td className="py-1.5 px-3 text-right font-mono font-bold">{formatInr(carrier.subtotal)}</td>
+          </tr>
+          <tr className="text-slate-700">
+            <td className="py-1.5 px-3 font-semibold" colSpan={2}>GST ({carrier.gstPercent}%)</td>
+            <td className="py-1.5 px-3 text-right font-mono font-bold">{formatInr(carrier.gstAmount)}</td>
+          </tr>
+          <tr className="text-slate-900 border-t border-slate-200">
+            <td className="py-2 px-3 font-extrabold" colSpan={2}>
+              Total payable <span className="font-semibold text-slate-500">· {formatInr(carrier.costPerKg)} / kg</span>
+            </td>
+            <td className="py-2 px-3 text-right font-mono font-black text-sm">{formatInr(carrier.estimatedTotal)}</td>
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

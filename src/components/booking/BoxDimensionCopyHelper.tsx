@@ -8,6 +8,8 @@ import { Copy, Check, Sparkles, Layers, ArrowRight } from "lucide-react";
 interface BoxDimensionCopyHelperProps {
   groups: BoxDimensionGroup[];
   compact?: boolean;
+  /** Full-width layout: each box group on a single row (label | values | copy buttons) on large screens. */
+  wide?: boolean;
   orderNumber?: string;
   onDimensionsUpdated?: () => void;
 }
@@ -15,6 +17,7 @@ interface BoxDimensionCopyHelperProps {
 export function BoxDimensionCopyHelper({
   groups,
   compact = false,
+  wide = false,
   orderNumber,
 }: BoxDimensionCopyHelperProps) {
   // State tracking which field was just copied: `${groupId}-${fieldKey}`
@@ -290,10 +293,14 @@ export function BoxDimensionCopyHelper({
           return (
             <div
               key={group.id || idx}
-              className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs space-y-2"
+              className={
+                wide
+                  ? "bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3"
+                  : "bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs space-y-2"
+              }
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className={wide ? "flex items-center justify-between gap-2 lg:contents" : "flex items-center justify-between"}>
+                <div className={wide ? "flex items-center gap-2 lg:order-1 lg:w-40 lg:shrink-0" : "flex items-center gap-2"}>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-violet-100 text-violet-800">
                     Group {idx + 1}
                   </span>
@@ -303,12 +310,12 @@ export function BoxDimensionCopyHelper({
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className={wide ? "flex items-center gap-1.5 lg:order-3 lg:shrink-0" : "flex items-center gap-1.5"}>
                   <button
                     type="button"
                     onClick={() => handleCopyDimString(group)}
                     title="Copy dimension string e.g. 23x40x25"
-                    className="text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md transition cursor-pointer flex items-center gap-1"
+                    className="text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
                   >
                     {copiedKey === dimKey ? (
                       <>
@@ -326,8 +333,8 @@ export function BoxDimensionCopyHelper({
                   <button
                     type="button"
                     onClick={() => handleCopyRowTsv(group)}
-                    title="Copy entire row for quick Excel/form paste"
-                    className="text-[10px] font-bold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1 border border-violet-200"
+                    title="Copy entire row (tab-separated) for quick Excel/form paste"
+                    className="text-[10px] font-bold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1 border border-violet-200 whitespace-nowrap"
                   >
                     {copiedKey === tsvKey ? (
                       <>
@@ -337,7 +344,7 @@ export function BoxDimensionCopyHelper({
                     ) : (
                       <>
                         <Copy className="w-3 h-3" />
-                        <span>Copy Row (Tab-separated)</span>
+                        <span>{wide ? "Copy Row" : "Copy Row (Tab-separated)"}</span>
                       </>
                     )}
                   </button>
@@ -345,7 +352,7 @@ export function BoxDimensionCopyHelper({
               </div>
 
               {/* Sequential / Step-by-Step Value Buttons */}
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+              <div className={wide ? "grid grid-cols-2 sm:grid-cols-5 gap-1.5 lg:order-2 lg:flex-1" : "grid grid-cols-2 sm:grid-cols-5 gap-1.5"}>
                 {/* 1. Box Count */}
                 <button
                   type="button"
@@ -358,7 +365,7 @@ export function BoxDimensionCopyHelper({
                       : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[10px] opacity-75 font-semibold">
+                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
                     <span>1. Box Count</span>
                     {copiedKey === countKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
                   </div>
@@ -379,7 +386,7 @@ export function BoxDimensionCopyHelper({
                       : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[10px] opacity-75 font-semibold">
+                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
                     <span>2. Length ({group.dimensionUnit})</span>
                     {copiedKey === lKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
                   </div>
@@ -400,7 +407,7 @@ export function BoxDimensionCopyHelper({
                       : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[10px] opacity-75 font-semibold">
+                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
                     <span>3. Breadth ({group.dimensionUnit})</span>
                     {copiedKey === wKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
                   </div>
@@ -421,7 +428,7 @@ export function BoxDimensionCopyHelper({
                       : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[10px] opacity-75 font-semibold">
+                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
                     <span>4. Height ({group.dimensionUnit})</span>
                     {copiedKey === hKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
                   </div>
@@ -442,7 +449,7 @@ export function BoxDimensionCopyHelper({
                       : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[10px] opacity-75 font-semibold">
+                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
                     <span>5. Weight ({group.weightUnit})</span>
                     {copiedKey === wtKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
                   </div>

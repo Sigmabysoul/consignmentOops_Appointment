@@ -100,39 +100,51 @@ export function OmWhatsAppBookingModal({
   };
 
   const handleSendWhatsApp = async () => {
+    const trimmedValue = declaredValue.replace(/,/g, "").trim();
+    if (trimmedValue && !/^\d+(\.\d+)?$/.test(trimmedValue)) {
+      showToast("Order value must be a number (e.g. 77662 or 77662.50)", "error");
+      return;
+    }
+
+    // Open the tab now, while we are still inside the click: a window.open() after an `await`
+    // is treated as an unrequested popup and blocked. The tab is pointed at WhatsApp once saved.
+    const waTab = window.open("", "_blank");
     setIsUpdating(true);
     try {
-      // 1. Assign OM Logistics to the order and save entered invoice value
+      // 1. Assign OM Logistics to the order and save the entered invoice value
       const res = await fetch(`/api/orders/${order.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courierPartner: "OM Logistics",
-          customData: {
-            ...((order.customData as any) || {}),
-            invoiceValue: declaredValue ? Number(declaredValue) || declaredValue : undefined,
-          },
+          invoiceValue: trimmedValue === "" ? null : Number(Number(trimmedValue).toFixed(2)),
         }),
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to update order");
       }
 
       // 2. Open WhatsApp Web with the drafted message
       const webUrl = getWhatsAppWebUrl(phoneNumber, finalDraftMessage);
-      const opened = window.open(webUrl, "_blank");
-
-      if (!opened) {
-        // In case popup blocker intercepts, fallback to location
-        window.location.href = webUrl;
+      if (waTab) {
+        waTab.opener = null;
+        waTab.location.href = webUrl;
+        showToast(`OM Logistics assigned & WhatsApp Web opened for #${order.roPoNumber}`, "success");
+      } else {
+        // Popups blocked entirely: keep this app open and let the operator send it themselves.
+        await navigator.clipboard.writeText(finalDraftMessage).catch(() => {});
+        showToast(
+          `OM Logistics assigned. Popup blocked: the message is copied, open WhatsApp and paste it.`,
+          "info"
+        );
       }
 
-      showToast(`OM Logistics assigned & WhatsApp Web opened for #${order.roPoNumber}`, "success");
       onOrderUpdated?.();
       onClose();
     } catch (err: any) {
+      waTab?.close();
       showToast(err.message || "Failed to assign OM Logistics", "error");
     } finally {
       setIsUpdating(false);

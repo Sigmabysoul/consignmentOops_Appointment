@@ -80,3 +80,19 @@ export function formatDecimalNumber(val: number | null | undefined, decimals = 2
   }
   return Number(val).toFixed(decimals);
 }
+
+/**
+ * Server-side courier policy check (Golden Rules 4–6).
+ * Empty → { ok: true, courier: null } (clears the courier); an allowed name in any case →
+ * its canonical spelling; anything else → { ok: false } with the allowed list.
+ */
+export function resolveCourierForChannel(
+  channel: string | null | undefined,
+  requested: unknown
+): { ok: true; courier: string | null } | { ok: false; allowed: string[] } {
+  const name = requested ? String(requested).trim() : "";
+  if (!name) return { ok: true, courier: null };
+  const allowed = getAllowedCouriersForChannel(channel);
+  const match = allowed.find((c) => c.toLowerCase() === name.toLowerCase());
+  return match ? { ok: true, courier: match } : { ok: false, allowed };
+}

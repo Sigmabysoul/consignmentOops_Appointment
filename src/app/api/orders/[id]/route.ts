@@ -1,6 +1,9 @@
 import { isVisibleInAppointmentApp } from "@/lib/order-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { toClientOrder } from "@/lib/order-redaction";
+import { resolveCourierForChannel } from "@/lib/courier-defaults";
+import { parseOptionalNumber, roundTo2 } from "@/lib/number-input";
 import { db } from "@/lib/db";
 import { parseDateInput } from "@/lib/date-utils";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
@@ -55,7 +58,7 @@ export async function GET(
 
     return NextResponse.json({
       order: {
-        ...order,
+        ...toClientOrder(order),
         boxDimensionGroups,
         trackingLink: order.trackingLink || null, // No automatic external URL generation
         personalNote: personalNoteItem?.note || null,
@@ -144,6 +147,41 @@ export async function PATCH(
       }
     }
 
+    // Courier policy (Golden Rules 4–6): only the couriers allowed for this channel may be assigned.
+    let canonicalCourier: string | null | undefined = undefined;
+    const requestedCourier = body.courierPartner ? String(body.courierPartner).trim() : "";
+    const courierUnchanged = requestedCourier !== "" && requestedCourier === (existing.courierPartner || "");
+    // An unchanged (possibly legacy) courier is re-sent by the details drawer on every save: let it through.
+    if (body.courierPartner !== undefined && !courierUnchanged) {
+      const resolved = resolveCourierForChannel(existing.channel, body.courierPartner);
+      if (!resolved.ok) {
+        return NextResponse.json(
+          {
+            error: `${String(body.courierPartner).trim()} is not an allowed courier for ${existing.channel} orders. Allowed: ${resolved.allowed.join(", ")}.`,
+            code: "COURIER_NOT_ALLOWED",
+          },
+          { status: 400 }
+        );
+      }
+      canonicalCourier = resolved.courier;
+    }
+
+    // Numeric fields: reject garbage / negatives instead of writing NaN (which fails the DB write with a 500)
+    const NUMERIC_FIELDS = [
+      "boxCount", "lengthCm", "widthCm", "heightCm", "weightKg",
+      "remainderQty", "remainderLengthCm", "remainderWidthCm", "remainderHeightCm", "remainderWeightKg",
+      "invoiceValue",
+    ] as const;
+    const parsedNumbers: Partial<Record<(typeof NUMERIC_FIELDS)[number], number | null>> = {};
+    for (const field of NUMERIC_FIELDS) {
+      if (body[field] === undefined) continue;
+      const parsed = parseOptionalNumber(body[field]);
+      if (!parsed.ok) {
+        return NextResponse.json({ error: `${field} must be a number of 0 or more.` }, { status: 400 });
+      }
+      parsedNumbers[field] = parsed.value;
+    }
+
     // Prepare update data payload - synchronizing with Consignment Operations DB
     const dataToUpdate: Record<string, any> = {};
     const auditEntries: Array<{ field: string; oldVal: string; newVal: string }> = [];
@@ -167,8 +205,8 @@ export async function PATCH(
     }
 
     // 2. Courier Partner
-    if (body.courierPartner !== undefined) {
-      const trimmed = body.courierPartner ? String(body.courierPartner).trim() : null;
+    if (canonicalCourier !== undefined) {
+      const trimmed = canonicalCourier;
       if (trimmed !== existing.courierPartner) {
         dataToUpdate.courierPartner = trimmed;
         auditEntries.push({
@@ -297,22 +335,24 @@ export async function PATCH(
     }
 
     // 10. Box Dimensions & Count Updates
-    if (body.boxCount !== undefined) {
-      const count = body.boxCount ? parseInt(String(body.boxCount), 10) : null;
+    if (parsedNumbers.boxCount !== undefined) {
+      const count = parsedNumbers.boxCount === null ? null : Math.trunc(parsedNumbers.boxCount) || null;
       if (count !== existing.boxCount) {
         dataToUpdate.boxCount = count;
         auditEntries.push({ field: "boxCount", oldVal: String(existing.boxCount), newVal: String(count) });
       }
     }
-    if (body.lengthCm !== undefined) dataToUpdate.lengthCm = body.lengthCm ? parseFloat(String(body.lengthCm)) : null;
-    if (body.widthCm !== undefined) dataToUpdate.widthCm = body.widthCm ? parseFloat(String(body.widthCm)) : null;
-    if (body.heightCm !== undefined) dataToUpdate.heightCm = body.heightCm ? parseFloat(String(body.heightCm)) : null;
-    if (body.weightKg !== undefined) dataToUpdate.weightKg = body.weightKg ? parseFloat(String(body.weightKg)) : null;
-    if (body.remainderQty !== undefined) dataToUpdate.remainderQty = body.remainderQty ? parseInt(String(body.remainderQty), 10) : null;
-    if (body.remainderLengthCm !== undefined) dataToUpdate.remainderLengthCm = body.remainderLengthCm ? parseFloat(String(body.remainderLengthCm)) : null;
-    if (body.remainderWidthCm !== undefined) dataToUpdate.remainderWidthCm = body.remainderWidthCm ? parseFloat(String(body.remainderWidthCm)) : null;
-    if (body.remainderHeightCm !== undefined) dataToUpdate.remainderHeightCm = body.remainderHeightCm ? parseFloat(String(body.remainderHeightCm)) : null;
-    if (body.remainderWeightKg !== undefined) dataToUpdate.remainderWeightKg = body.remainderWeightKg ? parseFloat(String(body.remainderWeightKg)) : null;
+    // 0 means "not set" for dimensions (matches the previous truthiness check); weights keep 2 decimals.
+    const asDim = (v: number | null | undefined) => (v ? v : null);
+    if (parsedNumbers.lengthCm !== undefined) dataToUpdate.lengthCm = asDim(parsedNumbers.lengthCm);
+    if (parsedNumbers.widthCm !== undefined) dataToUpdate.widthCm = asDim(parsedNumbers.widthCm);
+    if (parsedNumbers.heightCm !== undefined) dataToUpdate.heightCm = asDim(parsedNumbers.heightCm);
+    if (parsedNumbers.weightKg !== undefined) dataToUpdate.weightKg = parsedNumbers.weightKg ? roundTo2(parsedNumbers.weightKg) : null;
+    if (parsedNumbers.remainderQty !== undefined) dataToUpdate.remainderQty = parsedNumbers.remainderQty ? Math.trunc(parsedNumbers.remainderQty) : null;
+    if (parsedNumbers.remainderLengthCm !== undefined) dataToUpdate.remainderLengthCm = asDim(parsedNumbers.remainderLengthCm);
+    if (parsedNumbers.remainderWidthCm !== undefined) dataToUpdate.remainderWidthCm = asDim(parsedNumbers.remainderWidthCm);
+    if (parsedNumbers.remainderHeightCm !== undefined) dataToUpdate.remainderHeightCm = asDim(parsedNumbers.remainderHeightCm);
+    if (parsedNumbers.remainderWeightKg !== undefined) dataToUpdate.remainderWeightKg = parsedNumbers.remainderWeightKg ? roundTo2(parsedNumbers.remainderWeightKg) : null;
     if (body.boxDimensions !== undefined) dataToUpdate.boxDimensions = body.boxDimensions ? String(body.boxDimensions).trim() : null;
 
     // 11. Status & Courier Status Synchronization (PAIRED WITH MAIN CONSIGNMENT APP)
@@ -421,10 +461,29 @@ export async function PATCH(
       }
     }
 
+    // Declared invoice value (entered in the OM WhatsApp booking window); lives in customData.
+    if (parsedNumbers.invoiceValue !== undefined) {
+      const baseCustom = (dataToUpdate.customData ?? (existing.customData as any) ?? {}) as Record<string, any>;
+      const oldVal = baseCustom.invoiceValue ?? null;
+      const newVal = parsedNumbers.invoiceValue === null ? null : roundTo2(parsedNumbers.invoiceValue);
+      const changed = oldVal === null ? newVal !== null : newVal === null || Number(oldVal) !== newVal;
+      if (changed) {
+        const nextCustom = { ...baseCustom };
+        if (newVal === null) delete nextCustom.invoiceValue;
+        else nextCustom.invoiceValue = newVal;
+        dataToUpdate.customData = nextCustom;
+        auditEntries.push({
+          field: "invoiceValue",
+          oldVal: oldVal === null ? "(none)" : String(oldVal),
+          newVal: newVal === null ? "(none)" : newVal.toFixed(2),
+        });
+      }
+    }
+
     const hasPersonalNoteUpdate = body.personalNote !== undefined;
 
     if (Object.keys(dataToUpdate).length === 0 && !hasPersonalNoteUpdate) {
-      return NextResponse.json({ order: existing, message: "No changes detected" });
+      return NextResponse.json({ order: toClientOrder(existing), message: "No changes detected" });
     }
 
     if (Object.keys(dataToUpdate).length > 0) {
@@ -531,7 +590,7 @@ export async function PATCH(
       }
 
       return {
-        ...updated,
+        ...toClientOrder(updated),
         boxDimensionGroups: extractBoxDimensionGroups(updated),
         personalNote: activePersonalNote?.note || null,
         personalNoteUpdatedAt: activePersonalNote?.updatedAt

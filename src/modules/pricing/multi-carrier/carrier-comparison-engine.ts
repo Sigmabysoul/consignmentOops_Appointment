@@ -94,6 +94,16 @@ export const DEFAULT_CARRIER_PRESETS: CarrierRatePreset[] = [
   },
 ];
 
+/** One row of the itemised cost breakdown shown in the Booking Desk rate dropdown. */
+export interface CarrierChargeLine {
+  key: "freight" | "fuel" | "cn" | "oda" | "appointment" | "rov";
+  label: string;
+  /** How the amount was worked out, or why the charge is not applied. */
+  basis: string;
+  amount: number;
+  applied: boolean;
+}
+
 export interface CarrierComparisonItem {
   id: string;
   name: string;
@@ -115,6 +125,13 @@ export interface CarrierComparisonItem {
     subtotal: number;
     gst: number;
   };
+  /** Every charge this carrier levies, applied or not, in invoice order. */
+  chargeLines: CarrierChargeLine[];
+  gstPercent: number;
+  /** Weight the freight is billed on (carrier minimums can raise it above the actual weight). */
+  chargeableWeightKg: number;
+  /** OM Logistics zone, when known. */
+  zone?: string;
   estimatedTransitDays: string;
   isLowestCost: boolean;
   isFastest: boolean;
@@ -132,6 +149,84 @@ export interface MultiCarrierComparisonResponse {
   lowestCostCarrierName: string | null;
   lowestCostAmount: number | null;
   omSurfaceTotal: number | null;
+}
+
+const inr = (n: number) =>
+  `₹${Number(n.toFixed(2)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/**
+ * Itemised OM Logistics charges: the applied line items from the rate card,
+ * plus the charges OM offers that this shipment does not attract.
+ */
+export function buildOmChargeLines(est: OmDeliveryResult, input: OmDeliveryInput): CarrierChargeLine[] {
+  if (!est.success) return [];
+  const applied = new Map(est.lineItems.map((l) => [l.key, l]));
+  const isHeavy = est.lineItems.some((l) => l.key === "freight" && /heavy/i.test(l.label));
+  const line = (
+    key: CarrierChargeLine["key"],
+    label: string,
+    notAppliedBasis: string
+  ): CarrierChargeLine => {
+    const hit = applied.get(key);
+    return hit
+      ? { key, label: hit.label, basis: hit.note, amount: Number(hit.amount.toFixed(2)), applied: true }
+      : { key, label, basis: notAppliedBasis, amount: 0, applied: false };
+  };
+  return [
+    line("freight", "Surface Freight", "—"),
+    line("fuel", "DPH / Fuel Surcharge", isHeavy ? "Included in heavy-slab rate (above 250 kg)" : "Not charged in this zone"),
+    line("cn", "Consignment Note (CN)", isHeavy ? "Included in heavy-slab rate (above 250 kg)" : "Not charged in this zone"),
+    line("oda", "ODA Delivery Surcharge", "Only when the drop is more than 40 km outside the delivery area"),
+    line("appointment", "Appointment Delivery", input.appointmentDelivery ? "—" : "Appointment delivery not selected"),
+    line("rov", "ROV (Risk of Value)", "No ROV cover selected"),
+  ];
+}
+
+/** Itemised charges for a fixed rate-card partner (Delhivery One, Ekart, Amazon ATS). */
+export function buildPresetChargeLines(
+  preset: CarrierRatePreset,
+  input: OmDeliveryInput,
+  amounts: { chargeableW: number; freight: number; fuel: number; docket: number; appt: number; oda: number; rov: number }
+): CarrierChargeLine[] {
+  const { chargeableW, freight, fuel, docket, appt, oda, rov } = amounts;
+  const rawFreight = Number((chargeableW * preset.baseRatePerKg).toFixed(2));
+  const freightBasis =
+    freight > rawFreight
+      ? `Minimum freight ${inr(preset.minFreightAmount)} (₹${preset.baseRatePerKg.toFixed(2)}/kg × ${chargeableW.toFixed(2)} kg = ${inr(rawFreight)})`
+      : `₹${preset.baseRatePerKg.toFixed(2)}/kg × ${chargeableW.toFixed(2)} kg` +
+        (chargeableW > Number(input.weightKg.toFixed(2)) ? ` (minimum ${preset.minChargeableWeightKg} kg billed)` : "");
+  const inv = input.invoiceValue || 0;
+  return [
+    { key: "freight", label: "Surface Freight", basis: freightBasis, amount: freight, applied: true },
+    { key: "fuel", label: "Fuel Surcharge", basis: `${preset.fuelSurchargePercent}% of freight`, amount: fuel, applied: fuel > 0 },
+    { key: "cn", label: "Docket Charge", basis: "Fixed, per docket", amount: docket, applied: docket > 0 },
+    {
+      key: "oda",
+      label: "ODA Delivery Surcharge",
+      basis: oda > 0 ? `₹8.50/km × ${input.odaDistanceKm} km (estimate)` : "Only when the drop is more than 40 km outside the delivery area",
+      amount: oda,
+      applied: oda > 0,
+    },
+    {
+      key: "appointment",
+      label: "Appointment Delivery",
+      basis: appt > 0 ? "Fixed fee per appointment" : "Appointment delivery not selected",
+      amount: appt,
+      applied: appt > 0,
+    },
+    {
+      key: "rov",
+      label: "ROV (Risk of Value)",
+      basis:
+        input.rovCover === "shipper"
+          ? `0.3% of ${inr(inv)} (min ₹100)`
+          : input.rovCover === "carrier"
+          ? `0.8% of ${inr(inv)} (min ₹300)`
+          : "No ROV cover selected",
+      amount: rov,
+      applied: rov > 0,
+    },
+  ];
 }
 
 /**
@@ -190,6 +285,10 @@ export function compareShippingCarriers(
           subtotal: Number(omSurfaceRes.subtotal.toFixed(2)),
           gst: Number(omSurfaceRes.gstAmount.toFixed(2)),
         },
+        chargeLines: buildOmChargeLines(omSurfaceRes, input),
+        gstPercent: omSurfaceRes.gstPercent,
+        chargeableWeightKg: Number(omSurfaceRes.weightKg.toFixed(2)),
+        zone: omSurfaceRes.zone,
         estimatedTransitDays: isSpecialOrNE ? "12–14 Days" : "8–9 Days",
         isLowestCost: false,
         isFastest: false,
@@ -219,6 +318,9 @@ export function compareShippingCarriers(
           subtotal: 0,
           gst: 0,
         },
+        chargeLines: [],
+        gstPercent: 18,
+        chargeableWeightKg: W,
         estimatedTransitDays: "8–9 Days",
         isLowestCost: false,
         isFastest: false,
@@ -255,6 +357,9 @@ export function compareShippingCarriers(
         subtotal: 0,
         gstAmount: 0,
         breakdown: zero,
+        chargeLines: [],
+        gstPercent: preset.gstPercent,
+        chargeableWeightKg: W,
         estimatedTransitDays: preset.estimatedTransitDays,
         isLowestCost: false,
         isFastest: false,
@@ -308,6 +413,9 @@ export function compareShippingCarriers(
         subtotal,
         gst,
       },
+      chargeLines: buildPresetChargeLines(preset, input, { chargeableW, freight, fuel, docket, appt, oda, rov }),
+      gstPercent: preset.gstPercent,
+      chargeableWeightKg: Number(chargeableW.toFixed(2)),
       estimatedTransitDays: preset.estimatedTransitDays,
       isLowestCost: false,
       isFastest: false,

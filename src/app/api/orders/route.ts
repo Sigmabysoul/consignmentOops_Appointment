@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { toClientOrder } from "@/lib/order-redaction";
 import { db } from "@/lib/db";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { getChannelAliases } from "@/lib/channel-aliases";
@@ -577,7 +578,7 @@ export async function GET(req: NextRequest) {
       const effectiveCourier = getEffectiveCourierPartner(order.channel, order.courierPartner);
 
       return {
-        ...order,
+        ...toClientOrder(order),
         courierPartner: effectiveCourier,
         boxDimensionGroups,
         trackingLink: order.trackingLink || null, // No automatic external URL generation

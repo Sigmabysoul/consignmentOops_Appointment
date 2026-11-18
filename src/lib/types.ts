@@ -50,6 +50,9 @@ export interface AppointmentOrder {
   deliveryDate: string | null;
   pickupDate: string | null;
   pickupDone: boolean;
+  docsPrinted?: boolean | null;
+  boxesPacked?: boolean | null;
+  dimensionConfirmed?: boolean | null;
   boxCount: number | null;
   boxDimensions: string | null;
   weightKg: number | null;
