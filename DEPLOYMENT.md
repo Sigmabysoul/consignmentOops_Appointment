@@ -72,6 +72,7 @@ JWT_SECRET=<same value as the consignment app JWT_SECRET>
 
 # Application URL
 APP_URL=https://appointment.averretail.com
+CONSIGNMENT_APP_URL=https://consignmentops.averretail.com   # where drawer-uploaded shipping labels are sent (BoxTrace AWBs)
 PORT=3001
 NODE_ENV=production
 

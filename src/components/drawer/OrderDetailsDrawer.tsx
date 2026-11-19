@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Lock,
   Calculator,
+  FileText,
 } from "lucide-react";
 import { BookingDetailModal } from "@/components/booking/BookingDetailModal";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
@@ -30,6 +31,7 @@ import { APP2_COURIER_MILESTONES, isDeliveredOrder, isOnAppointmentDesk } from "
 
 import { DelhiveryDrawerSection } from "@/components/delhivery/DelhiveryDrawerSection";
 import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
+import { OrderDocumentsSection } from "@/components/drawer/OrderDocumentsSection";
 import { ShiprocketDrawerSection } from "@/components/shiprocket/ShiprocketDrawerSection";
 import { hasPodOnRecord } from "@/lib/pod";
 
@@ -48,7 +50,7 @@ export function OrderDetailsDrawer({
 }: OrderDetailsDrawerProps) {
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<"edit" | "history">("edit");
+  const [activeTab, setActiveTab] = useState<"edit" | "documents" | "history">("edit");
   const [isSaving, setIsSaving] = useState(false);
   const [detailedOrder, setDetailedOrder] = useState<AppointmentOrder | null>(order);
   // Delivered needs a POD: "Mark Delivered" opens the POD form (POST /api/orders/[id]/deliver)
@@ -264,6 +266,18 @@ export function OrderDetailsDrawer({
           >
             <Truck className="w-3.5 h-3.5" />
             <span>Logistics & Appointment Details</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("documents")}
+            className={`py-2.5 px-4 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "documents"
+                ? "border-violet-600 text-violet-700 bg-white"
+                : "border-transparent text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Documents</span>
           </button>
 
           <button
@@ -673,6 +687,8 @@ export function OrderDetailsDrawer({
                 </button>
               </div>
             </form>
+          ) : activeTab === "documents" ? (
+            <OrderDocumentsSection order={current} onMarkDelivered={() => setPodFormOpen(true)} />
           ) : (
             /* SECTION 5: Activity History Timeline */
             <div className="space-y-4">

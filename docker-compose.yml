@@ -15,6 +15,8 @@ services:
       - AUTH_SECRET=${AUTH_SECRET}
       - JWT_SECRET=${JWT_SECRET:-${AUTH_SECRET}}
       - APP_URL=${APP_URL:-https://appo.averretail.com}
+      # Main consignment app: courier shipping labels uploaded in the drawer are sent there (BoxTrace AWBs)
+      - CONSIGNMENT_APP_URL=${CONSIGNMENT_APP_URL:-https://consignmentops.averretail.com}
       # Delhivery One B2B API (live quote + booking). Values are set in Coolify; listed here so they reach the container.
       - DELHIVERY_ENV=${DELHIVERY_ENV:-test}
       - DELHIVERY_USERNAME=${DELHIVERY_USERNAME:-}
