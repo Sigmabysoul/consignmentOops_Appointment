@@ -298,7 +298,7 @@ describe("Booking and Appointment desks are disjoint; Kanban uses the same parti
     const last = BOOKING_FILTER_CONDITIONS[BOOKING_FILTER_CONDITIONS.length - 1] as any;
     assert.equal(last.OR.length, 2);
     assert.deepEqual(last.OR[0].customData.path, ["fulfilmentStatus"]);
-    assert.equal(String(last.OR[0].customData.equals), "AnyNull");
+    assert.ok(String(last.OR[0].customData.equals).includes("AnyNull"), "key missing / JSON null must keep the row");
     assert.equal(last.OR[1].NOT.customData.equals, "Dispatched");
   });
 

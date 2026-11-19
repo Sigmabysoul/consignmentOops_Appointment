@@ -18,7 +18,7 @@ describe("Appointment App 3-Part Redesign — Comprehensive Verification", () =>
         lengthCm: 23,
         widthCm: 40,
         heightCm: 25,
-        weightKg: 12.5,
+        weightKg: 12,
         dimensionUnit: "cm",
         weightUnit: "kg",
       };
@@ -29,17 +29,18 @@ describe("Appointment App 3-Part Redesign — Comprehensive Verification", () =>
       assert.strictEqual(groups[0].lengthCm, 23);
       assert.strictEqual(groups[0].widthCm, 40);
       assert.strictEqual(groups[0].heightCm, 25);
-      assert.strictEqual(groups[0].weightKg, 12.5);
+      assert.strictEqual(groups[0].weightKg, 4);
+      assert.strictEqual(groups[0].totalWeightKg, 12);
       assert.strictEqual(groups[0].key, "23x40x25");
     });
 
     it("1.2 Correctly separates standard boxes and remainder boxes with different dimensions", () => {
       const order = {
-        boxCount: 3,
+        boxCount: 4, // Contract: boxCount is total cartons (3 standard + 1 remainder)
         lengthCm: 23,
         widthCm: 40,
         heightCm: 25,
-        weightKg: 15,
+        weightKg: 16,
         remainderQty: 1,
         remainderLengthCm: 15,
         remainderWidthCm: 20,
@@ -66,11 +67,11 @@ describe("Appointment App 3-Part Redesign — Comprehensive Verification", () =>
     it("1.3 Merges standard and remainder boxes when they share identical dimensions", () => {
       // User requirement: 'the dimension should be based on boxes , meaning 3 boxes has dimension 23 x 40x 25 no matter if it rem box or standard , in booking he just need the dimension , of each boxes'
       const order = {
-        boxCount: 3,
+        boxCount: 4, // 3 standard + 1 remainder = 4 total cartons
         lengthCm: 23,
         widthCm: 40,
         heightCm: 25,
-        weightKg: 12,
+        weightKg: 16,
         remainderQty: 1,
         remainderLengthCm: 23,
         remainderWidthCm: 40,
@@ -81,7 +82,8 @@ describe("Appointment App 3-Part Redesign — Comprehensive Verification", () =>
       const groups = extractBoxDimensionGroups(order);
       assert.strictEqual(groups.length, 1, "Must merge boxes with identical dimensions into single group");
       assert.strictEqual(groups[0].boxCount, 4, "3 standard + 1 remainder = 4 total boxes of 23x40x25");
-      assert.strictEqual(groups[0].weightKg, 16);
+      assert.strictEqual(groups[0].weightKg, 4);
+      assert.strictEqual(groups[0].totalWeightKg, 16);
     });
 
     it("1.4 Parses string-based compound dimensions (fallback support)", () => {
