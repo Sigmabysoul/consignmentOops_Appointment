@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { parseUrlViewState, buildUrlViewSearch, isNavigationChange, type UrlViewState } from "@/lib/url-view-state";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { MetricCards } from "@/components/dashboard/MetricCards";
@@ -71,6 +72,22 @@ export default function AppointmentDashboard() {
 
   // Selected Order for Drawer
   const [selectedDrawerOrder, setSelectedDrawerOrder] = useState<AppointmentOrder | null>(null);
+
+  // ── Shareable URL state (?view=&channel=&date=&order=) ──
+  // Read once on mount so a reload keeps the desk, platform, date filter and open drawer, and
+  // a link sent to a colleague opens the same screen.
+  const pendingUrlOrderRef = useRef<string | null>(null);
+  const [urlReady, setUrlReady] = useState(false);
+  const lastUrlStateRef = useRef<UrlViewState | null>(null);
+  const applyingPopStateRef = useRef(false);
+
+  useEffect(() => {
+    const s = parseUrlViewState(window.location.search);
+    if (s.view) setActiveView(s.view);
+    if (s.channel) setSelectedChannel(s.channel);
+    if (s.date) setQuickDate(s.date);
+    pendingUrlOrderRef.current = s.order ?? null;
+  }, []);
 
   // Shipping Rate Presets Modal State
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false);
@@ -148,6 +165,56 @@ export default function AppointmentDashboard() {
       .catch(() => router.push("/login"))
       .finally(() => setIsAuthLoading(false));
   }, [router]);
+
+  // Open the linked order's drawer once signed in (hidden / unknown orders just stay closed)
+  useEffect(() => {
+    if (!currentUser || urlReady) return;
+    const orderId = pendingUrlOrderRef.current;
+    pendingUrlOrderRef.current = null;
+    if (!orderId) {
+      setUrlReady(true);
+      return;
+    }
+    fetch(`/api/orders/${encodeURIComponent(orderId)}`)
+      .then(async (res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.order) setSelectedDrawerOrder(data.order);
+      })
+      .catch(() => {})
+      .finally(() => setUrlReady(true));
+  }, [currentUser, urlReady]);
+
+  // Mirror the screen into the address bar: desk / platform changes add a history entry,
+  // date filter and drawer changes only replace the current one.
+  const drawerOrderId = selectedDrawerOrder?.id;
+  useEffect(() => {
+    if (!urlReady) return;
+    const next: UrlViewState = { view: activeView, channel: selectedChannel, date: quickDate as any, order: drawerOrderId };
+    const search = buildUrlViewSearch(next, window.location.search);
+    const prev = lastUrlStateRef.current;
+    const fromPopState = applyingPopStateRef.current;
+    applyingPopStateRef.current = false;
+    lastUrlStateRef.current = next;
+    if (search === window.location.search) return;
+    const url = `${window.location.pathname}${search}${window.location.hash}`;
+    if (prev && !fromPopState && isNavigationChange(prev, next)) window.history.pushState(null, "", url);
+    else window.history.replaceState(null, "", url);
+  }, [urlReady, activeView, selectedChannel, quickDate, drawerOrderId]);
+
+  // Browser Back / Forward restores the desk, platform and date filter (and closes a stale drawer)
+  useEffect(() => {
+    const onPopState = () => {
+      const s = parseUrlViewState(window.location.search);
+      applyingPopStateRef.current = true;
+      setActiveView(s.view ?? "booking");
+      setPage(1);
+      setSelectedChannel(s.channel ?? "ALL");
+      setQuickDate(s.date ?? "all");
+      setSelectedDrawerOrder((cur) => (cur && cur.id === s.order ? cur : null));
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // 2. Fetch Courier Presets
   useEffect(() => {
