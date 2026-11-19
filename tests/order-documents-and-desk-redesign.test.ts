@@ -1,6 +1,6 @@
 /**
  * Order documents (tax invoice / courier shipping label / POD) in the drawer, and the redesigned
- * compare-rates sheet and desk cards (pure, no DB).
+ * compare-rates sheet (pure, no DB).
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -55,9 +55,9 @@ describe("Redesigned booking UI", () => {
     assert.ok(sheet.includes("chargeKeys.map((key)") && sheet.includes("carriers.map((c)"));
     assert.ok(sheet.includes("Total payable") && sheet.includes("Assign carrier"));
   });
-  it("booking and appointment desks render one card per order", () => {
-    assert.ok(read("src/components/booking/BookingView.tsx").includes("<article"));
-    assert.ok(read("src/components/appointment/AppointmentView.tsx").includes("<article"));
+  it("booking and appointment desks stay sheets (the card layout was rolled back by request)", () => {
+    assert.ok(read("src/components/booking/BookingView.tsx").includes("<table"));
+    assert.ok(read("src/components/appointment/AppointmentView.tsx").includes("<table"));
   });
   it("the drawer has a Documents tab", () => {
     const drawer = read("src/components/drawer/OrderDetailsDrawer.tsx");
