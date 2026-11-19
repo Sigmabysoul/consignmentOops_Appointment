@@ -4,8 +4,17 @@
  * - cancelOtp: the admin-issued single-use cancellation code.
  * - shippingLabelBarcodes: the expected courier AWBs that BoxTrace dispatch scans are checked
  *   against (operators must physically scan the label, so they must not be able to read them).
+ * - ekartDocket / omFirstLabel / omLastLabel / handoverLabelIds: the seeds the box labels are
+ *   generated from (Ekart = docket + 0001..), i.e. the same AWBs in another form.
  */
-export const SERVER_ONLY_CUSTOM_DATA_KEYS = ["cancelOtp", "shippingLabelBarcodes"] as const;
+export const SERVER_ONLY_CUSTOM_DATA_KEYS = [
+  "cancelOtp",
+  "shippingLabelBarcodes",
+  "ekartDocket",
+  "omFirstLabel",
+  "omLastLabel",
+  "handoverLabelIds",
+] as const;
 
 /** Returns a copy of customData without server-only secrets (never mutates the input). */
 export function redactCustomData(customData: unknown): Record<string, any> | null {
