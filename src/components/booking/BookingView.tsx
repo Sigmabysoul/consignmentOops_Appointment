@@ -1,6 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/ui/DateInput";
+import { getOrderTone } from "@/lib/order-tone";
 import React, { useState } from "react";
 import {
   AppointmentOrder,
@@ -220,8 +221,8 @@ export function BookingView({
                       className="hover:bg-slate-50 transition-colors group text-slate-800 cursor-pointer"
                       title="Click anywhere on row to view order details & compare carrier rates"
                     >
-                      {/* Column 1: RO / PO & Platform */}
-                      <td className="py-3 px-3.5 align-top border-r border-slate-200">
+                      {/* Column 1: RO / PO & Platform — stage colour edge */}
+                      <td className="py-3 px-3.5 align-top border-r border-slate-200" style={{ boxShadow: `inset 4px 0 0 ${getOrderTone(order as any).tone.accent}` }}>
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <button

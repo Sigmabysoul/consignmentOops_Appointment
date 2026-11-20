@@ -13,28 +13,28 @@ export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
   let label = status || "Pending";
 
   if (s.includes("delivered") || s === "completed") {
-    badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-    dotClass = "bg-emerald-500";
+    badgeClass = "bg-green-100 text-green-800 border-green-300 dark:bg-green-950/70 dark:text-green-300 dark:border-green-800";
+    dotClass = "bg-green-600";
     label = "Delivered";
   } else if (s.includes("transit") || s === "dispatched" || s === "shipped") {
-    badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
-    dotClass = "bg-indigo-500";
+    badgeClass = "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/70 dark:text-violet-300 dark:border-violet-800";
+    dotClass = "bg-violet-500";
     label = "In Transit";
   } else if (s.includes("appointment") || s.includes("scheduled")) {
-    badgeClass = "bg-violet-50 text-violet-700 border-violet-200";
-    dotClass = "bg-violet-500";
+    badgeClass = "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/70 dark:text-sky-300 dark:border-sky-800";
+    dotClass = "bg-sky-500";
     label = "Appointment Scheduled";
   } else if (s.includes("tracking") || s === "tracking assigned") {
     badgeClass = "bg-amber-50 text-amber-800 border-amber-200";
     dotClass = "bg-amber-500";
     label = "Tracking Assigned";
   } else if (s.includes("grn") || s.includes("issue") || s.includes("error")) {
-    badgeClass = "bg-rose-50 text-rose-700 border-rose-200";
-    dotClass = "bg-rose-500";
+    badgeClass = "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/70 dark:text-orange-300 dark:border-orange-800";
+    dotClass = "bg-orange-500";
     label = "GRN Issue";
   } else if (s.includes("cancel")) {
-    badgeClass = "bg-zinc-100 text-zinc-600 border-zinc-200 line-through";
-    dotClass = "bg-zinc-400";
+    badgeClass = "bg-gray-100 text-gray-600 border-gray-200 line-through dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700";
+    dotClass = "bg-gray-400";
     label = "Cancelled";
   }
 

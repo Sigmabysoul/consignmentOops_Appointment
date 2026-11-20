@@ -11,21 +11,29 @@ import {
 } from "@/lib/consignment-statuses";
 
 const TONE_CLASS: Record<StatusTone, string> = {
-  green: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  amber: "bg-amber-50 text-amber-800 border-amber-200",
-  blue: "bg-sky-50 text-sky-800 border-sky-200",
-  red: "bg-rose-50 text-rose-800 border-rose-200",
-  violet: "bg-violet-50 text-violet-800 border-violet-200",
   slate: "bg-slate-100 text-slate-700 border-slate-200",
+  red: "bg-rose-50 text-rose-800 border-rose-200",
+  amber: "bg-amber-50 text-amber-900 border-amber-300",
+  yellow: "bg-yellow-50 text-yellow-900 border-yellow-300",
+  lime: "bg-lime-50 text-lime-900 border-lime-300",
+  green: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  deepgreen: "bg-green-100 text-green-900 border-green-300",
+  purple: "bg-violet-50 text-violet-800 border-violet-200",
+  orange: "bg-orange-50 text-orange-800 border-orange-300",
+  grey: "bg-gray-100 text-gray-600 border-gray-200 line-through",
 };
 
 const DOT_CLASS: Record<StatusTone, string> = {
-  green: "bg-emerald-500",
-  amber: "bg-amber-500",
-  blue: "bg-sky-500",
-  red: "bg-rose-500",
-  violet: "bg-violet-500",
   slate: "bg-slate-400",
+  red: "bg-rose-500",
+  amber: "bg-amber-500",
+  yellow: "bg-yellow-500",
+  lime: "bg-lime-500",
+  green: "bg-emerald-500",
+  deepgreen: "bg-green-600",
+  purple: "bg-violet-500",
+  orange: "bg-orange-500",
+  grey: "bg-gray-400",
 };
 
 function Row({ label, view }: { label: string; view: ConsignmentStatusView }) {

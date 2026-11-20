@@ -1,6 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/ui/DateInput";
+import { getOrderTone } from "@/lib/order-tone";
 import React, { useState } from "react";
 import {
   ExternalLink,
@@ -681,8 +682,8 @@ export function OrdersTable({
                     key={order.id}
                     className="hover:bg-violet-50/30 transition-colors group text-slate-800"
                   >
-                    {/* RO / PO Number */}
-                    <td className="py-2.5 px-3 whitespace-nowrap">
+                    {/* RO / PO Number — left edge in the order's stage colour (lib/order-tone.ts) */}
+                    <td className="py-2.5 px-3 whitespace-nowrap" style={{ boxShadow: `inset 4px 0 0 ${getOrderTone(order as any).tone.accent}` }}>
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => onOpenOrderDrawer(order)}

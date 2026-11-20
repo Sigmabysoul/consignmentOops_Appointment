@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { getOrderTone } from "@/lib/order-tone";
 import { AppointmentOrder } from "@/lib/types";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -262,7 +263,8 @@ export function KanbanView({
                     return (
                       <div
                         key={order.id}
-                        className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs hover:shadow-md transition-all space-y-2.5 group relative"
+                        className="bg-white rounded-xl border border-slate-200 border-l-4 p-3 shadow-2xs hover:shadow-md transition-all space-y-2.5 group relative"
+                        style={{ borderLeftColor: getOrderTone(order as any).tone.accent }}
                       >
                         {/* Row 1: Platform & RO/PO */}
                         <div className="flex items-start justify-between gap-2">
