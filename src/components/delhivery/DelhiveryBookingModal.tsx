@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { channelsMatch } from "@/lib/channel-aliases";
 import { AlertCircle, FileUp, Plus, Trash2, Truck, X } from "lucide-react";
 import type { AppointmentOrder } from "@/lib/types";
 import type { DelhiveryServerStatus, DelhiveryShipmentRecord } from "@/lib/delhivery-types";
@@ -57,6 +58,7 @@ export function DelhiveryBookingModal({
   onOrderUpdated,
 }: Props) {
   const { showToast } = useToast();
+  const canOverrideHere = Boolean(status?.overrideChannels?.some((c) => channelsMatch(c, order.channel)));
   const [record, setRecord] = useState<DelhiveryShipmentRecord>(() => readDelhiveryRecord(order));
 
   const address = orderAddress(order);
@@ -273,7 +275,7 @@ export function DelhiveryBookingModal({
                 <b className="font-mono">{order.roPoNumber}</b> in the Delhivery One panel before booking again. Booking twice means two LRs
                 and two bills.
               </p>
-              {status?.isAdmin ? (
+              {canOverrideHere ? (
                 <p className="text-[11px]">As an admin you can resubmit below once you have checked.</p>
               ) : (
                 <p className="text-[11px]">Only an admin can resubmit.</p>
@@ -499,7 +501,7 @@ export function DelhiveryBookingModal({
             {showForm && (
               <button
                 type="button"
-                disabled={submitting || bookingBlocked || (state === "unknown_outcome" && !status?.isAdmin)}
+                disabled={submitting || bookingBlocked || (state === "unknown_outcome" && !canOverrideHere)}
                 onClick={() => submit(state === "unknown_outcome")}
                 className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
               >

@@ -12,8 +12,9 @@ model User {
   username     String              @unique
   name         String
   passwordHash String
-  role         Role                @default(STAFF)
   department   String?
+  /// Global (non-platform) permission keys. See src/config/permissions.catalog.ts.
+  globalPermissions String[]        @default([])
   isActive     Boolean             @default(true)
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
@@ -26,13 +27,10 @@ model ChannelPermission {
   id                    String   @id @default(uuid())
   userId                String
   channel               String
-  canView               Boolean  @default(true)
-  canCreate             Boolean  @default(false)
-  canEdit               Boolean  @default(false)
-  canDelete             Boolean  @default(false)
+  /// Channel action keys allowed on this platform's orders. See src/config/permissions.catalog.ts.
+  actions               String[] @default([])
+  /// When `order.edit` is granted: the general fields it is limited to (empty = all general fields).
   allowedFields         String[] @default([])
-  canChangeStatus       Boolean? @default(false)
-  canManageIntegrations Boolean? @default(false)
   user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   Platform              Platform @relation(fields: [channel], references: [code], onDelete: Cascade, map: "fk_perm_platform")
 
@@ -543,27 +541,15 @@ model OrderDocument {
   @@index([docType])
 }
 
-model RolePreset {
-  id                 String   @id @default(uuid())
-  name               String   @unique
-  description        String?
-  department         String?
-  baseRole           Role     @default(STAFF)
-  capabilities       Json     @default("{}")
-  channelPermissions Json     @default("[]")
-  isSystem           Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  @@index([name])
-}
-
-enum Role {
-  ADMIN
-  MANAGER
-  STAFF
-  TL
-  BOX_PACKER
+model PermissionTemplate {
+  id                String   @id @default(uuid())
+  name              String   @unique
+  description       String?
+  globalPermissions String[] @default([])
+  channelActions    String[] @default([])
+  allowedFields     String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
 
 model AppointmentNote {

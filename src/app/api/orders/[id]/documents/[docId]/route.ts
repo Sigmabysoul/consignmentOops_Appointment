@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canSeeOrder } from "@/lib/permissions";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isVisibleInAppointmentApp } from "@/lib/order-filters";
@@ -23,9 +24,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id, docId } = await params;
   const order = await db.consignmentOrder.findUnique({
     where: { id },
-    select: { status: true, courierStatus: true, isDeleted: true, isArchived: true, customData: true },
+    select: { status: true, courierStatus: true, isDeleted: true, isArchived: true, customData: true, channel: true },
   });
-  if (!order || !isVisibleInAppointmentApp(order)) return new NextResponse("Not Found", { status: 404 });
+  if (!order || !isVisibleInAppointmentApp(order) || !canSeeOrder(user, order.channel)) return new NextResponse("Not Found", { status: 404 });
 
   const doc = await db.orderDocument.findUnique({
     where: { id: docId },

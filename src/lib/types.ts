@@ -1,12 +1,13 @@
-export type Role = "ADMIN" | "MANAGER" | "STAFF" | "TL";
 
 export interface SessionUser {
   id: string;
   username: string;
   name: string;
-  role: Role;
   department: string | null;
+  /** True when the user holds "Logistics app desks" on at least one platform. */
   isLogisticsAuthorized: boolean;
+  globalPermissions: string[];
+  permissions: { channel: string; actions: string[] }[];
 }
 
 export type ShipmentStatus =

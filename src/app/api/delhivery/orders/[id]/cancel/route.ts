@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canOverride } from "@/lib/permissions";
 import { cancelLr } from "@/modules/delhivery";
 import {
   DELHIVERY_COURIER_NAME,
@@ -22,10 +23,10 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ctx = await loadDelhiveryOrder(req, id);
+  const ctx = await loadDelhiveryOrder(req, id, "courier.book");
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
-  if (user.role !== "ADMIN") return NextResponse.json({ error: "Only an admin can cancel a Delhivery LR." }, { status: 403 });
+  if (!canOverride(user, order.channel)) return NextResponse.json({ error: "Cancelling a Delhivery LR needs the 'Override workflow gates' permission on this platform." }, { status: 403 });
   const lr = requireLrn(order);
   if (lr instanceof NextResponse) return lr;
 

@@ -1,3 +1,4 @@
+import { channelsWith } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLogisticsUser } from "@/lib/delhivery-orders";
 import { DelhiveryServerStatus } from "@/lib/delhivery-types";
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
     bookingEnabled: process.env.DELHIVERY_BOOKING_ENABLED === "true",
     warehouseConfigured: Boolean(process.env.DELHIVERY_WAREHOUSE_NAME?.trim()),
     sourcePin: (process.env.DELHIVERY_SOURCE_PIN || "700100").trim(),
-    isAdmin: user.role === "ADMIN",
+    overrideChannels: channelsWith(user, "order.override"),
   };
   return NextResponse.json(status);
 }

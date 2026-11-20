@@ -1,4 +1,5 @@
 import { isVisibleInAppointmentApp } from "@/lib/order-filters";
+import { ACTION_LABEL, can, canSeeOrder, type App2ChannelAction } from "@/lib/permissions";
 /**
  * Server-side glue between Delhivery API calls and ConsignmentOrder rows.
  *
@@ -34,14 +35,21 @@ export function readDelhivery(order: { customData: unknown }): DelhiveryShipment
 /** Auth + order lookup + quarantine/courier-policy checks shared by every order route. */
 export async function loadDelhiveryOrder(
   req: Request,
-  id: string
+  id: string,
+  /** Extra permission the route needs on the order's platform (booking routes: "courier.book"). */
+  action: App2ChannelAction = "logistics.desk"
 ): Promise<{ user: SessionUser; order: OrderRow } | NextResponse> {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!user.isLogisticsAuthorized) return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
 
   const order = await db.consignmentOrder.findUnique({ where: { id } });
-  if (!order || !isVisibleInAppointmentApp(order)) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (!order || !isVisibleInAppointmentApp(order) || !canSeeOrder(user, order.channel)) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+  if (!can(user, order.channel, action)) {
+    return NextResponse.json({ error: `Forbidden: needs the '${ACTION_LABEL[action]}' permission on ${order.channel}` }, { status: 403 });
+  }
   if (!getAllowedCouriersForChannel(order.channel).includes(DELHIVERY_COURIER_NAME)) {
     return NextResponse.json(
       { error: `Delhivery is not an allowed courier for ${order.channel} orders.` },
@@ -97,7 +105,7 @@ export async function auditDelhivery(
         orderId: order.id,
         userId: user.id,
         userName: user.name || user.username,
-        userRole: user.role,
+        userRole: null,
         action: `DELHIVERY_${action}`,
         orderNumber: order.roPoNumber,
         platformCode: order.channel,

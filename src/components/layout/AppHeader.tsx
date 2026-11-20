@@ -139,12 +139,10 @@ export function AppHeader({
     }
   };
 
-  const roleDisplay =
-    user.role === "ADMIN"
-      ? "System Administrator"
-      : user.username.toLowerCase() === "iqbal" || user.name.toLowerCase().includes("iqbal")
-      ? "Logistics Manager (Iqbal)"
-      : "Logistics Manager";
+  const deskCount = (user.permissions || []).filter((p) => p.actions.includes("logistics.desk")).length;
+  const roleDisplay = user.department
+    ? `${user.department} · ${deskCount === 1 ? "1 platform" : `${deskCount} platforms`}`
+    : deskCount === 1 ? "1 platform" : `${deskCount} platforms`;
 
   const userInitials = (user.name || user.username || "U")
     .substring(0, 2)

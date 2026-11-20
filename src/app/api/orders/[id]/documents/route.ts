@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canSeeOrder, type PermissionHolder } from "@/lib/permissions";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isVisibleInAppointmentApp } from "@/lib/order-filters";
@@ -15,7 +16,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-async function loadVisibleOrder(id: string) {
+async function loadVisibleOrder(id: string, user: PermissionHolder) {
   const order = await db.consignmentOrder.findUnique({
     where: { id },
     select: {
@@ -29,7 +30,7 @@ async function loadVisibleOrder(id: string) {
       customData: true,
     },
   });
-  return order && isVisibleInAppointmentApp(order) ? order : null;
+  return order && isVisibleInAppointmentApp(order) && canSeeOrder(user, order.channel) ? order : null;
 }
 
 function toView(orderId: string, doc: { id: string; docType: string; fileName: string; fileUrl: string; fileSize: number | null; createdAt: Date; uploadedByName: string | null; blob: { documentId: string } | null }): OrderDocumentView | null {
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!user.isLogisticsAuthorized) return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
 
     const { id } = await params;
-    const order = await loadVisibleOrder(id);
+    const order = await loadVisibleOrder(id, user);
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
     const docTypes = DOCUMENT_SLOTS.flatMap((s) => s.docTypes);
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!user.isLogisticsAuthorized) return NextResponse.json({ error: "Forbidden: Access restricted" }, { status: 403 });
 
     const { id } = await params;
-    const order = await loadVisibleOrder(id);
+    const order = await loadVisibleOrder(id, user);
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
     const form = await req.formData();
@@ -155,7 +156,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             orderId: id,
             userId: user.id,
             userName: actor,
-            userRole: user.role,
+            userRole: null,
             action: "UPDATE",
             fieldChanged: "taxInvoice",
             oldValue: "(none)",

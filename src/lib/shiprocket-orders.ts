@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { getSessionUser } from "@/lib/auth";
 import { getAllowedCouriersForChannel } from "@/lib/courier-defaults";
 import { isVisibleInAppointmentApp } from "@/lib/order-filters";
+import { ACTION_LABEL, can, canSeeOrder, type App2ChannelAction } from "@/lib/permissions";
 import { SessionUser } from "@/lib/types";
 import {
   ShiprocketConfigError,
@@ -32,11 +33,21 @@ export async function requireLogisticsUser(req: Request): Promise<SessionUser | 
 }
 
 /** Auth + order lookup + visibility + courier-policy checks shared by every order route. */
-export async function loadShiprocketOrder(req: Request, id: string): Promise<{ user: SessionUser; order: OrderRow } | NextResponse> {
+export async function loadShiprocketOrder(
+  req: Request,
+  id: string,
+  /** Extra permission the route needs on the order's platform (booking routes: "courier.book"). */
+  action: App2ChannelAction = "logistics.desk"
+): Promise<{ user: SessionUser; order: OrderRow } | NextResponse> {
   const user = await requireLogisticsUser(req);
   if (user instanceof NextResponse) return user;
   const order = await db.consignmentOrder.findUnique({ where: { id } });
-  if (!order || !isVisibleInAppointmentApp(order)) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (!order || !isVisibleInAppointmentApp(order) || !canSeeOrder(user, order.channel)) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+  if (!can(user, order.channel, action)) {
+    return NextResponse.json({ error: `Forbidden: needs the '${ACTION_LABEL[action]}' permission on ${order.channel}` }, { status: 403 });
+  }
   if (!getAllowedCouriersForChannel(order.channel).includes(SHIPROCKET_COURIER_NAME)) {
     return NextResponse.json({ error: `Shiprocket Cargo is not an allowed courier for ${order.channel} orders.` }, { status: 422 });
   }
@@ -76,7 +87,7 @@ export async function auditShiprocket(user: SessionUser, order: OrderRow, action
         orderId: order.id,
         userId: user.id,
         userName: user.name || user.username,
-        userRole: user.role,
+        userRole: null,
         action: `SHIPROCKET_${action}`,
         orderNumber: order.roPoNumber,
         platformCode: order.channel,

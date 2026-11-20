@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { channelScopeWhere } from "@/lib/permissions";
 import { getSessionUser } from "@/lib/auth";
 import { toClientOrder } from "@/lib/order-redaction";
 import { db } from "@/lib/db";
@@ -57,7 +58,8 @@ export async function GET(req: NextRequest) {
 
     // Drafts, New, cancelled and archived orders never reach the Appointment app
     const whereConditions: any = {
-      AND: [...APPOINTMENT_APP_VISIBILITY] as any[],
+      // ...and only for the platforms where the user holds "Logistics app desks".
+      AND: [...APPOINTMENT_APP_VISIBILITY, channelScopeWhere(user)] as any[],
     };
 
     const quickWindows = getIstQuickDateWindows();

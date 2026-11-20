@@ -141,5 +141,6 @@ export interface ShiprocketServerStatus {
   bookingEnabled: boolean;
   sender: { pincode: string; city: string; state: string; warehouseName: string };
   missingSenderFields: string[];
-  isAdmin: boolean;
+  /** Platforms where the user holds "Override workflow gates" (may retry an unknown-outcome booking). */
+  overrideChannels: string[];
 }

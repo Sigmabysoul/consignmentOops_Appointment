@@ -1,3 +1,4 @@
+import { canBookCourier, canMarkDelivered, canSeeOrder, channelScopeWhere } from "../src/lib/permissions";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -223,32 +224,29 @@ describe("Appointment App 3-Part Redesign — Comprehensive Verification", () =>
     });
   });
 
-  // ── RBAC AUTHENTICATION ────────────────────────────────────────────────────
-  describe("RBAC Permissions Verification", () => {
-    it("Authorizes Admin and Logistics Managers (Iqbal & Dispatch)", () => {
-      assert.strictEqual(isAllowedAppointmentUser({ role: "ADMIN", username: "admin" }), true);
-      assert.strictEqual(isAllowedAppointmentUser({ role: "MANAGER", username: "iqbal" }), true);
-      assert.strictEqual(
-        isAllowedAppointmentUser({
-          role: "STAFF",
-          username: "dispatch",
-          department: "Dispatch",
-        }),
-        true
-      );
-      assert.strictEqual(
-        isAllowedAppointmentUser({
-          role: "STAFF",
-          username: "dispatcher-user-01",
-          name: "Logistics Dispatcher",
-          department: "Dispatch",
-        }),
-        true
-      );
-      assert.strictEqual(
-        isAllowedAppointmentUser({ role: "STAFF", username: "printing", department: "Printing" }),
-        false
-      );
+  // ── PERMISSIONS ────────────────────────────────────────────────────────────
+  describe("App 2 access is a permission (no roles, departments or username lists)", () => {
+    const row = (channel: string, actions: string[]) => ({ channel, actions });
+    it("needs 'Logistics app desks' (with View) on at least one platform", () => {
+      assert.strictEqual(isAllowedAppointmentUser({ permissions: [row("SWIGGY", ["order.view", "logistics.desk"])] }), true);
+      assert.strictEqual(isAllowedAppointmentUser({ permissions: [row("SWIGGY", ["logistics.desk"])] }), false);
+      assert.strictEqual(isAllowedAppointmentUser({ permissions: [row("SWIGGY", ["order.view", "print.documents"])] }), false);
+      assert.strictEqual(isAllowedAppointmentUser({ permissions: [] }), false);
+    });
+    it("every action is checked on the order's own platform", () => {
+      const u = { permissions: [row("SWIGGY", ["order.view", "logistics.desk", "courier.book"]), row("BLINKIT_STO", ["order.view", "logistics.desk"])] };
+      assert.strictEqual(canBookCourier(u, "SWIGGY"), true);
+      assert.strictEqual(canBookCourier(u, "BLINKIT_STO"), false);
+      assert.strictEqual(canSeeOrder(u, "AMAZON_VC"), false);
+      assert.strictEqual(canSeeOrder(u, "ALL"), false);
+      assert.strictEqual(canMarkDelivered(u, "SWIGGY"), false);
+      // an action without the desk itself grants nothing in App 2
+      assert.strictEqual(canBookCourier({ permissions: [row("SWIGGY", ["order.view", "courier.book"])] }, "SWIGGY"), false);
+    });
+    it("list queries are scoped to the user's desk platforms", () => {
+      const where = channelScopeWhere({ permissions: [row("SWIGGY", ["order.view", "logistics.desk"])] }) as any;
+      assert.ok(where.channel.in.includes("SWIGGY"));
+      assert.ok(!where.channel.in.includes("BLINKIT_STO"));
     });
   });
 });

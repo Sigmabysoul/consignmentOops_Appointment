@@ -23,7 +23,7 @@ describe("Appointment app shows only orders from In Processing onward; GRN / can
   const auth = () => ({ Authorization: `Bearer ${token}` });
 
   before(async () => {
-    const admin = await db.user.findFirst({ where: { role: "ADMIN", isActive: true } });
+    const admin = await db.user.findFirst({ where: { globalPermissions: { has: "users.manage" }, isActive: true } });
     assert(admin);
     token = await createSession(admin.id);
     const rows: [keyof typeof ROS, any][] = [

@@ -62,11 +62,20 @@ describe("Shiprocket Cargo booking flow (simulated API)", () => {
       if (u.startsWith("https://api-cargo.shiprocket.in")) return fakeShiprocket(u, init);
       return realFetch(url, init);
     }) as typeof fetch;
-    const admin = await db.user.findFirst({ where: { role: "ADMIN", isActive: true } });
+    const admin = await db.user.findFirst({ where: { globalPermissions: { has: "users.manage" }, isActive: true } });
     assert(admin);
     token = await createSession(admin.id);
-    const staff = await db.user.findFirst({ where: { role: { not: "ADMIN" }, isActive: true, username: "dispatch" } });
-    staffToken = staff ? await createSession(staff.id) : "";
+    // A logistics user who may book couriers on SWIGGY but does NOT hold "Override workflow gates".
+    const staff = await db.user.upsert({
+      where: { username: "sr-test-desk-user" },
+      update: { isActive: true, globalPermissions: [] },
+      create: { username: "sr-test-desk-user", name: "Shiprocket Desk Tester", passwordHash: "x", isActive: true, globalPermissions: [] },
+    });
+    await db.channelPermission.deleteMany({ where: { userId: staff.id } });
+    await db.channelPermission.create({
+      data: { userId: staff.id, channel: "SWIGGY", actions: ["order.view", "logistics.desk", "courier.book"], allowedFields: [] },
+    });
+    staffToken = await createSession(staff.id);
     orderId = (await db.consignmentOrder.create({ data: { roPoNumber: RO, channel: "SWIGGY", status: "In Progress", docsPrinted: true } })).id;
   });
 
@@ -110,7 +119,7 @@ describe("Shiprocket Cargo booking flow (simulated API)", () => {
     shipmentMode = "ok";
     if (staffToken) {
       const blind = await POST(post(`/api/shiprocket/orders/${orderId}/shipment`, { deliveryPartnerId: 11, modeId: 16, override: true }, staffToken), ctx());
-      assert.equal(blind.status, 409, "non-admin override is ignored");
+      assert.equal(blind.status, 409, "override without 'Override workflow gates' is ignored");
     }
     const plain = await POST(post(`/api/shiprocket/orders/${orderId}/shipment`, { deliveryPartnerId: 11, modeId: 16 }), ctx());
     assert.equal(plain.status, 409);

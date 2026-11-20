@@ -124,7 +124,8 @@ export interface DelhiveryServerStatus {
   warehouseConfigured: boolean;
   sourcePin: string;
   /** Whether the current user may cancel LRs. */
-  isAdmin: boolean;
+  /** Platforms where the user holds "Override workflow gates" (may retry an unknown-outcome booking). */
+  overrideChannels: string[];
 }
 
 export interface DelhiveryEstimateResult {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canSeeOrder, type PermissionHolder } from "@/lib/permissions";
 import { getSessionUser } from "@/lib/auth";
 import {
   getSingleAppointmentNote,
@@ -9,12 +10,12 @@ import { db } from "@/lib/db";
 import { isVisibleInAppointmentApp } from "@/lib/order-filters";
 
 /** Notes exist only for orders this app can see (hidden orders → 404, like every order route). */
-async function isOrderVisible(id: string): Promise<boolean> {
+async function isOrderVisible(id: string, user: PermissionHolder): Promise<boolean> {
   const order = await db.consignmentOrder.findUnique({
     where: { id },
-    select: { status: true, courierStatus: true, isDeleted: true, isArchived: true },
+    select: { status: true, courierStatus: true, isDeleted: true, isArchived: true, channel: true },
   });
-  return isVisibleInAppointmentApp(order);
+  return isVisibleInAppointmentApp(order) && canSeeOrder(user, order!.channel);
 }
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export async function GET(
     }
 
     const { id } = await params;
-    if (!(await isOrderVisible(id))) {
+    if (!(await isOrderVisible(id, user))) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
     const note = await getSingleAppointmentNote(id);
@@ -68,7 +69,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    if (!(await isOrderVisible(id))) {
+    if (!(await isOrderVisible(id, user))) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
     const body = await req.json();
@@ -121,7 +122,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    if (!(await isOrderVisible(id))) {
+    if (!(await isOrderVisible(id, user))) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
     await deleteSingleAppointmentNote(id);

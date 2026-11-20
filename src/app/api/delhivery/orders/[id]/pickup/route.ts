@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canOverride } from "@/lib/permissions";
 import { DelhiveryError, cancelPickupRequest, createPickupRequest, mapPickupId } from "@/modules/delhivery";
 import {
   actorName,
@@ -29,7 +30,7 @@ const NOT_SENT_KINDS = new Set(["invalid_input", "config", "booking_disabled", "
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
-  const ctx = await loadDelhiveryOrder(req, id);
+  const ctx = await loadDelhiveryOrder(req, id, "courier.book");
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
   const lr = requireLrn(order);
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!Number.isInteger(expectedPackageCount) || expectedPackageCount < 1) {
     return NextResponse.json({ error: "Expected package count must be a whole number of at least 1." }, { status: 400 });
   }
-  const override = body.override === true && user.role === "ADMIN";
+  const override = body.override === true && canOverride(user, order.channel);
 
   // ---- claim (row lock) ----
   let refusal: string | null = null;
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 /** DELETE /api/delhivery/orders/:id/pickup */
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
-  const ctx = await loadDelhiveryOrder(req, id);
+  const ctx = await loadDelhiveryOrder(req, id, "courier.book");
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
   const pickup = readDelhivery(order).pickup;

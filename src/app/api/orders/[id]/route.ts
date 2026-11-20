@@ -1,3 +1,4 @@
+import { canSeeOrder } from "@/lib/permissions";
 import {
   isVisibleInAppointmentApp,
   evaluateStatusPatch,
@@ -55,7 +56,7 @@ export async function GET(
       getSingleAppointmentNote(id),
     ]);
 
-    if (!order || !isVisibleInAppointmentApp(order)) {
+    if (!order || !isVisibleInAppointmentApp(order) || !canSeeOrder(user, order.channel)) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
@@ -179,7 +180,7 @@ export async function PATCH(
     const outcome = await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "ConsignmentOrder" WHERE id = ${id} FOR UPDATE`;
       const existing = await tx.consignmentOrder.findUnique({ where: { id } });
-      if (!existing || !isVisibleInAppointmentApp(existing)) {
+      if (!existing || !isVisibleInAppointmentApp(existing) || !canSeeOrder(user, existing.channel)) {
         throw new PatchRefusal(404, { error: "Order not found" });
       }
 
@@ -429,7 +430,7 @@ export async function PATCH(
             toStatus: dataToUpdate.courierStatus,
             userId: user.id,
             userName: user.name || user.username,
-            userRole: user.role,
+            userRole: null,
             department: user.department || "Logistics",
             reason: body.remarks || `Shipment milestone changed to "${dataToUpdate.courierStatus}"`,
             metadata: {
@@ -450,7 +451,7 @@ export async function PATCH(
             orderId: id,
             userId: user.id,
             userName: user.name || user.username,
-            userRole: user.role,
+            userRole: null,
             action: "UPDATE",
             fieldChanged: entry.field,
             oldValue: entry.oldVal,

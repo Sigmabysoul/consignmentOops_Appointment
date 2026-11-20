@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -19,39 +19,55 @@ async function main() {
   // 2. Users — created only when missing; an existing account is never reset
   const admin = await prisma.user.upsert({
     where: { username: "admin" },
-    update: {}, // existing users (shared with the main app) keep their password and role
+    update: {}, // existing users (shared with the main app) keep their password and permissions
     create: {
       username: "admin",
       name: "System Administrator",
       passwordHash: adminHash,
-      role: Role.ADMIN,
       department: "Management",
+      globalPermissions: ["users.manage", "settings.couriers"],
     },
   });
 
   const iqbal = await prisma.user.upsert({
     where: { username: "iqbal" },
-    update: {}, // existing users (shared with the main app) keep their password and role
+    update: {}, // existing users (shared with the main app) keep their password and permissions
     create: {
       username: "iqbal",
       name: "Mohammad Iqbal",
       passwordHash: iqbalHash,
-      role: Role.MANAGER,
       department: "Logistics",
     },
   });
 
   const dispatch = await prisma.user.upsert({
     where: { username: "dispatch" },
-    update: {}, // existing users (shared with the main app) keep their password and role
+    update: {}, // existing users (shared with the main app) keep their password and permissions
     create: {
       username: "dispatch",
       name: "Logistics & Dispatch Desk",
       passwordHash: dispatchHash,
-      role: Role.STAFF,
       department: "Dispatch",
     },
   });
+
+  // Dev grants for NEW accounts only (existing accounts keep whatever Admin → Users gave them).
+  const platforms = await prisma.platform.findMany({ select: { code: true } });
+  const deskActions = ["order.view", "logistics.desk", "courier.book", "delivery.mark", "tracking.manage"];
+  const grants: Array<[string, string[]]> = [
+    [admin.id, [...deskActions, "order.override", "labels.manage"]],
+    [iqbal.id, deskActions],
+    [dispatch.id, deskActions],
+  ];
+  for (const [userId, actions] of grants) {
+    for (const p of platforms) {
+      await prisma.channelPermission.upsert({
+        where: { userId_channel: { userId, channel: p.code } },
+        update: {},
+        create: { userId, channel: p.code, actions, allowedFields: [] },
+      });
+    }
+  }
 
   console.log("👤 Ensured users exist (created if missing): admin, iqbal, dispatch");
 

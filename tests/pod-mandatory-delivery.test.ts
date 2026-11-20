@@ -23,7 +23,7 @@ describe("Mark Delivered requires a POD", () => {
   };
 
   before(async () => {
-    const admin = await db.user.findFirst({ where: { role: "ADMIN", isActive: true } });
+    const admin = await db.user.findFirst({ where: { globalPermissions: { has: "users.manage" }, isActive: true } });
     assert(admin, "an active admin user must exist in the shared DB");
     token = await createSession(admin.id);
     const order = await db.consignmentOrder.create({

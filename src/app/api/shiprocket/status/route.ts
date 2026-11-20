@@ -1,3 +1,4 @@
+import { channelsWith } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLogisticsUser } from "@/lib/shiprocket-orders";
 import { isShiprocketConfigured, missingSenderFields, readShiprocketSender } from "@/modules/shiprocket";
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
     bookingEnabled: process.env.SHIPROCKET_BOOKING_ENABLED === "true",
     sender: { pincode: sender.pincode, city: sender.city, state: sender.state, warehouseName: sender.warehouseName },
     missingSenderFields: missingSenderFields(sender),
-    isAdmin: user.role === "ADMIN",
+    overrideChannels: channelsWith(user, "order.override"),
   };
   return NextResponse.json(status);
 }

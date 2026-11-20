@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canSeeOrder } from "@/lib/permissions";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPodRecord } from "@/lib/pod";
@@ -23,10 +24,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const order = await db.consignmentOrder.findUnique({
     where: { id },
-    select: { customData: true, status: true, courierStatus: true, isDeleted: true, isArchived: true },
+    select: { customData: true, status: true, courierStatus: true, isDeleted: true, isArchived: true, channel: true },
   });
   // Same visibility rule as every other route: hidden (draft / cancelled / archived / deleted) → 404
-  if (!order || !isVisibleInAppointmentApp(order)) return new NextResponse("Not Found", { status: 404 });
+  if (!order || !isVisibleInAppointmentApp(order) || !canSeeOrder(user, order.channel)) return new NextResponse("Not Found", { status: 404 });
   const pod = getPodRecord(order.customData);
   if (!pod) return new NextResponse("No POD on file", { status: 404 });
 

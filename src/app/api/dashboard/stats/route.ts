@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { channelScopeWhere } from "@/lib/permissions";
 import { getSessionUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { normalizeChannelCode } from "@/lib/channel-aliases";
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     // Drafts, New, cancelled and archived orders never count in the Appointment app
     const baseWhere = {
-      AND: [...APPOINTMENT_APP_VISIBILITY],
+      AND: [...APPOINTMENT_APP_VISIBILITY, channelScopeWhere(user)],
     };
 
     // Booking Desk specific query filter:

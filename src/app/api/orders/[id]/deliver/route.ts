@@ -1,4 +1,5 @@
 import { isVisibleInAppointmentApp, isOnAppointmentDesk, isClosedOrder, type OrderStageFields } from "@/lib/order-filters";
+import { canMarkDelivered, canSeeOrder } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { toClientOrder } from "@/lib/order-redaction";
@@ -52,7 +53,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     // Fast pre-check before reading the upload; re-checked on the locked row below
     const precheck = await db.consignmentOrder.findUnique({ where: { id } });
-    if (!precheck) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!precheck || !canSeeOrder(user, precheck.channel)) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!canMarkDelivered(user, precheck.channel)) {
+      return NextResponse.json({ error: `Forbidden: needs the 'Mark delivered' permission on ${precheck.channel}` }, { status: 403 });
+    }
     const early = deliverRefusal(precheck);
     if (early) return NextResponse.json(early.payload, { status: early.httpStatus });
 
@@ -144,7 +148,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           toStatus: "Delivered",
           userId: user.id,
           userName: actor,
-          userRole: user.role,
+          userRole: null,
           department: user.department || "Logistics",
           reason: remarks || "Marked Delivered from Appointment Desk with POD",
           metadata: { source: "Appointment Desk", podDocumentId: doc.id, podFileName: fileName },
@@ -159,7 +163,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             orderId: id,
             userId: user.id,
             userName: actor,
-            userRole: user.role,
+            userRole: null,
             action: "UPDATE",
             fieldChanged: entry.field,
             oldValue: entry.oldVal,

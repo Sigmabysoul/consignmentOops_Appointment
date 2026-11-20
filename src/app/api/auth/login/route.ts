@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Access Denied: The Appointment application is restricted to Administrators and the Logistics / Dispatch team.",
+            "Access Denied: your account needs the 'Logistics app desks' permission on at least one platform (granted in the consignment app under Admin → Users).",
         },
         { status: 403 }
       );
@@ -68,9 +68,10 @@ export async function POST(req: NextRequest) {
         id: user.id,
         username: user.username,
         name: user.name,
-        role: user.role,
         department: user.department,
         isLogisticsAuthorized: true,
+        globalPermissions: user.globalPermissions,
+        permissions: user.permissions.map((p) => ({ channel: p.channel, actions: p.actions })),
       },
     });
   } catch (error: unknown) {

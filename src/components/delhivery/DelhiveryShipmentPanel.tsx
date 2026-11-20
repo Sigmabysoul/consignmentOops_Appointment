@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { channelsMatch } from "@/lib/channel-aliases";
 import { Ban, CalendarCheck, Check, Copy, FileText, Printer, RefreshCw, Truck, Wallet } from "lucide-react";
 import type { AppointmentOrder } from "@/lib/types";
 import { DELHIVERY_SLOT_OPTIONS, type DelhiveryServerStatus, type DelhiveryShipmentRecord } from "@/lib/delhivery-types";
@@ -124,12 +125,14 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
       }
     });
 
+  // Retrying an unknown-outcome booking / cancelling an LR needs "Override workflow gates" on this platform.
+  const canOverrideHere = Boolean(status?.overrideChannels?.some((c) => channelsMatch(c, order.channel)));
   const est = record.estimate;
   const act = record.actualFreight;
   // A pickup request that timed out may or may not exist at Delhivery: an admin who checked the
   // Delhivery One panel gets the form back (the retry is sent with override).
   const pickupUnknown = Boolean(record.pickup && !record.pickup.cancelledAt && record.pickup.state === "unknown_outcome");
-  const pickupActive = record.pickup && !record.pickup.cancelledAt && !(pickupUnknown && status?.isAdmin);
+  const pickupActive = record.pickup && !record.pickup.cancelledAt && !(pickupUnknown && canOverrideHere);
 
   const box = "p-3 rounded-xl border border-slate-200 bg-white space-y-2";
   const h = "font-extrabold text-[11px] uppercase tracking-wide text-slate-900 flex items-center gap-1.5";
@@ -428,7 +431,7 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
       )}
 
       {/* Admin-only LR cancellation with typed confirmation */}
-      {status?.isAdmin && !record.cancelled && (
+      {canOverrideHere && !record.cancelled && (
         <div className="p-3 rounded-xl border border-rose-200 bg-rose-50/40 space-y-2">
           {!cancelOpen ? (
             <button type="button" onClick={() => setCancelOpen(true)} className={`${btn} text-rose-700 hover:bg-rose-100`}>

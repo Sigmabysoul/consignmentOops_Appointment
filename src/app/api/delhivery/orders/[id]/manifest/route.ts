@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canOverride } from "@/lib/permissions";
 import {
   DelhiveryError,
   buildManifestForm,
@@ -52,7 +53,7 @@ const NOT_SENT_KINDS = new Set(["invalid_input", "config", "booking_disabled", "
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
-  const ctx = await loadDelhiveryOrder(req, id);
+  const ctx = await loadDelhiveryOrder(req, id, "courier.book");
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
   const offDesk = await requireBookingDeskOrder(order.id, "Delhivery One");
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (rec.lrn && !rec.cancelled) refusal = `This order is already booked with Delhivery (LR ${rec.lrn}).`;
     else if (otherCarrier) refusal = otherCarrier;
     else if (state === "submitting" || state === "pending") refusal = "A Delhivery booking for this order is already in progress.";
-    else if (state === "unknown_outcome" && !(override && user.role === "ADMIN")) {
+    else if (state === "unknown_outcome" && !(override && canOverride(user, order.channel))) {
       refusal =
         rec.manifest?.state === "pending"
           ? `Delhivery has not confirmed the last booking for over ${DELHIVERY_PENDING_STALE_MINUTES} minutes and it may have created an LR. Check the Delhivery One panel first; an admin can then resubmit.`

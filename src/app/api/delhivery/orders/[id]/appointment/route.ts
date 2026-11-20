@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ctx = await loadDelhiveryOrder(req, id);
+  const ctx = await loadDelhiveryOrder(req, id, "courier.book");
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
   const lr = requireLrn(order);

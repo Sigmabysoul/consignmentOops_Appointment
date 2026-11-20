@@ -341,7 +341,8 @@ describe("Cross-app safety: secrets, seed, hidden orders, metric drill-down", ()
     const seed = fs.readFileSync("prisma/seed.ts", "utf8");
     assert.ok(!/courierPreset\.deleteMany/.test(seed));
     assert.ok(!/update:\s*\{\s*passwordHash/.test(seed));
-    assert.equal((seed.match(/update:\s*\{\}/g) || []).length, 3);
+    // 3 users + their dev permission rows: all create-only, existing data is never overwritten
+    assert.equal((seed.match(/update:\s*\{\}/g) || []).length, 4);
   });
 
   it("POD and note routes 404 for orders hidden from this app", () => {

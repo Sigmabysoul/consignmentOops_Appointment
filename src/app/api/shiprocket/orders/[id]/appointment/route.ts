@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ctx = await loadShiprocketOrder(req, id);
+  const ctx = await loadShiprocketOrder(req, id, "courier.book");
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
   const rec0 = readShiprocket(order);

@@ -1,3 +1,4 @@
+import { canManageCouriers } from "@/lib/permissions";
 import { NextRequest, NextResponse } from "next/server";
 import { listWarehouses } from "@/modules/shiprocket";
 import { notConfiguredResponse, requireLogisticsUser, shiprocketErrorResponse } from "@/lib/shiprocket-orders";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const user = await requireLogisticsUser(req);
   if (user instanceof NextResponse) return user;
-  if (user.role !== "ADMIN") return NextResponse.json({ error: "Admins only" }, { status: 403 });
+  if (!canManageCouriers(user)) return NextResponse.json({ error: "Forbidden: needs the 'Courier settings & rate cards' permission" }, { status: 403 });
   const notConfigured = notConfiguredResponse();
   if (notConfigured) return notConfigured;
   const page = Math.max(1, Number(req.nextUrl.searchParams.get("page")) || 1);

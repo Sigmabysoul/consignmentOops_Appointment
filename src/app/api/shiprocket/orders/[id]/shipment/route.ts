@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { canOverride } from "@/lib/permissions";
 import {
   ShiprocketError,
   buildShipmentBody,
@@ -65,7 +66,7 @@ const orderFieldsFor = (o: OrderRow, next: ShiprocketShipmentRecord) => {
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
-  const ctx = await loadShiprocketOrder(req, id);
+  const ctx = await loadShiprocketOrder(req, id, "courier.book");
   if (ctx instanceof NextResponse) return ctx;
   const { user, order } = ctx;
   const offDesk = await requireBookingDeskOrder(order.id, "Shiprocket Cargo");
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return shiprocketErrorResponse(err, "shipment creation");
   }
 
-  const override = body.override === true && user.role === "ADMIN";
+  const override = body.override === true && canOverride(user, order.channel);
   let refusal: string | null = null;
   await updateShiprocket(order.id, (rec, locked) => {
     const state = isStaleClaim(rec.shipment?.state, rec.shipment?.submittedAt) ? "unknown_outcome" : rec.shipment?.state;

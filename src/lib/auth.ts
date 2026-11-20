@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { SessionUser } from "./types";
 import { getJwtSecretKey } from "./jwt-secret";
+import { canUseLogisticsApp } from "./permissions";
 
 const COOKIE_NAME = "appointment_session";
 const FALLBACK_COOKIE_NAME = "consignment_session";
@@ -12,32 +13,12 @@ const FALLBACK_COOKIE_NAME = "consignment_session";
 const getSecret = () => getJwtSecretKey();
 
 /**
- * Determine if a user qualifies as Admin or Iqbal (Logistics Manager).
- * Strictly denies all other employees.
+ * App 2 is open to users holding "Logistics app desks" on at least one platform. There are no
+ * roles, department names or username lists any more; access is granted in the consignment
+ * app's Admin → Users screen.
  */
-export function isAllowedAppointmentUser(user: {
-  role: string;
-  username: string;
-  name?: string | null;
-  department?: string | null;
-  permissions?: Array<{ allowedFields?: string[] }>;
-}): boolean {
-  if (user.role === "BOX_PACKER") return false;
-  if (user.role === "ADMIN") return true;
-
-  // Logistics / Dispatch department (exact match, set by an admin in the consignment app).
-  const dept = (user.department || "").toLowerCase().trim();
-  if (dept === "dispatch" || dept === "logistics") return true;
-
-  // Explicitly named accounts. Exact usernames only: display names and substrings are not
-  // trusted, because anyone who can edit a user's name could otherwise grant access.
-  const uname = user.username.toLowerCase().trim();
-  return getAllowedUsernames().has(uname);
-}
-
-function getAllowedUsernames(): Set<string> {
-  const raw = process.env.APPOINTMENT_ALLOWED_USERNAMES ?? "iqbal,dispatch";
-  return new Set(raw.split(",").map((u) => u.trim().toLowerCase()).filter(Boolean));
+export function isAllowedAppointmentUser(user: { permissions?: Array<{ channel: string; actions: string[] }> }): boolean {
+  return canUseLogisticsApp(user);
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -121,9 +102,10 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
       id: user.id,
       username: user.username,
       name: user.name,
-      role: user.role as any,
       department: user.department,
       isLogisticsAuthorized: isAuthorized,
+      globalPermissions: user.globalPermissions,
+      permissions: user.permissions.map((p) => ({ channel: p.channel, actions: p.actions })),
     };
   } catch {
     return null;

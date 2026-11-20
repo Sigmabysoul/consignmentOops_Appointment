@@ -27,72 +27,10 @@ describe("Appointment Management Application — Comprehensive Verification Suit
     assert(couriers.length > 0, "Active courier presets must be seeded");
   });
 
-  it("2. RBAC Policy Function Verification", () => {
-    // Admin user
-    assert.strictEqual(
-      isAllowedAppointmentUser({ role: "ADMIN", username: "admin" }),
-      true,
-      "Admin must be allowed"
-    );
-
-    // Iqbal user by username
-    assert.strictEqual(
-      isAllowedAppointmentUser({ role: "MANAGER", username: "iqbal", name: "Iqbal" }),
-      true,
-      "Iqbal must be allowed"
-    );
-
-    // Iqbal user by name
-    assert.strictEqual(
-      isAllowedAppointmentUser({ role: "STAFF", username: "iqbal_logistics", name: "Mohammad Iqbal" }),
-      true,
-      "Iqbal by name must be allowed"
-    );
-
-    // Dispatch Logistics Desk
-    assert.strictEqual(
-      isAllowedAppointmentUser({
-        role: "STAFF",
-        username: "dispatch",
-        name: "Dispatch & Logistics Desk",
-        department: "Dispatch",
-      }),
-      true,
-      "Dispatch desk must be allowed"
-    );
-
-    // Other dispatcher user (NOT Iqbal and NOT dispatch) — MUST BE STRICTLY DENIED
-    assert.strictEqual(
-      isAllowedAppointmentUser({
-        role: "STAFF",
-        username: "dispatcher-user-01",
-        name: "Logistics Dispatcher",
-        department: "Dispatch",
-      }),
-      false,
-      "General dispatch staff accounts must be strictly denied"
-    );
-
-    // Printing operator — MUST BE DENIED
-    assert.strictEqual(
-      isAllowedAppointmentUser({ role: "STAFF", username: "printing", department: "Printing" }),
-      false,
-      "Printing staff must be strictly denied"
-    );
-
-    // Manir (Swiggy fulfillment) — MUST BE DENIED
-    assert.strictEqual(
-      isAllowedAppointmentUser({ role: "STAFF", username: "manir", department: "Swiggy Fulfillment" }),
-      false,
-      "Non-logistics staff must be strictly denied"
-    );
-
-    // Team Leader (TL) without logistics — MUST BE DENIED
-    assert.strictEqual(
-      isAllowedAppointmentUser({ role: "TL", username: "tl_chopper", department: "Chopper" }),
-      false,
-      "TL must be denied"
-    );
+  it("2. Access policy is a permission", () => {
+    assert.strictEqual(isAllowedAppointmentUser({ permissions: [{ channel: "SWIGGY", actions: ["order.view", "logistics.desk"] }] }), true);
+    assert.strictEqual(isAllowedAppointmentUser({ permissions: [{ channel: "SWIGGY", actions: ["order.view"] }] }), false);
+    assert.strictEqual(isAllowedAppointmentUser({ permissions: [] }), false);
   });
 
   it("3. User Authentication against Shared Database Credentials", async () => {
@@ -125,7 +63,6 @@ describe("Appointment Management Application — Comprehensive Verification Suit
     adminToken = await createSession(adminUserId);
     const adminSession = await verifySessionToken(adminToken);
     assert(adminSession, "Admin session should verify");
-    assert.strictEqual(adminSession?.role, "ADMIN");
     assert.strictEqual(adminSession?.isLogisticsAuthorized, true);
 
     // Dispatch session token (Logistics Manager / Iqbal)

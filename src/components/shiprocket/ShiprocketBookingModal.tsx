@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { channelsMatch } from "@/lib/channel-aliases";
 import { AlertCircle, CheckCircle2, ExternalLink, Plus, Rocket, Trash2, X } from "lucide-react";
 import type { AppointmentOrder } from "@/lib/types";
 import type {
@@ -56,6 +57,7 @@ function Field({ label, children, required }: { label: string; children: React.R
 /** Shiprocket Cargo booking: step 1 creates the order, step 2 books one of the offered carriers. */
 export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg, defaultInvoiceValue, defaultStateLabel, onClose, onOrderUpdated }: Props) {
   const { showToast } = useToast();
+  const canOverrideHere = Boolean(status?.overrideChannels?.some((c) => channelsMatch(c, order.channel)));
   const [record, setRecord] = useState<ShiprocketShipmentRecord>(() => readShiprocketRecord(order));
   const [dest, setDest] = useState<ShiprocketAddress>({} as ShiprocketAddress);
   const [packages, setPackages] = useState<ShiprocketPackage[]>([]);
@@ -251,7 +253,7 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
               {orderState === "unknown_outcome" && (
                 <p className="text-[11px] text-rose-800 bg-rose-50 border border-rose-200 rounded-lg p-2">
                   The last attempt timed out and may have created an order on Shiprocket. Check the Shiprocket Cargo panel first.
-                  {status?.isAdmin ? " As an admin you can retry anyway." : " An admin can retry."}
+                  {canOverrideHere ? " You can retry anyway (you hold 'Override workflow gates' here)." : " Someone with 'Override workflow gates' on this platform can retry."}
                 </p>
               )}
               {orderState === "failed" && record.order?.message && (
@@ -259,7 +261,7 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
               )}
 
               <div className="flex justify-end gap-2">
-                {orderState === "unknown_outcome" && status?.isAdmin && (
+                {orderState === "unknown_outcome" && canOverrideHere && (
                   <button type="button" disabled={busy || Boolean(disabledReason)} onClick={() => createOrder(true)}
                     className="px-3 py-2 rounded-lg border border-rose-300 text-rose-700 font-bold disabled:opacity-40 cursor-pointer">Retry anyway (admin)</button>
                 )}
@@ -317,7 +319,7 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
               )}
               {shipmentState === "failed" && record.shipment?.message && <p className="text-[11px] text-rose-700">Last attempt failed: {record.shipment.message}</p>}
               <div className="flex justify-end gap-2">
-                {shipmentState === "unknown_outcome" && status?.isAdmin && (
+                {shipmentState === "unknown_outcome" && canOverrideHere && (
                   <button type="button" disabled={busy || !chosen} onClick={() => bookShipment(true)}
                     className="px-3 py-2 rounded-lg border border-rose-300 text-rose-700 font-bold disabled:opacity-40 cursor-pointer">Retry anyway (admin)</button>
                 )}
