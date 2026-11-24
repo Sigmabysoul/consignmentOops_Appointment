@@ -1,4 +1,5 @@
-import { canSeeOrder } from "@/lib/permissions";
+import { canSeeOrder, canOverride } from "@/lib/permissions";
+import { dimensionPatchRefusal, appointmentAfterExpiryWarning } from "@/lib/order-patch-guards";
 import {
   isVisibleInAppointmentApp,
   evaluateStatusPatch,
@@ -19,6 +20,7 @@ import {
   deleteSingleAppointmentNote,
 } from "@/lib/appointment-notes";
 import { hasPodOnRecord } from "@/lib/pod";
+import { ORDERED_ITEMS } from "@/lib/order-item-order";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +44,7 @@ export async function GET(
         where: { id },
         include: {
           client: true,
-          items: true,
+          items: ORDERED_ITEMS,
           statusHistory: {
             orderBy: { timestamp: "desc" },
             take: 25,
@@ -170,7 +172,7 @@ export async function PATCH(
 
     const include = {
       client: true,
-      items: true,
+      items: ORDERED_ITEMS,
       statusHistory: { orderBy: { timestamp: "desc" as const }, take: 20 },
       auditLogs: { orderBy: { timestamp: "desc" as const }, take: 20 },
     };
@@ -191,6 +193,17 @@ export async function PATCH(
         throw new PatchRefusal(statusCheck.httpStatus, { error: statusCheck.error, code: statusCheck.code });
       }
       const closed = isClosedOrder(existing);
+
+      // Box count / dimensions / weight belong to the main app once confirmed or printed.
+      const dimensionRefusal = dimensionPatchRefusal(
+        existing,
+        parsedNumbers,
+        body.boxDimensions,
+        canOverride(user, existing.channel)
+      );
+      if (dimensionRefusal) {
+        throw new PatchRefusal(409, { error: dimensionRefusal, code: "DIMENSIONS_LOCKED" });
+      }
 
       // Courier policy (Golden Rules 4–6). An unchanged courier in any spelling ("Delhivery" vs
       // "Delhivery One", "Om Logistics" …) is never re-validated or rewritten.
@@ -480,10 +493,19 @@ export async function PATCH(
     if (outcome.unchanged) {
       return NextResponse.json({ order: toClientOrder(outcome.order), message: "No changes detected" });
     }
+    const warnings: string[] = [];
+    if (body.appointmentDate) {
+      const warning = appointmentAfterExpiryWarning(
+        outcome.order?.appointmentDate ? new Date(outcome.order.appointmentDate) : null,
+        outcome.order?.roExpiryDate ? new Date(outcome.order.roExpiryDate) : null
+      );
+      if (warning) warnings.push(warning);
+    }
     return NextResponse.json({
       success: true,
       order: outcome.order,
       message: "Order updated successfully",
+      ...(warnings.length > 0 ? { warnings } : {}),
     });
   } catch (error: any) {
     if (error instanceof PatchRefusal) {

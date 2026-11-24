@@ -141,6 +141,8 @@ model OrderItem {
   productUpc        String?
   boxDimensions     String?
   multiplier        String?
+  /// 1-based line number within the order. Box numbers (packaging slips, packer, BoxTrace) follow it.
+  position          Int?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
   totalQty          Int?
@@ -165,6 +167,7 @@ model OrderItem {
   order             ConsignmentOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+  @@index([orderId, position])
   @@index([department])
 }
 

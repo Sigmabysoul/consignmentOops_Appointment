@@ -22,6 +22,7 @@ import {
   isGrnIssueOrder,
 } from "@/lib/order-filters";
 import { getIstQuickDateWindows, istDayRangeFromInput } from "@/lib/date-utils";
+import { ORDER_ITEMS_ORDER_BY } from "@/lib/order-item-order";
 
 /** Kanban loads each column separately (no 100-row page cap); each column shows at most this many cards. */
 const KANBAN_COLUMN_LIMIT = 200;
@@ -261,6 +262,7 @@ export async function GET(req: NextRequest) {
         },
       },
       items: {
+        orderBy: ORDER_ITEMS_ORDER_BY,
         select: {
           id: true,
           itemName: true,

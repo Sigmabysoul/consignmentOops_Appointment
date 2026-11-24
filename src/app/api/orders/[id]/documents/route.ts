@@ -13,7 +13,7 @@ import {
   slotConfig,
   slotForDocType,
 } from "@/lib/order-documents";
-import { invoicePoMismatch, readTaxInvoiceText } from "@/lib/tax-invoice-reader";
+import { invoicePoMismatch, readTaxInvoiceText, looksLikeTaxInvoice } from "@/lib/tax-invoice-reader";
 import { pdfToLayoutText } from "@/lib/server/pdf-text";
 
 export const dynamic = "force-dynamic";
@@ -139,6 +139,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const isPdf = fileName.toLowerCase().endsWith(".pdf");
       const text = isPdf ? await pdfToLayoutText(buffer) : null;
       const read = text ? readTaxInvoiceText(text) : null;
+      // A readable PDF that is not an invoice at all (GRN, RO, e-way bill …) is refused outright.
+      if (text && text.trim().length > 40 && read && read.invoiceValue === null && !looksLikeTaxInvoice(text)) {
+        return NextResponse.json(
+          { error: "This file does not look like a tax invoice (no invoice heading, number or total). Check you picked the right file.", code: "NOT_AN_INVOICE" },
+          { status: 422 }
+        );
+      }
       const poMismatch = read ? invoicePoMismatch(read, order.roPoNumber) : false;
       const invoiceProblem = !isPdf
         ? "The invoice is an image, so its value could not be read. Upload the PDF invoice."

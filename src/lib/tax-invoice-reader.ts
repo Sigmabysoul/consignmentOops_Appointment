@@ -56,7 +56,28 @@ function findInvoiceNumber(lines: string[]): string | null {
     }
     return num;
   }
+  // Layouts with an "Invoice Details:" block print the number as a bare "No: TBC/25-26/499"
+  // (next to "PO Date:"), so look for "No:" in the few lines under that heading. "PO No:" is not it.
+  const detailsAt = lines.findIndex((l) => /Invoice\s+Details\s*:?/i.test(l));
+  if (detailsAt >= 0) {
+    for (const line of lines.slice(detailsAt, detailsAt + 5)) {
+      const m = line.match(/(?<![A-Za-z.]\s?)\bNo\.?\s*:\s*([A-Za-z0-9][A-Za-z0-9/-]*\d[A-Za-z0-9/-]*)/i);
+      if (m && !/P\.?\s?O\.?\s*$/i.test(line.slice(0, m.index))) return m[1];
+    }
+  }
   return null;
+}
+
+/**
+ * True when the text reads like a GST tax invoice (heading or invoice-number label). Used to stop
+ * a GRN, RO or e-way bill being filed in the invoice slot by mistake.
+ */
+export function looksLikeTaxInvoice(text: string): boolean {
+  // An e-way bill quotes the invoice ("Tax invoice-TBC/…") but is headed "e-Way Bill".
+  const heading = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 3);
+  const headedTaxInvoice = heading.some((l) => /^Tax\s+Invoice$/i.test(l));
+  if (heading.some((l) => /\be-?\s?way\s+bill\b/i.test(l)) && !headedTaxInvoice) return false;
+  return /\b(?:Tax\s+Invoice|Invoice\s*(?:No\.?|Number|#|Details|Date)\b)/i.test(text);
 }
 
 export function readTaxInvoiceText(text: string): TaxInvoiceRead {

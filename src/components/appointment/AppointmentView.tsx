@@ -127,6 +127,7 @@ export function AppointmentView({
       if (!res.ok) throw new Error(data.error || "Failed to update appointment");
 
       showToast("Appointment date & slot updated", "success");
+      if (Array.isArray(data.warnings)) data.warnings.forEach((w: string) => showToast(w, "info"));
       setEditingDateOrderId(null);
       onOrderUpdated();
     } catch (err: any) {

@@ -184,6 +184,7 @@ export function OrderDetailsDrawer({
       }
 
       showToast("Logistics information updated successfully", "success");
+      if (Array.isArray(data.warnings)) data.warnings.forEach((w: string) => showToast(w, "info"));
       onOrderUpdated();
 
       // Refresh drawer details; the saved values become the new baseline

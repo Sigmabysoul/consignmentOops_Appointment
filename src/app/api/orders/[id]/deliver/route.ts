@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { parseDateInput, istDayStart } from "@/lib/date-utils";
 import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
 import { MAX_POD_BYTES, POD_ACCEPTED_EXTENSIONS, POD_DOC_TYPE, PodRecord, isAcceptedPodFile } from "@/lib/pod";
+import { ORDERED_ITEMS } from "@/lib/order-item-order";
 
 export const dynamic = "force-dynamic";
 
@@ -138,7 +139,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           customData: { ...custom, fulfilmentStatus: "Delivered", pod },
           updatedAt: new Date(),
         },
-        include: { client: true, items: true },
+        include: { client: true, items: ORDERED_ITEMS },
       });
 
       await tx.orderStatusHistory.create({
