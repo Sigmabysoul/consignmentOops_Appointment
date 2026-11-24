@@ -48,12 +48,13 @@ describe("Documents API", () => {
 });
 
 describe("Redesigned booking UI", () => {
-  it("compare rates is a sheet: charges as rows, carriers as columns", () => {
+  it("compare rates is carrier cards, with live Shiprocket carriers as cards too", () => {
     const modal = read("src/components/booking/BookingDetailModal.tsx");
-    const sheet = read("src/components/booking/RateComparisonSheet.tsx");
-    assert.ok(modal.includes("<RateComparisonSheet"));
-    assert.ok(sheet.includes("chargeKeys.map((key)") && sheet.includes("carriers.map((c)"));
-    assert.ok(sheet.includes("Total payable") && sheet.includes("Assign carrier"));
+    const cards = read("src/components/booking/RateComparisonCards.tsx");
+    assert.ok(modal.includes("<RateComparisonCards") && !modal.includes("RateComparisonSheet"));
+    assert.ok(modal.includes("onQuotesChange={setShiprocketQuotes}") && modal.includes("liveQuotes={{"));
+    assert.ok(cards.includes("live.quotes.map((q)") && cards.includes("Lowest"));
+    assert.ok(cards.includes("Assign") && cards.includes("Book"));
   });
   it("booking and appointment desks stay sheets (the card layout was rolled back by request)", () => {
     assert.ok(read("src/components/booking/BookingView.tsx").includes("<table"));

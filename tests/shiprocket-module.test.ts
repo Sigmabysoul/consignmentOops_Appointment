@@ -131,7 +131,7 @@ describe("Shiprocket Cargo module", () => {
   it("7. mapCharges: cheapest first, '-' rates kept as null, air dropped, empty body = none", () => {
     const q = mapCharges({
       success: "true",
-      "rb_advantage-surface": { id: 17, mode_id: 23, mode_name: "surface", delivery_partner: "RB Advantage", transporter_name: "Delhivery Enterprise", rates: 516, tat: 6, pickup_date: "2024-01-16", working: { freight: 218.4, fsc: 43.68, awb_charges: 100, rov: 75, gst: 78.67439999999999, grand_total: 516, chargeable_weight: 24 } },
+      "rb_advantage-surface": { id: 17, mode_id: 23, mode_name: "surface", delivery_partner: "RB Advantage", transporter_name: "Delhivery Enterprise", rates: 516, tat: 6, pickup_date: "2024-01-16", working: { sender_zone: "WEST-2", recipient_zone: "NORTH-1", rate: 9.1, freight: 218.4, fsc: 43.68, awb_charges: 100, rov: 75, total: 437.08, gst: 78.67439999999999, grand_total: 516, chargeable_weight: 24 } },
       "cheap-surface": { id: 5, mode_id: 9, mode_name: "surface", delivery_partner: "Cheap Co", rates: 402.5, tat: 8, working: {} },
       "none-surface": { id: 6, mode_id: 10, mode_name: "surface", delivery_partner: "No Rate", rates: "-", working: {} },
       "fast-air": { id: 7, mode_id: 11, mode_name: "air", delivery_partner: "Air Co", rates: 100 },
@@ -140,6 +140,8 @@ describe("Shiprocket Cargo module", () => {
     assert.equal(q[1].gst, 78.67);
     assert.deepEqual(q[1].lines.map((l) => l.label), ["Freight", "Fuel surcharge", "Docket / AWB", "Risk of value (ROV)"]);
     assert.equal(q[2].total, null);
+    assert.deepEqual([q[1].subtotal, q[1].ratePerKg, q[1].zone], [437.08, 9.1, "WEST-2 → NORTH-1"]);
+    assert.equal(q[0].zone, null, "no zones → null");
     assert.deepEqual(mapCharges(null), []);
   });
 
@@ -159,5 +161,38 @@ describe("Shiprocket Cargo module", () => {
     assert.equal(t.edd, null, "placeholder text is not a date");
     assert.equal(t.location, "Chennai");
     assert.equal(t.history.length, 2);
+  });
+});
+
+describe("Shiprocket charge working (from the rate API's own numbers)", async () => {
+  const { shiprocketLineBasis } = await import("../src/lib/shiprocket-charge-basis");
+  const { getInitialLogisticsInput } = await import("../src/lib/order-logistics-autofill");
+  // Row 1 of the real Shiprocket final invoice (AWB 20894547571892): 956 kg Kolkata → Sonipat.
+  const [q] = mapCharges({
+    success: "true",
+    "delhivery-surface": {
+      delivery_partner: "Delhivery Enterprise", mode_name: "surface", id: 1, mode_id: 2, rates: 15702,
+      working: { chargeable_weight: 956, rate: 10.2, freight: 9751.2, awb_charges: 75, fpl: 780.1, fsc: 1462.68,
+        appointment_delivery_charges: 956, rov: 282, total: 13306.98, gst: 2395.26, grand_total: 15702 },
+    },
+  });
+  const basis = (label: string, inv = 281824) =>
+    shiprocketLineBasis(label, q.lines.find((l) => l.label === label)!.amount, q, inv);
+
+  it("keeps every charge line so the card can itemise it", () => {
+    assert.deepEqual(q.lines.map((l) => l.label).sort(),
+      ["Appointment delivery", "Docket / AWB", "FPL", "Freight", "Fuel surcharge", "Risk of value (ROV)"]);
+    assert.equal(Number(q.lines.reduce((s, l) => s + l.amount, 0).toFixed(2)), 13306.98);
+  });
+  it("explains each line the way the invoice works it out", () => {
+    assert.equal(basis("Freight"), "₹10.20/kg × 956.00 kg");
+    assert.match(basis("Fuel surcharge")!, /^15% of freight/);
+    assert.match(basis("FPL")!, /^8% of freight/);
+    assert.equal(basis("Appointment delivery"), "₹1/kg × 956.00 kg");
+    assert.match(basis("Risk of value (ROV)")!, /^0\.1% of invoice value/);
+    assert.equal(basis("Risk of value (ROV)", 0), undefined);
+  });
+  it("defaults ROV to shipper risk even before an invoice value is known", () => {
+    assert.equal(getInitialLogisticsInput({ id: "x", roPoNumber: "1", channel: "BLINKIT_STO" } as any).rovCover, "shipper");
   });
 });

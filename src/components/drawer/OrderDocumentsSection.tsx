@@ -82,6 +82,14 @@ export function OrderDocumentsSection({ order, onMarkDelivered }: OrderDocuments
             : "Label saved, but no box barcodes could be read from it. Check the file in the main app.",
           n > 0 ? "success" : "info"
         );
+      } else if (slot.slot === "TAX_INVOICE" && data.invoice) {
+        const inv = data.invoice;
+        if (typeof inv.value === "number") {
+          const amt = `₹${inv.value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          showToast(`Invoice${inv.number ? ` ${inv.number}` : ""} uploaded: value ${amt} saved for freight quotes`, "success");
+        } else {
+          showToast(`Invoice uploaded. ${inv.problem || "Its value could not be read."}`, "info");
+        }
       } else {
         showToast(`${slot.label} uploaded`, "success");
       }

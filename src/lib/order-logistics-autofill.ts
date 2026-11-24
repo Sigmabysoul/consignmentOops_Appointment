@@ -238,6 +238,10 @@ export function getOrderTotalWeightKg(order: any): number {
 export function getOrderInvoiceValue(order: any): number {
   if (!order) return 0;
 
+  // Read from the uploaded tax invoice (documents route) — the source of truth when present.
+  const fromInvoice = (order.customData as any)?.invoice?.value;
+  if (typeof fromInvoice === "number" && fromInvoice > 0) return Number(fromInvoice.toFixed(2));
+
   // Check explicit invoice amount if present on order or in customData
   const rawVal =
     order.invoiceValue ??
@@ -268,6 +272,13 @@ export function getOrderInvoiceValue(order: any): number {
   return 0;
 }
 
+/** The uploaded tax invoice the invoice value was read from, if any. */
+export function getOrderInvoiceSource(order: any): { number: string | null; fileName: string | null } | null {
+  const inv = (order?.customData as any)?.invoice;
+  if (!inv || typeof inv.value !== "number" || !(inv.value > 0)) return null;
+  return { number: typeof inv.number === "string" ? inv.number : null, fileName: typeof inv.fileName === "string" ? inv.fileName : null };
+}
+
 /**
  * Builds ready-to-use initial logistics input for the delivery estimator.
  */
@@ -284,7 +295,7 @@ export function getInitialLogisticsInput(order: AppointmentOrder): OmDeliveryInp
     mode: "surface",
     odaDistanceKm: 0,
     appointmentDelivery: true, // deliveries are appointment-based by default
-    rovCover: invoiceValue > 0 ? "shipper" : "none",
+    rovCover: "shipper", // owner's (shipper) risk is the default; carrier risk or none only by choice
     invoiceValue,
   };
 }

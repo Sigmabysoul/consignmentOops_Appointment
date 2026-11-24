@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Clock, RefreshCw, Rocket } from "lucide-react";
+import { AlertCircle, RefreshCw, Rocket } from "lucide-react";
 import type { AppointmentOrder } from "@/lib/types";
 import type { ShiprocketQuote, ShiprocketServerStatus } from "@/lib/shiprocket-types";
-import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date-utils";
+import { formatDateTimeDisplay } from "@/lib/date-utils";
 import {
   defaultPackages,
   extractPincode,
@@ -12,7 +12,6 @@ import {
   packagesReady,
   postJson,
   readShiprocketRecord,
-  rupees,
   shiprocketApi,
   splitStateCity,
 } from "./shiprocket-client";
@@ -25,10 +24,12 @@ interface Props {
   /** OM zone selection from the comparison form, e.g. "West Bengal (Kolkata)". */
   stateLabel: string;
   onBook: () => void;
+  /** Receives the quotes on show (fresh or saved), so the rate cards above can list each carrier. */
+  onQuotesChange?: (quotes: ShiprocketQuote[] | null) => void;
 }
 
 /** Live Shiprocket Cargo rates (every serviceable surface carrier), requested on click only. */
-export function ShiprocketQuoteCard({ order, status, weightKg, invoiceValue, stateLabel, onBook }: Props) {
+export function ShiprocketQuoteCard({ order, status, weightKg, invoiceValue, stateLabel, onBook, onQuotesChange }: Props) {
   const saved = readShiprocketRecord(order);
   const [pin, setPin] = useState("");
   const [city, setCity] = useState("");
@@ -36,7 +37,6 @@ export function ShiprocketQuoteCard({ order, status, weightKg, invoiceValue, sta
   const [quotes, setQuotes] = useState<ShiprocketQuote[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [openKey, setOpenKey] = useState<string | null>(null);
 
   useEffect(() => {
     const sc = splitStateCity(stateLabel);
@@ -76,6 +76,11 @@ export function ShiprocketQuoteCard({ order, status, weightKg, invoiceValue, sta
 
   const shown = quotes ?? saved.quote?.quotes ?? null;
   const booked = saved.shipment?.state === "done";
+
+  useEffect(() => {
+    onQuotesChange?.(shown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown]);
 
   return (
     <div className="mx-3.5 sm:mx-4 mb-3.5 p-3 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2.5 text-xs">
@@ -124,42 +129,14 @@ export function ShiprocketQuoteCard({ order, status, weightKg, invoiceValue, sta
       )}
 
       {shown && (
-        shown.length === 0 ? (
-          <div className="text-slate-600">No surface carrier is serviceable for this lane.</div>
-        ) : (
-          <div className="space-y-1">
-            {!quotes && saved.quote && (
-              <div className="text-[10px] text-slate-500">Saved quote from {formatDateTimeDisplay(saved.quote.at)} by {saved.quote.by}</div>
-            )}
-            {shown.map((q, i) => (
-              <div key={q.key} className="rounded-lg border border-slate-200 bg-white">
-                <button type="button" onClick={() => setOpenKey(openKey === q.key ? null : q.key)}
-                  className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-left cursor-pointer">
-                  <span className="font-bold text-slate-800 truncate">
-                    {q.transporterName || q.deliveryPartner}
-                    {i === 0 && q.total !== null && <span className="ml-1.5 text-[10px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 rounded-full">Cheapest</span>}
-                  </span>
-                  <span className="flex items-center gap-3 shrink-0">
-                    {q.tatDays !== null && (
-                      <span className="text-[11px] text-slate-500 flex items-center gap-1"><Clock className="w-3 h-3" />{q.tatDays} days</span>
-                    )}
-                    <span className="font-black text-slate-900">{q.total !== null ? rupees(q.total) : "No rate"}</span>
-                  </span>
-                </button>
-                {openKey === q.key && (
-                  <div className="px-2.5 pb-2 text-[11px] text-slate-600 space-y-0.5 border-t border-slate-100 pt-1.5">
-                    {q.lines.map((l) => (
-                      <div key={l.label} className="flex justify-between"><span>{l.label}</span><span>{rupees(l.amount)}</span></div>
-                    ))}
-                    {q.gst !== null && <div className="flex justify-between"><span>GST</span><span>{rupees(q.gst)}</span></div>}
-                    {q.chargeableWeightKg !== null && <div>Chargeable weight: {q.chargeableWeightKg.toFixed(2)} kg</div>}
-                    {q.pickupDate && <div>Earliest pickup: {formatDateDisplay(q.pickupDate)}</div>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )
+        <div className="text-[11px] text-slate-600">
+          {shown.length === 0
+            ? "No surface carrier is serviceable for this lane."
+            : `${shown.length} surface ${shown.length === 1 ? "carrier" : "carriers"} listed in the rate cards above, each with its full charge breakdown.`}
+          {!quotes && saved.quote && (
+            <span className="text-slate-500"> Saved quote from {formatDateTimeDisplay(saved.quote.at)} by {saved.quote.by}.</span>
+          )}
+        </div>
       )}
     </div>
   );

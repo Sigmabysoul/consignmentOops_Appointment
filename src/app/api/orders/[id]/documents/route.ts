@@ -13,6 +13,8 @@ import {
   slotConfig,
   slotForDocType,
 } from "@/lib/order-documents";
+import { invoicePoMismatch, readTaxInvoiceText } from "@/lib/tax-invoice-reader";
+import { pdfToLayoutText } from "@/lib/server/pdf-text";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +134,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (slot.slot === "TAX_INVOICE") {
       const buffer = Buffer.from(await f.arrayBuffer());
       const docId = crypto.randomUUID();
+
+      // Read the invoice value (and number / PO / e-way bill) so nobody has to type it.
+      const isPdf = fileName.toLowerCase().endsWith(".pdf");
+      const text = isPdf ? await pdfToLayoutText(buffer) : null;
+      const read = text ? readTaxInvoiceText(text) : null;
+      const poMismatch = read ? invoicePoMismatch(read, order.roPoNumber) : false;
+      const invoiceProblem = !isPdf
+        ? "The invoice is an image, so its value could not be read. Upload the PDF invoice."
+        : !read
+        ? "No text could be read from this PDF (it may be a scan). Upload the PDF exported from the billing software."
+        : poMismatch
+        ? `This invoice is for PO ${read.poNumber}, not ${order.roPoNumber}, so its value was not used. Check you picked the right file.`
+        : read.invoiceValue === null
+        ? "The invoice total could not be found in this PDF."
+        : null;
+      const applyValue = !invoiceProblem && read?.invoiceValue != null;
+
       const doc = await db.$transaction(async (tx) => {
         const created = await tx.orderDocument.create({
           data: {
@@ -151,6 +170,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           },
           select: { id: true, docType: true, fileName: true, fileUrl: true, fileSize: true, createdAt: true, uploadedByName: true, blob: { select: { documentId: true } } },
         });
+        if (applyValue && read) {
+          const current = await tx.consignmentOrder.findUnique({ where: { id }, select: { customData: true } });
+          const custom = ((current?.customData as Record<string, unknown> | null) || {}) as Record<string, any>;
+          const previous = custom.invoice?.value ?? null;
+          await tx.consignmentOrder.update({
+            where: { id },
+            data: {
+              customData: {
+                ...custom,
+                invoice: {
+                  value: read.invoiceValue,
+                  number: read.invoiceNumber,
+                  poNumber: read.poNumber,
+                  ewayBillNumber: read.ewayBillNumber,
+                  documentId: docId,
+                  fileName,
+                  readAt: new Date().toISOString(),
+                  readBy: actor,
+                },
+              },
+            },
+          });
+          await tx.auditLog.create({
+            data: {
+              orderId: id,
+              userId: user.id,
+              userName: actor,
+              userRole: null,
+              action: "UPDATE",
+              fieldChanged: "invoiceValue",
+              oldValue: previous === null ? "(none)" : String(previous),
+              newValue: String(read.invoiceValue),
+              metadata: { app: "Appointment Management", source: "tax invoice", fileName, invoiceNumber: read.invoiceNumber },
+            },
+          });
+        }
         await tx.auditLog.create({
           data: {
             orderId: id,
@@ -166,7 +221,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         });
         return created;
       });
-      return NextResponse.json({ success: true, document: toView(id, doc) });
+      return NextResponse.json({
+        success: true,
+        document: toView(id, doc),
+        invoice: {
+          value: applyValue ? read!.invoiceValue : null,
+          number: read?.invoiceNumber ?? null,
+          poNumber: read?.poNumber ?? null,
+          ewayBillNumber: read?.ewayBillNumber ?? null,
+          problem: invoiceProblem,
+        },
+      });
     }
 
     // Courier shipping label → main consignment app (same extraction + permission checks as there)

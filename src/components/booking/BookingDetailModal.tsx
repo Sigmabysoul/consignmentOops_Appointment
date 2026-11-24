@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   X,
   Truck,
@@ -18,6 +18,8 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  Upload,
+  FileText,
 } from "lucide-react";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
@@ -25,7 +27,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
-import { RateComparisonSheet } from "@/components/booking/RateComparisonSheet";
+import { RateComparisonCards } from "@/components/booking/RateComparisonCards";
 import { OmWhatsAppBookingModal } from "@/components/booking/OmWhatsAppBookingModal";
 import { DelhiveryQuoteCard } from "@/components/delhivery/DelhiveryQuoteCard";
 import { DelhiveryBookingModal } from "@/components/delhivery/DelhiveryBookingModal";
@@ -33,7 +35,7 @@ import { DELHIVERY_NAME, useDelhiveryStatus } from "@/components/delhivery/delhi
 import { ShiprocketQuoteCard } from "@/components/shiprocket/ShiprocketQuoteCard";
 import { ShiprocketBookingModal } from "@/components/shiprocket/ShiprocketBookingModal";
 import { useShiprocketStatus } from "@/components/shiprocket/shiprocket-client";
-import { SHIPROCKET_COURIER_NAME } from "@/lib/shiprocket-types";
+import { SHIPROCKET_COURIER_NAME, type ShiprocketQuote } from "@/lib/shiprocket-types";
 import { isAmazonChannel, isFlipkartFbfOrFksb } from "@/lib/courier-defaults";
 import {
   ALL_STATES,
@@ -51,6 +53,7 @@ import {
   getOrderTotalWeightKg,
   getOrderInvoiceValue,
   getInitialLogisticsInput,
+  getOrderInvoiceSource,
 } from "@/lib/order-logistics-autofill";
 import type { UnifiedShippingPresets } from "@/lib/shipping-presets-storage";
 
@@ -83,8 +86,13 @@ export function BookingDetailModal({
   const [presets, setPresets] = useState<UnifiedShippingPresets | null>(null);
   const [odaDistanceKm, setOdaDistanceKm] = useState<number>(0);
   const [appointmentDelivery, setAppointmentDelivery] = useState<boolean>(true);
-  const [rovCover, setRovCover] = useState<"none" | "shipper" | "carrier">("none");
+  const [rovCover, setRovCover] = useState<"none" | "shipper" | "carrier">("shipper");
   const [invoiceValue, setInvoiceValue] = useState<number>(0);
+  // Where the invoice value came from: the uploaded tax invoice (read-only) or nothing yet.
+  const [invoiceSource, setInvoiceSource] = useState<{ number: string | null; fileName: string | null } | null>(null);
+  const [invoiceUploading, setInvoiceUploading] = useState(false);
+  const [invoiceProblem, setInvoiceProblem] = useState<string | null>(null);
+  const invoiceInput = useRef<HTMLInputElement | null>(null);
 
   // Selection & Saving state
   const [isAssigning, setIsAssigning] = useState<string | null>(null);
@@ -94,6 +102,7 @@ export function BookingDetailModal({
   const delhiveryStatus = useDelhiveryStatus();
   const [shiprocketModalOpen, setShiprocketModalOpen] = useState(false);
   const shiprocketStatus = useShiprocketStatus();
+  const [shiprocketQuotes, setShiprocketQuotes] = useState<ShiprocketQuote[] | null>(null);
 
   // Initialize inputs whenever order changes or modal opens
   useEffect(() => {
@@ -103,8 +112,10 @@ export function BookingDetailModal({
     setWeightKg(Number(Number(initial.weightKg).toFixed(2)));
     setOdaDistanceKm(initial.odaDistanceKm || 0);
     setAppointmentDelivery(initial.appointmentDelivery ?? true);
-    setRovCover(initial.rovCover || "none");
+    setRovCover(initial.rovCover || "shipper");
     setInvoiceValue(Number(Number(initial.invoiceValue || 0).toFixed(2)));
+    setInvoiceSource(getOrderInvoiceSource(order));
+    setInvoiceProblem(null);
   }, [order, isOpen]);
 
   // Load the saved rate cards / zone map / ODA matrix / per-courier presets every time the
@@ -181,6 +192,35 @@ export function BookingDetailModal({
       showToast(err.message || "Failed to update carrier", "error");
     } finally {
       setIsAssigning(null);
+    }
+  };
+
+  // Upload the tax invoice; the server reads its total and saves it on the order.
+  const handleInvoiceUpload = async (file: File | undefined | null) => {
+    if (!file) return;
+    setInvoiceUploading(true);
+    setInvoiceProblem(null);
+    try {
+      const form = new FormData();
+      form.append("slot", "TAX_INVOICE");
+      form.append("file", file);
+      const res = await fetch(`/api/orders/${order.id}/documents`, { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const inv = data.invoice;
+      if (inv && typeof inv.value === "number") {
+        setInvoiceValue(Number(inv.value.toFixed(2)));
+        setInvoiceSource({ number: inv.number ?? null, fileName: file.name });
+        showToast(`Invoice${inv.number ? ` ${inv.number}` : ""} read: ₹${inv.value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`, "success");
+        onOrderUpdated();
+      } else {
+        setInvoiceProblem(inv?.problem || "The invoice value could not be read.");
+      }
+    } catch (err: any) {
+      showToast(err.message || "Invoice upload failed", "error");
+    } finally {
+      setInvoiceUploading(false);
+      if (invoiceInput.current) invoiceInput.current.value = "";
     }
   };
 
@@ -363,19 +403,59 @@ export function BookingDetailModal({
                   <option value="carrier">Carrier risk (0.8%)</option>
                 </select>
               </label>
-              <label className="block">
+              <div className="block">
                 <span className="block text-[10px] font-bold text-slate-600 mb-0.5">
                   Invoice value (₹){rovCover !== "none" && <span className="text-rose-500"> *</span>}
                 </span>
-                <input
-                  type="number"
-                  min="0"
-                  value={invoiceValue || ""}
-                  onChange={(e) => setInvoiceValue(parseFloat(e.target.value) || 0)}
-                  placeholder="e.g. 50000"
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                />
-              </label>
+                <div className="flex gap-1">
+                  {invoiceSource ? (
+                    <div
+                      className="flex-1 min-w-0 bg-emerald-50 border border-emerald-300 rounded-lg px-2 py-1.5 font-bold text-slate-900 truncate"
+                      title={`Read from ${invoiceSource.fileName || "the uploaded tax invoice"}`}
+                    >
+                      ₹{invoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      value={invoiceValue || ""}
+                      onChange={(e) => setInvoiceValue(parseFloat(e.target.value) || 0)}
+                      placeholder="Upload invoice →"
+                      title="Upload the tax invoice to fill this in. Type it only if the invoice cannot be read."
+                      className="flex-1 min-w-0 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => invoiceInput.current?.click()}
+                    disabled={invoiceUploading}
+                    title={invoiceSource ? "Replace the tax invoice" : "Upload the tax invoice (PDF): its total is read automatically"}
+                    className="shrink-0 px-2 rounded-lg border border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100 disabled:opacity-50 cursor-pointer"
+                  >
+                    {invoiceUploading ? (
+                      <span className="block w-3.5 h-3.5 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <input
+                    ref={invoiceInput}
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    className="hidden"
+                    onChange={(e) => void handleInvoiceUpload(e.target.files?.[0])}
+                  />
+                </div>
+                {invoiceSource ? (
+                  <span className="mt-0.5 flex items-center gap-1 text-[10px] text-emerald-700 truncate">
+                    <FileText className="w-3 h-3 shrink-0" />
+                    From invoice {invoiceSource.number || invoiceSource.fileName || ""}
+                  </span>
+                ) : invoiceProblem ? (
+                  <span className="mt-0.5 block text-[10px] text-rose-600 leading-tight">{invoiceProblem}</span>
+                ) : null}
+              </div>
             </div>
             <label className="mt-2.5 inline-flex items-center gap-2 text-xs cursor-pointer select-none">
               <input
@@ -399,18 +479,7 @@ export function BookingDetailModal({
             </div>
           )}
 
-          {!stateMissing && comparisonResult.lowestCostCarrierName && (
-            <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center justify-between text-xs text-emerald-950">
-              <span>
-                <span className="font-extrabold">Lowest total:</span> {comparisonResult.lowestCostCarrierName}
-              </span>
-              <span className="font-black text-sm">
-                ₹{comparisonResult.lowestCostAmount?.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-          )}
-
-          <RateComparisonSheet
+          <RateComparisonCards
             carriers={comparisonResult.carriers}
             assignedCourier={order.courierPartner}
             locked={stateMissing}
@@ -419,6 +488,16 @@ export function BookingDetailModal({
             carrierTags={{
               ...(isFlipkartFbfOrFksb(order.channel) ? { Ekart: "Flipkart: Ekart only" } : {}),
               ...(isAmazonChannel(order.channel) ? { "Amazon ATS": "Amazon: ATS only" } : {}),
+            }}
+            liveQuotes={{
+              [SHIPROCKET_COURIER_NAME]: shiprocketQuotes
+                ? {
+                    quotes: shiprocketQuotes,
+                    onBook: () => setShiprocketModalOpen(true),
+                    bookDisabled: !shiprocketStatus?.configured,
+                    invoiceValue: Number(Number(invoiceValue).toFixed(2)) || 0,
+                  }
+                : undefined,
             }}
             onAssign={(carrier) => {
               // OM Logistics is booked over WhatsApp: Assign opens the pickup draft,
@@ -459,6 +538,7 @@ export function BookingDetailModal({
                       invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
                       stateLabel={state}
                       onBook={() => setShiprocketModalOpen(true)}
+                      onQuotesChange={setShiprocketQuotes}
                     />
                   </div>
                 )}

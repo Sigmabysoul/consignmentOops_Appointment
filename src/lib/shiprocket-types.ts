@@ -43,6 +43,12 @@ export interface ShiprocketQuote {
   /** Grand total incl. GST, ₹ (2 decimals); null when the API had no rate ("-"). */
   total: number | null;
   gst: number | null;
+  /** Charges before GST (`working.total`). Optional: quotes saved before it was mapped lack it. */
+  subtotal?: number | null;
+  /** Freight rate, ₹/kg (`working.rate`). */
+  ratePerKg?: number | null;
+  /** Shiprocket's lane zones, e.g. "WEST-2 → NORTH-1". */
+  zone?: string | null;
   chargeableWeightKg: number | null;
   lines: ShiprocketChargeLine[];
   tatDays: number | null;

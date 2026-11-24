@@ -2,7 +2,7 @@
 # Optimized for Coolify & Ubuntu VPS Deployments
 
 FROM node:20-alpine AS base
-RUN apk add --no-cache libc6-compat openssl curl
+RUN apk add --no-cache libc6-compat openssl curl poppler-utils
 WORKDIR /app
 
 # Dependencies stage
