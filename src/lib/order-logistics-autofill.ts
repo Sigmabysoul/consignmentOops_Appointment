@@ -218,6 +218,125 @@ export function detectStateFromOrder(order: any): string | null {
 }
 
 /**
+ * Delivery cities seen on platform warehouse addresses (Blinkit / Swiggy / Flipkart / Amazon
+ * feeders and FCs), as [canonical name, aliases]. Canonical names are what carriers expect.
+ */
+const CITY_NAMES: Array<[string, string[]]> = [
+  ["Kolkata", ["kolkata", "calcutta"]],
+  ["Howrah", ["howrah"]],
+  ["Siliguri", ["siliguri"]],
+  ["Durgapur", ["durgapur"]],
+  ["Asansol", ["asansol"]],
+  ["Guwahati", ["guwahati", "gauhati"]],
+  ["Mumbai", ["mumbai", "bombay"]],
+  ["Navi Mumbai", ["navi mumbai"]],
+  ["Thane", ["thane"]],
+  ["Bhiwandi", ["bhiwandi"]],
+  ["Pune", ["pune"]],
+  ["Nagpur", ["nagpur"]],
+  ["Nashik", ["nashik"]],
+  ["New Delhi", ["new delhi"]],
+  ["Delhi", ["delhi"]],
+  ["Gurugram", ["gurugram", "gurgaon"]],
+  ["Faridabad", ["faridabad"]],
+  ["Sonipat", ["sonipat", "sonepat", "kundli"]],
+  ["Bahadurgarh", ["bahadurgarh"]],
+  ["Manesar", ["manesar"]],
+  ["Noida", ["noida", "greater noida"]],
+  ["Ghaziabad", ["ghaziabad"]],
+  ["Lucknow", ["lucknow"]],
+  ["Kanpur", ["kanpur"]],
+  ["Agra", ["agra"]],
+  ["Varanasi", ["varanasi"]],
+  ["Meerut", ["meerut"]],
+  ["Dehradun", ["dehradun"]],
+  ["Jaipur", ["jaipur"]],
+  ["Jodhpur", ["jodhpur"]],
+  ["Udaipur", ["udaipur"]],
+  ["Ludhiana", ["ludhiana"]],
+  ["Amritsar", ["amritsar"]],
+  ["Mohali", ["mohali"]],
+  ["Jalandhar", ["jalandhar"]],
+  ["Chandigarh", ["chandigarh"]],
+  ["Bengaluru", ["bengaluru", "bangalore"]],
+  ["Mysuru", ["mysuru", "mysore"]],
+  ["Hosur", ["hosur"]],
+  ["Hyderabad", ["hyderabad", "secunderabad"]],
+  ["Chennai", ["chennai", "madras"]],
+  ["Coimbatore", ["coimbatore"]],
+  ["Madurai", ["madurai"]],
+  ["Kochi", ["kochi", "cochin"]],
+  ["Thiruvananthapuram", ["thiruvananthapuram", "trivandrum"]],
+  ["Kozhikode", ["kozhikode", "calicut"]],
+  ["Vijayawada", ["vijayawada"]],
+  ["Visakhapatnam", ["visakhapatnam", "vizag"]],
+  ["Ahmedabad", ["ahmedabad"]],
+  ["Surat", ["surat"]],
+  ["Vadodara", ["vadodara", "baroda"]],
+  ["Rajkot", ["rajkot"]],
+  ["Indore", ["indore"]],
+  ["Bhopal", ["bhopal"]],
+  ["Raipur", ["raipur"]],
+  ["Bhubaneswar", ["bhubaneswar"]],
+  ["Cuttack", ["cuttack"]],
+  ["Ranchi", ["ranchi"]],
+  ["Jamshedpur", ["jamshedpur"]],
+  ["Patna", ["patna"]],
+  ["Goa", ["panaji", "verna"]],
+];
+
+const STATE_WORDS = new Set(
+  ALL_STATES.map((s) => s.replace(/\s*\(.*\)\s*$/, "").toLowerCase()).concat(["india", "pin", "pincode"])
+);
+
+/**
+ * Destination city for carrier forms, read from the delivery address, then the warehouse name.
+ * A known city name wins (the LAST one in the address: addresses run street → city → state → PIN);
+ * otherwise the comma part just before "State PIN". "" when nothing fits — the operator types it.
+ */
+export function detectCityFromOrder(order: any): string {
+  if (!order) return "";
+  const address = String(
+    (order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.warehouseAddress || order.client?.address || ""
+  );
+  const lastKnownCity = (text: string): string => {
+    const t = text.toLowerCase();
+    let best = { at: -1, len: 0, name: "" };
+    for (const [name, aliases] of CITY_NAMES) {
+      for (const a of aliases) {
+        const re = new RegExp(`\\b${escapeRe(a)}\\b`, "g");
+        for (const m of t.matchAll(re)) {
+          const end = (m.index ?? -1) + a.length;
+          // The match ending last wins; ending at the same spot, the longer alias wins ("new delhi" over "delhi").
+          if (end > best.at || (end === best.at && a.length > best.len)) best = { at: end, len: a.length, name };
+        }
+      }
+    }
+    return best.name;
+  };
+
+  const known = lastKnownCity(address);
+  if (known) return known;
+
+  // "…, Faridabad, Haryana 121006": the comma part before the one holding the PIN code.
+  const pin = findPincode(address);
+  if (pin) {
+    const parts = address.split(",").map((p) => p.trim()).filter(Boolean);
+    const pinIdx = parts.findIndex((p) => p.replace(/\s/g, "").includes(pin));
+    for (let i = pinIdx; i >= Math.max(0, pinIdx - 2); i--) {
+      let text = parts[i].replace(/(?<!\d)[1-9]\d{2}\s?\d{3}(?!\d)/g, " ").toLowerCase();
+      for (const w of STATE_WORDS) text = text.replace(new RegExp(`\\b${escapeRe(w)}\\b`, "g"), " ");
+      const candidate = text.replace(/[^a-z\s]/g, " ").replace(/\s+/g, " ").trim();
+      if (candidate.length >= 3 && candidate.split(" ").length <= 3) {
+        return candidate.replace(/\b\w/g, (c) => c.toUpperCase());
+      }
+    }
+  }
+
+  return lastKnownCity(String(order.warehouseName || ""));
+}
+
+/**
  * Total shipment weight (kg, exact 2 dp).
  * App 1 stores weightKg as the ORDER TOTAL (full boxes + remainder carton), so the total is the
  * sum of the carton groups built by extractBoxDimensionGroups — which equals order.weightKg for

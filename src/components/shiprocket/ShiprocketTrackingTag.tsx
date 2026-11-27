@@ -13,10 +13,10 @@ export function ShiprocketTrackingTag({ order }: { order: AppointmentOrder }) {
   if (!rec.waybill) return null;
   return (
     <div
-      className="text-[10px] font-semibold text-indigo-800 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded w-fit max-w-[180px] truncate"
+      className="w-fit max-w-[180px] truncate rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
       title={rec.tracking ? `Checked ${formatDateTimeDisplay(rec.tracking.checkedAt)}` : "Not checked yet"}
     >
-      Shiprocket: {rec.tracking?.status || "not checked"}
+      <span className="font-semibold text-slate-800">Shiprocket:</span> {rec.tracking?.status || "not checked"}
       {rec.tracking?.location ? ` · ${rec.tracking.location}` : ""}
     </div>
   );
@@ -44,13 +44,13 @@ export function ShiprocketTrackingRefresh({ orders, onRefreshed }: { orders: App
   };
 
   return (
-    <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50/50 text-xs">
-      <span className="text-indigo-950 font-semibold">
+    <div className="ui-card flex items-center justify-between gap-2 px-3 py-2 text-xs">
+      <span className="font-medium text-slate-700">
         {count} Shiprocket Cargo shipment(s) on this page
         {status && !status.configured && <span className="text-amber-700"> · credentials not set yet</span>}
       </span>
       <button type="button" onClick={refresh} disabled={busy || !status?.configured}
-        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+        className="ui-btn-secondary">
         <RefreshCw className={`w-3.5 h-3.5 ${busy ? "animate-spin" : ""}`} /> Refresh Shiprocket tracking
       </button>
     </div>

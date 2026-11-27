@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { detectCityFromOrder } from "@/lib/order-logistics-autofill";
 import { channelsMatch } from "@/lib/channel-aliases";
 import { AlertCircle, FileUp, Plus, Trash2, Truck, X } from "lucide-react";
 import type { AppointmentOrder } from "@/lib/types";
@@ -82,7 +83,7 @@ export function DelhiveryBookingModal({
     setConsignee({
       name: order.client?.name || order.warehouseName || "",
       address,
-      city: order.client?.city || "",
+      city: detectCityFromOrder(order) || order.client?.city || "",
       state: plainState(defaultState),
       pin: extractPincode(address),
       phone: "",
@@ -221,29 +222,35 @@ export function DelhiveryBookingModal({
   const bookingBlocked = !status?.configured || !status.bookingEnabled || !status.warehouseConfigured;
   const totalFileBytes = files.reduce((s, f) => s + f.size, 0);
 
-  const input = "w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-400";
-  const label = "block text-[11px] font-bold text-slate-700 mb-1";
+  const input = "ui-input";
+  const label = "ui-label";
+  const toggle = (active: boolean) =>
+    `ui-btn w-full border ${active ? "border-violet-300 bg-violet-50 text-violet-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`;
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-5">
-      <div className="fixed inset-0 bg-slate-900/60" onClick={onClose} />
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 z-10 flex flex-col max-h-[92vh] text-slate-800">
-        <div className="px-5 py-3 bg-gradient-to-r from-red-700 to-rose-800 text-white flex items-center justify-between rounded-t-2xl shrink-0">
-          <div className="flex items-center gap-2.5">
-            <Truck className="w-5 h-5" />
-            <div>
-              <h3 className="font-extrabold text-sm">Delhivery One booking · #{order.roPoNumber}</h3>
-              <p className="text-[11px] text-red-100">
+      <div className="ui-overlay" onClick={onClose} />
+      <div className="ui-dialog max-w-3xl z-10">
+        <div className="ui-dialog-header">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
+              <Truck className="w-5 h-5 text-violet-600" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-slate-900">
+                Delhivery One booking <span className="ui-mono font-medium text-slate-500">#{order.roPoNumber}</span>
+              </h3>
+              <p className="ui-muted mt-0.5">
                 Surface B2B (LTL) · {status?.env === "production" ? "Production" : "Staging"}
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 cursor-pointer">
+          <button type="button" onClick={onClose} className="ui-icon-btn shrink-0" title="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 text-xs">
+        <div className="flex-1 overflow-y-auto bg-slate-50/60 p-4 sm:p-5 space-y-4 text-xs">
           <DelhiveryStatusNote status={status} forBooking />
 
           {error && (
@@ -254,13 +261,13 @@ export function DelhiveryBookingModal({
           )}
 
           {(state === "pending" || state === "submitting") && !booked && (
-            <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 flex items-center justify-between gap-2">
+            <div className="p-3 rounded-lg bg-sky-50 border border-sky-200 text-sky-900 flex items-center justify-between gap-2">
               <span className="flex items-center gap-2">
                 {polling && <span className="w-3 h-3 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />}
                 Delhivery is creating the LR (job {record.manifest?.jobId || "…"}).
               </span>
               {!polling && (
-                <button type="button" onClick={startPolling} className="px-2.5 py-1 rounded-lg bg-sky-600 text-white font-bold cursor-pointer">
+                <button type="button" onClick={startPolling} className="ui-btn-secondary ui-btn-sm">
                   Check booking status
                 </button>
               )}
@@ -268,8 +275,8 @@ export function DelhiveryBookingModal({
           )}
 
           {state === "unknown_outcome" && !booked && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 space-y-1.5">
-              <p className="font-bold">The last booking attempt has an unknown result.</p>
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 space-y-1.5">
+              <p className="font-semibold">The last booking attempt has an unknown result.</p>
               <p>
                 It timed out after being sent, so Delhivery may already have created an LR. Look for order{" "}
                 <b className="font-mono">{order.roPoNumber}</b> in the Delhivery One panel before booking again. Booking twice means two LRs
@@ -287,9 +294,11 @@ export function DelhiveryBookingModal({
 
           {showForm && (
             <>
-              <section className="space-y-2">
-                <h4 className="font-extrabold text-slate-900 uppercase tracking-wide text-[11px]">Consignee (delivery location)</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <section className="ui-card">
+                <div className="ui-card-header">
+                  <h4 className="ui-card-title">Consignee (delivery location)</h4>
+                </div>
+                <div className="ui-card-body grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2">
                     <label className={label}>Name *</label>
                     <input className={input} value={consignee.name} onChange={(e) => setConsignee({ ...consignee, name: e.target.value })} />
@@ -338,17 +347,20 @@ export function DelhiveryBookingModal({
                 </div>
               </section>
 
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-slate-900 uppercase tracking-wide text-[11px]">Boxes ({totalBoxes})</h4>
+              <section className="ui-card">
+                <div className="ui-card-header">
+                  <h4 className="ui-card-title">
+                    Boxes <span className="ui-count">{totalBoxes}</span>
+                  </h4>
                   <button
                     type="button"
                     onClick={() => setBoxes([...boxes, { boxCount: "1", lengthCm: "", widthCm: "", heightCm: "" }])}
-                    className="text-red-700 font-bold flex items-center gap-1 cursor-pointer"
+                    className="ui-btn-ghost ui-btn-sm text-violet-700"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add box size
                   </button>
                 </div>
+                <div className="ui-card-body space-y-2">
                 {boxes.map((b, i) => (
                   <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end">
                     {(["boxCount", "lengthCm", "widthCm", "heightCm"] as const).map((k) => (
@@ -366,14 +378,14 @@ export function DelhiveryBookingModal({
                       type="button"
                       disabled={boxes.length === 1}
                       onClick={() => setBoxes(boxes.filter((_, j) => j !== i))}
-                      className="p-2 text-slate-400 hover:text-rose-600 disabled:opacity-30 cursor-pointer"
+                      className="ui-icon-btn hover:text-rose-600"
                       title="Remove"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className={label}>Total weight, all boxes (kg) *</label>
                     <input className={input} inputMode="decimal" value={weightKg} onChange={(e) => setWeightKg(e.target.value.replace(/[^\d.]/g, ""))} />
@@ -383,19 +395,23 @@ export function DelhiveryBookingModal({
                     <input className={input} maxLength={100} value={description} onChange={(e) => setDescription(e.target.value)} />
                   </div>
                 </div>
+                </div>
               </section>
 
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-slate-900 uppercase tracking-wide text-[11px]">Invoices · {rupees(invoiceTotal)}</h4>
+              <section className="ui-card">
+                <div className="ui-card-header">
+                  <h4 className="ui-card-title">
+                    Invoices <span className="font-normal tabular-nums text-slate-500">· {rupees(invoiceTotal)}</span>
+                  </h4>
                   <button
                     type="button"
                     onClick={() => setInvoices([...invoices, { number: "", amount: "", ewaybill: "" }])}
-                    className="text-red-700 font-bold flex items-center gap-1 cursor-pointer"
+                    className="ui-btn-ghost ui-btn-sm text-violet-700"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add invoice
                   </button>
                 </div>
+                <div className="ui-card-body space-y-2">
                 {invoices.map((inv, i) => (
                   <div key={i} className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
                     <div>
@@ -423,16 +439,16 @@ export function DelhiveryBookingModal({
                       type="button"
                       disabled={invoices.length === 1}
                       onClick={() => setInvoices(invoices.filter((_, j) => j !== i))}
-                      className="p-2 text-slate-400 hover:text-rose-600 disabled:opacity-30 cursor-pointer"
+                      className="ui-icon-btn hover:text-rose-600"
                       title="Remove"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 ))}
-                {needsEwaybill && <p className="text-[10px] text-amber-700 font-semibold">Invoice value is above ₹50,000: every invoice needs an e-way bill.</p>}
+                {needsEwaybill && <p className="text-[11px] text-amber-700 font-medium">Invoice value is above ₹50,000: every invoice needs an e-way bill.</p>}
 
-                <label className="flex items-center gap-2 p-2.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 cursor-pointer hover:bg-slate-100">
+                <label className="flex items-center gap-2 p-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 cursor-pointer hover:border-violet-300 hover:bg-violet-50/40 transition">
                   <FileUp className="w-4 h-4 text-slate-500" />
                   <span className="text-slate-600">
                     {files.length ? `${files.length} invoice file(s), ${(totalFileBytes / 1024 / 1024).toFixed(2)} MB` : "Attach invoice copies (pdf/png/jpg, up to 10 files, 20 MB)"}
@@ -445,9 +461,10 @@ export function DelhiveryBookingModal({
                     onChange={(e) => setFiles(Array.from(e.target.files || []).slice(0, 10))}
                   />
                 </label>
+                </div>
               </section>
 
-              <section className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <section className="ui-card ui-card-body grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={label}>Payment mode</label>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -456,7 +473,7 @@ export function DelhiveryBookingModal({
                         key={m}
                         type="button"
                         onClick={() => setPaymentMode(m)}
-                        className={`py-1.5 rounded-lg font-bold border cursor-pointer ${paymentMode === m ? "bg-red-600 text-white border-red-700" : "bg-white border-slate-200"}`}
+                        className={toggle(paymentMode === m)}
                       >
                         {m === "prepaid" ? "Prepaid" : "COD"}
                       </button>
@@ -480,7 +497,7 @@ export function DelhiveryBookingModal({
                         key={String(v)}
                         type="button"
                         onClick={() => setRov(v)}
-                        className={`py-1.5 rounded-lg font-bold border cursor-pointer ${rov === v ? "bg-red-600 text-white border-red-700" : "bg-white border-slate-200"}`}
+                        className={toggle(rov === v)}
                       >
                         {v ? "Carrier risk" : "Owner risk"}
                       </button>
@@ -492,10 +509,10 @@ export function DelhiveryBookingModal({
           )}
         </div>
 
-        <div className="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0 rounded-b-2xl text-xs">
-          <span className="text-slate-500">Pickup from {status?.sourcePin || "700100"} · Land surface only</span>
+        <div className="ui-dialog-footer flex-wrap">
+          <span className="ui-muted">Pickup from {status?.sourcePin || "700100"} · Land surface only</span>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onClose} className="px-4 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 font-bold cursor-pointer">
+            <button type="button" onClick={onClose} className="ui-btn-secondary">
               Close
             </button>
             {showForm && (
@@ -503,7 +520,7 @@ export function DelhiveryBookingModal({
                 type="button"
                 disabled={submitting || bookingBlocked || (state === "unknown_outcome" && !canOverrideHere)}
                 onClick={() => submit(state === "unknown_outcome")}
-                className="px-4 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                className="ui-btn-primary"
               >
                 {submitting && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 {state === "unknown_outcome" ? "I've checked: book again" : "Create Delhivery LR"}

@@ -10,13 +10,13 @@ import {
   History,
   Save,
   ExternalLink,
-  Clock,
   Shield,
   CheckCircle2,
   AlertCircle,
   Lock,
   Calculator,
   FileText,
+  ChevronDown,
 } from "lucide-react";
 import { BookingDetailModal } from "@/components/booking/BookingDetailModal";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
@@ -25,7 +25,7 @@ import { ChannelBadge } from "@/components/ui/ChannelBadge";
 import { formatDateDisplay, formatDateTimeDisplay, formatDateInputValue } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { BoxDimensionCopyHelper } from "@/components/booking/BoxDimensionCopyHelper";
-import { extractBoxDimensionGroups } from "@/lib/dimension-helper";
+import { extractBoxDimensionGroups, formatCbm, summarizeCartons } from "@/lib/dimension-helper";
 import { isAmazonChannel, isFlipkartFbfOrFksb, getAllowedCouriersForChannel, isSameCourier } from "@/lib/courier-defaults";
 import { APP2_COURIER_MILESTONES, isDeliveredOrder, isOnAppointmentDesk } from "@/lib/order-filters";
 
@@ -212,529 +212,406 @@ export function OrderDetailsDrawer({
   // gate, Delivered by "Mark Delivered" with a POD, GRN Issue by the main app's GRN desk.
   const availableStatuses: string[] = [...APP2_COURIER_MILESTONES];
 
+  const deliveredTo =
+    (detailedOrder?.customData as any)?.deliveredTo ||
+    (order.customData as any)?.deliveredTo ||
+    (order.customData as any)?.warehouseAddress ||
+    order.client?.address;
+  const roExpiry = order.roExpiryDate || (order.customData as any)?.roExpiryDate;
+  const cartons = summarizeCartons(detailedOrder || order);
+  const boxes = cartons.totalBoxes || order.boxCount || 1;
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-fade-in"
-        onClick={onClose}
-      />
+      <div className="ui-overlay animate-fade-in" onClick={onClose} />
 
-      {/* Drawer Container */}
-      <div className="relative w-full max-w-xl bg-white shadow-2xl z-10 flex flex-col h-full border-l border-slate-200">
-        {/* Drawer Header */}
-        <div className="p-4 bg-gradient-to-r from-purple-800 to-indigo-900 text-white flex items-center justify-between border-b border-indigo-700">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-base tracking-tight">{order.roPoNumber}</span>
-              <ChannelBadge channel={order.channel} />
+      {/* Drawer panel */}
+      <div className="relative z-10 flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-xl">
+        {/* Header */}
+        <div className="shrink-0 border-b border-slate-200 bg-white px-5 pt-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="ui-eyebrow">Consignment</div>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="ui-mono truncate text-lg font-semibold tracking-tight text-slate-900">{order.roPoNumber}</span>
+                <ChannelBadge channel={order.channel} />
+              </div>
+              <div className="ui-muted mt-0.5 truncate">
+                {order.client?.name ? `${order.client.name} · ` : ""}
+                {order.warehouseName || "Logistics & appointment operations"}
+              </div>
             </div>
-            <div className="text-[11px] text-white/70 mt-0.5">
-              Consignment Logistics & Appointment Operations
+
+            <div className="flex shrink-0 items-center gap-1.5">
+              <a
+                href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ui-btn-secondary"
+                title="Open this consignment in the Main Consignment App"
+              >
+                <span>Consignment App</span>
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              <button type="button" onClick={onClose} className="ui-icon-btn" aria-label="Close" title="Close">
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <a
-              href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition border border-white/20"
-              title="Open this consignment in the Main Consignment App"
-            >
-              <span>Consignment App</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white transition cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          {/* Tabs (underline) */}
+          <div className="-mb-px mt-3 flex gap-1" role="tablist">
+            <TabButton active={activeTab === "edit"} onClick={() => setActiveTab("edit")} icon={Truck} label="Logistics & appointment" />
+            <TabButton active={activeTab === "documents"} onClick={() => setActiveTab("documents")} icon={FileText} label="Documents" />
+            <TabButton active={activeTab === "history"} onClick={() => setActiveTab("history")} icon={History} label="Activity history" />
           </div>
         </div>
 
-        {/* Navigation Tabs inside Drawer */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-4">
-          <button
-            onClick={() => setActiveTab("edit")}
-            className={`py-2.5 px-4 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "edit"
-                ? "border-violet-600 text-violet-700 bg-white"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <Truck className="w-3.5 h-3.5" />
-            <span>Logistics & Appointment Details</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("documents")}
-            className={`py-2.5 px-4 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "documents"
-                ? "border-violet-600 text-violet-700 bg-white"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Documents</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("history")}
-            className={`py-2.5 px-4 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "history"
-                ? "border-violet-600 text-violet-700 bg-white"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>Activity History</span>
-          </button>
-        </div>
-
-        {/* Drawer Body */}
-        <div className="flex-1 overflow-y-auto p-5">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto bg-slate-50/70">
           {activeTab === "edit" ? (
-            <form onSubmit={handleSave} className="space-y-5">
-              {/* Validation Error Banner */}
-              {validationError && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-800 text-xs animate-shake">
-                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Validation Error: </span>
-                    <span>{validationError}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 1: Order Information (Read-only reference) */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
-                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <Package className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Order Information</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-slate-400">Client / Customer:</span>{" "}
-                    <span className="font-semibold text-slate-800">
-                      {order.client?.name ? `${order.client.name} (${order.client.code})` : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Destination Warehouse:</span>{" "}
-                    <span className="font-semibold text-slate-800">
-                      {order.warehouseName || "—"}
-                    </span>
-                  </div>
-                  {((detailedOrder?.customData as any)?.deliveredTo || (order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address) && (
-                    <div className="col-span-2">
-                      <span className="text-slate-400">Delivered To Address:</span>{" "}
-                      <span className="font-medium text-slate-700 block mt-0.5 text-[11px] bg-slate-50 p-2 rounded border border-slate-100 select-all">
-                        {((detailedOrder?.customData as any)?.deliveredTo || (order.customData as any)?.deliveredTo || (order.customData as any)?.warehouseAddress || order.client?.address)}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-slate-400">Order Date:</span>{" "}
-                    <span className="font-semibold text-slate-800">
-                      {formatDateDisplay(order.orderDate)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Pickup Date:</span>{" "}
-                    <span className="font-semibold text-slate-800">
-                      {formatDateDisplay(order.pickupDate)}
-                    </span>
-                  </div>
-                  {(order.roExpiryDate || (order.customData as any)?.roExpiryDate) && (
-                    <div className="col-span-2">
-                      <span className="text-slate-400">RO Expiry Date:</span>{" "}
-                      <span className="font-semibold text-amber-700">
-                        {formatDateDisplay(order.roExpiryDate || (order.customData as any)?.roExpiryDate)}
-                      </span>
-                    </div>
-                  )}
-                  <div>
-                    <span className="text-slate-400">Total Boxes:</span>{" "}
-                    <span className="font-semibold text-slate-800">{order.boxCount ?? 1} boxes</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Box Dimensions:</span>{" "}
-                    <span className="font-semibold text-slate-800">{order.boxDimensions || "—"}</span>
-                  </div>
-                </div>
-
-                {/* Items preview if available */}
-                {detailedOrder?.items && detailedOrder.items.length > 0 && (
-                  <div className="pt-2 border-t border-slate-200/70">
-                    <span className="text-[11px] font-semibold text-slate-500">Consignment SKUs:</span>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {detailedOrder.items.map((it) => (
-                        <span
-                          key={it.id}
-                          className="px-2 py-0.5 rounded bg-white border border-slate-200 text-[11px] text-slate-700"
-                        >
-                          {it.itemName || "Item"} {it.totalQty ? `(${it.totalQty} pcs)` : ""}
-                        </span>
-                      ))}
+            <form onSubmit={handleSave} className="flex min-h-full flex-col">
+              <div className="flex-1 space-y-4 p-5">
+                {/* Validation error */}
+                {validationError && (
+                  <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 animate-shake">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                    <div>
+                      <span className="font-semibold">Validation error: </span>
+                      <span>{validationError}</span>
                     </div>
                   </div>
                 )}
 
-                {/* Box Dimensions 1-Click Copy Wizard */}
-                <div className="pt-2 border-t border-slate-200/70">
-                  <BoxDimensionCopyHelper
-                    groups={detailedOrder?.boxDimensionGroups || (order ? extractBoxDimensionGroups(order) : [])}
-                    compact={false}
-                    orderNumber={order.roPoNumber}
-                  />
-                </div>
-              </div>
-
-              {/* SECTION 2: Courier & Tracking Information (Editable) */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-violet-600" />
-                    <span>Carrier & Tracking Information</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsPricingModalOpen(true)}
-                    className="px-2.5 py-1 text-[11px] font-bold bg-violet-50 hover:bg-violet-100 text-violet-800 border border-violet-200 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                    title="Compare shipping rates between OM Logistics & partners"
-                  >
-                    <Calculator className="w-3.5 h-3.5 text-violet-600" />
-                    <span>Compare Shipping Rates</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Courier Partner
-                    </label>
-                    <select
-                      value={courierPartner}
-                      onChange={(e) => setCourierPartner(e.target.value)}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                    >
-                      <option value="">Select courier partner...</option>
-                      {/* A courier set in the main app that this desk does not offer (e.g. "Local") is shown, kept as-is */}
-                      {courierPartner && !getAllowedCouriersForChannel(order?.channel).includes(courierPartner) && (
-                        <option value={courierPartner}>{courierPartner}</option>
-                      )}
-                      {getAllowedCouriersForChannel(order?.channel).map((courierName) => {
-                        const isRec = isFlipkartFbfOrFksb(order?.channel) && courierName === "Ekart";
-                        return (
-                          <option key={courierName} value={courierName}>
-                            {courierName}{isRec ? " (Recommended)" : ""}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Tracking ID / AWB Number
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. OML12345678"
-                      value={trackingId}
-                      onChange={(e) => setTrackingId(e.target.value)}
-                      className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Custom Tracking URL (Optional Override)
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="url"
-                      placeholder="https://..."
-                      value={trackingLink}
-                      onChange={(e) => setTrackingLink(e.target.value)}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                    />
-                    {trackingLink && (
-                      <a
-                        href={trackingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 transition shrink-0"
-                        title="Open tracking page"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
+                {/* Order information (read-only) */}
+                <Section icon={Package} title="Order information">
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                    <Field label="Client / customer">
+                      {order.client?.name ? `${order.client.name} (${order.client.code})` : "—"}
+                    </Field>
+                    <Field label="Destination warehouse">{order.warehouseName || "—"}</Field>
+                    <Field label="Order date">{formatDateDisplay(order.orderDate)}</Field>
+                    <Field label="Pickup date">{formatDateDisplay(order.pickupDate)}</Field>
+                    {roExpiry && (
+                      <Field label="RO expiry date">
+                        <span className="text-amber-700">{formatDateDisplay(roExpiry)}</span>
+                      </Field>
                     )}
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 2b: Delhivery One API shipment (only when booked through the API) */}
-              <DelhiveryDrawerSection order={detailedOrder || order} onOrderUpdated={onOrderUpdated} />
-              <ShiprocketDrawerSection order={detailedOrder || order} onOrderUpdated={onOrderUpdated} />
-
-              {/* SECTION 3: Appointment Scheduling (Editable) */}
-              <div className="space-y-3 pt-3 border-t border-slate-200">
-                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Appointment Scheduling</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Appointment Reference ID
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. APPT-2026-0982"
-                      value={appointmentId}
-                      onChange={(e) => setAppointmentId(e.target.value)}
-                      className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Appointment Scheduled Date
-                    </label>
-                    <DateInput
-                      value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Time Slot
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 10:00 AM - 01:00 PM"
-                      value={appointmentSlot}
-                      onChange={(e) => setAppointmentSlot(e.target.value)}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Delivery Date (When Delivered)
-                    </label>
-                    {deliveredWithPod ? (
-                      <DateInput
-                        value={deliveryDate}
-                        onChange={(e) => setDeliveryDate(e.target.value)}
-                        className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                      />
-                    ) : (
-                      <div className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-500">
-                        {current.deliveryDate ? formatDateDisplay(current.deliveryDate) : "Recorded by Mark Delivered (POD)"}
+                    <Field label="Total boxes">
+                      {boxes} box{boxes === 1 ? "" : "es"}
+                    </Field>
+                    <Field label="Total CBM">
+                      <span className="ui-mono">{formatCbm(cartons.totalCbm)}</span>
+                    </Field>
+                    {deliveredTo && (
+                      <div className="col-span-2 sm:col-span-3">
+                        <dt className="ui-label">Delivered to address</dt>
+                        <dd className="select-all rounded-lg bg-slate-50 px-2.5 py-2 text-xs leading-relaxed text-slate-700">
+                          {deliveredTo}
+                        </dd>
                       </div>
                     )}
-                  </div>
-                </div>
-              </div>
+                  </dl>
 
-              {/* SECTION 4: Shipment Status & Audit Remarks */}
-              <div className="space-y-3 pt-3 border-t border-slate-200">
-                <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-violet-600" />
-                  <span>Shipment Status & Remarks</span>
-                </div>
+                  {/* SKUs: collapsed by default, one tidy row per line item */}
+                  {detailedOrder?.items && detailedOrder.items.length > 0 && (
+                    <details className="group mt-4 border-t border-slate-100 pt-3">
+                      <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                        <span className="text-xs font-medium text-slate-600">
+                          Consignment SKUs · {detailedOrder.items.length} item{detailedOrder.items.length === 1 ? "" : "s"} ·{" "}
+                          {detailedOrder.items.reduce((n, it) => n + (it.totalQty || 0), 0).toLocaleString("en-IN")} pcs
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" />
+                      </summary>
+                      <ul className="mt-2 max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-lg bg-slate-50">
+                        {detailedOrder.items.map((it) => (
+                          <li key={it.id} className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs">
+                            <span className="truncate text-slate-700" title={it.itemName || "Item"}>
+                              {it.itemName || "Item"}
+                            </span>
+                            <span className="ui-mono shrink-0 font-medium text-slate-900">{it.totalQty ?? "—"} pcs</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </Section>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Shipment / Courier Status
-                    </label>
-                    <select
-                      value={courierStatus}
-                      onChange={(e) => setCourierStatus(e.target.value)}
-                      className="w-full text-xs font-semibold bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                {/* Box dimensions: 1-click copy wizard (has its own titled panel) */}
+                <BoxDimensionCopyHelper
+                  groups={detailedOrder?.boxDimensionGroups || (order ? extractBoxDimensionGroups(order) : [])}
+                  compact={false}
+                  orderNumber={order.roPoNumber}
+                />
+
+                {/* Carrier & tracking (editable) */}
+                <Section
+                  icon={Truck}
+                  title="Carrier & tracking"
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setIsPricingModalOpen(true)}
+                      className="ui-btn-secondary ui-btn-sm"
+                      title="Compare shipping rates between OM Logistics & partners"
                     >
-                      {availableStatuses.map((st) => (
-                        <option key={st} value={st}>
-                          {st}
-                        </option>
-                      ))}
-                      {/* A status set elsewhere (e.g. GRN Issue from the main app's GRN desk) is shown, not offered */}
-                      {courierStatus && !availableStatuses.includes(courierStatus) && (
-                        <option value={courierStatus} disabled>
-                          {courierStatus}
-                        </option>
-                      )}
-                    </select>
-                  </div>
+                      <Calculator className="h-3.5 w-3.5" />
+                      <span>Compare shipping rates</span>
+                    </button>
+                  }
+                >
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="ui-label">Courier partner</label>
+                      <select value={courierPartner} onChange={(e) => setCourierPartner(e.target.value)} className="ui-select">
+                        <option value="">Select courier partner...</option>
+                        {/* A courier set in the main app that this desk does not offer (e.g. "Local") is shown, kept as-is */}
+                        {courierPartner && !getAllowedCouriersForChannel(order?.channel).includes(courierPartner) && (
+                          <option value={courierPartner}>{courierPartner}</option>
+                        )}
+                        {getAllowedCouriersForChannel(order?.channel).map((courierName) => {
+                          const isRec = isFlipkartFbfOrFksb(order?.channel) && courierName === "Ekart";
+                          return (
+                            <option key={courierName} value={courierName}>
+                              {courierName}
+                              {isRec ? " (Recommended)" : ""}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
 
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Current Milestone Badge & Quick Actions
-                    </label>
-                    <div className="flex items-center gap-1.5 pt-1">
-                      <StatusBadge status={courierStatus} />
-                      {canMarkDelivered && (
-                        <button
-                          type="button"
-                          onClick={() => setPodFormOpen(true)}
-                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 hover:bg-emerald-200 cursor-pointer"
-                          title="Mark Delivered — upload the POD (proof of delivery)"
-                        >
-                          ✓ Mark Delivered
-                        </button>
+                    <div>
+                      <label className="ui-label">Tracking ID / AWB number</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. OML12345678"
+                        value={trackingId}
+                        onChange={(e) => setTrackingId(e.target.value)}
+                        className="ui-input ui-mono"
+                      />
+                    </div>
+
+                    <div className="col-span-2">
+                      <label className="ui-label">Custom tracking URL (optional override)</label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="url"
+                          placeholder="https://..."
+                          value={trackingLink}
+                          onChange={(e) => setTrackingLink(e.target.value)}
+                          className="ui-input"
+                        />
+                        {trackingLink && (
+                          <a
+                            href={trackingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ui-btn-secondary h-[34px] shrink-0 px-2.5"
+                            title="Open tracking page"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Section>
+
+                {/* Carrier API shipments (render only when booked through the API) */}
+                <DelhiveryDrawerSection order={detailedOrder || order} onOrderUpdated={onOrderUpdated} />
+                <ShiprocketDrawerSection order={detailedOrder || order} onOrderUpdated={onOrderUpdated} />
+
+                {/* Appointment (editable) */}
+                <Section icon={Calendar} title="Appointment">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="ui-label">Appointment reference ID</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. APPT-2026-0982"
+                        value={appointmentId}
+                        onChange={(e) => setAppointmentId(e.target.value)}
+                        className="ui-input ui-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="ui-label">Appointment date</label>
+                      <DateInput value={appointmentDate} onChange={(e) => setAppointmentDate(e.target.value)} className="ui-input" />
+                    </div>
+
+                    <div>
+                      <label className="ui-label">Time slot</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 10:00 AM - 01:00 PM"
+                        value={appointmentSlot}
+                        onChange={(e) => setAppointmentSlot(e.target.value)}
+                        className="ui-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="ui-label">Delivery date (when delivered)</label>
+                      {deliveredWithPod ? (
+                        <DateInput value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className="ui-input" />
+                      ) : (
+                        <div className="truncate rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-500">
+                          {current.deliveryDate ? formatDateDisplay(current.deliveryDate) : "Recorded by Mark Delivered (POD)"}
+                        </div>
                       )}
                     </div>
                   </div>
-                </div>
+                </Section>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Logistics Operational Notes / Comment
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="General operational logistics remarks for this shipment..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Status Change Reason (Recorded into Audit History)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Consignment handed over to carrier / Pod verified"
-                    value={statusRemarks}
-                    onChange={(e) => setStatusRemarks(e.target.value)}
-                    className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 text-slate-800 focus:outline-none focus:ring-1 focus:ring-violet-500"
-                  />
-                </div>
-
-                {/* 🔒 PERSONAL INTERNAL NOTE (Strictly Private to Appointment Desk) */}
-                <div className="mt-4 p-3.5 rounded-xl bg-amber-50/60 border border-amber-200/90 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                      <Lock className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Internal Personal Note (Appointment Desk Only)</span>
+                {/* Shipment status & remarks */}
+                <Section
+                  icon={Shield}
+                  title="Shipment status & remarks"
+                  action={
+                    /* Read-only badge (never clickable); Mark Delivered opens the POD form */
+                    <StatusBadge status={courierStatus} />
+                  }
+                >
+                  <div className="space-y-3">
+                    <div>
+                      <label className="ui-label">Shipment / courier status</label>
+                      <div className="flex items-center gap-2">
+                        <select value={courierStatus} onChange={(e) => setCourierStatus(e.target.value)} className="ui-select">
+                          {availableStatuses.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                          {/* A status set elsewhere (e.g. GRN Issue from the main app's GRN desk) is shown, not offered */}
+                          {courierStatus && !availableStatuses.includes(courierStatus) && (
+                            <option value={courierStatus} disabled>
+                              {courierStatus}
+                            </option>
+                          )}
+                        </select>
+                        {canMarkDelivered && (
+                          <button
+                            type="button"
+                            onClick={() => setPodFormOpen(true)}
+                            className="ui-btn-success h-[34px] shrink-0"
+                            title="Mark Delivered — upload the POD (proof of delivery)"
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            <span>Mark Delivered</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
-                      Private & Isolated
-                    </span>
-                  </div>
 
-                  <p className="text-[11px] text-amber-900/80 leading-normal">
-                    🔒 These notes are stored exclusively in Appointment Desk storage. They are <strong>never</strong> exported, shared, or displayed in Consignment Ops or external portals.
+                    <div>
+                      <label className="ui-label">Operational notes / comment</label>
+                      <textarea
+                        rows={2}
+                        placeholder="General operational logistics remarks for this shipment..."
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        className="ui-input resize-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="ui-label">Status change reason (recorded in audit history)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Consignment handed over to carrier / Pod verified"
+                        value={statusRemarks}
+                        onChange={(e) => setStatusRemarks(e.target.value)}
+                        className="ui-input"
+                      />
+                    </div>
+                  </div>
+                </Section>
+
+                {/* Personal internal note (private to the Appointment desk) */}
+                <Section
+                  icon={Lock}
+                  title="Internal personal note"
+                  action={<span className="ui-chip border-amber-200 bg-amber-50 text-amber-800">Private · Appointment desk only</span>}
+                >
+                  <p className="ui-muted mb-2 leading-normal">
+                    Stored only in Appointment desk storage. Never exported, shared, or shown in Consignment Ops or external portals.
                   </p>
-
                   <textarea
                     rows={3}
                     placeholder="Write personal operational notes, driver contacts, gate pass details, or reminders about this order..."
                     value={personalNote}
                     onChange={(e) => setPersonalNote(e.target.value)}
-                    className="w-full text-xs bg-white border border-amber-300 rounded-lg p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none shadow-2xs"
+                    className="ui-input resize-none"
                   />
-
                   {personalNoteInfo.updatedAt && (
-                    <div className="text-[10px] text-amber-800/80 flex items-center justify-between pt-0.5">
-                      <span>Last edited: {formatDateTimeDisplay(personalNoteInfo.updatedAt)}</span>
+                    <div className="ui-muted mt-1.5 flex items-center justify-between">
+                      <span>Last edited {formatDateTimeDisplay(personalNoteInfo.updatedAt)}</span>
                       {personalNoteInfo.updatedBy && <span>by {personalNoteInfo.updatedBy}</span>}
                     </div>
                   )}
-                </div>
+                </Section>
               </div>
 
-              {/* Drawer Footer Actions */}
-              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                >
+              {/* Footer actions (sticky at the bottom of the drawer) */}
+              <div className="sticky bottom-0 flex items-center justify-end gap-2 border-t border-slate-200 bg-white/95 px-5 py-3 backdrop-blur">
+                <button type="button" onClick={onClose} className="ui-btn-ghost px-4 py-2">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-5 py-2 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                >
+                <button type="submit" disabled={isSaving} className="ui-btn-primary px-4 py-2">
                   {isSaving ? (
                     <>
-                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                       <span>Saving...</span>
                     </>
                   ) : (
                     <>
-                      <Save className="w-3.5 h-3.5" />
-                      <span>Save Changes</span>
+                      <Save className="h-3.5 w-3.5" />
+                      <span>Save changes</span>
                     </>
                   )}
                 </button>
               </div>
             </form>
           ) : activeTab === "documents" ? (
-            <OrderDocumentsSection order={current} onMarkDelivered={() => setPodFormOpen(true)} />
+            <div className="p-5">
+              <OrderDocumentsSection order={current} onMarkDelivered={() => setPodFormOpen(true)} />
+            </div>
           ) : (
-            /* SECTION 5: Activity History Timeline */
-            <div className="space-y-4">
-              <div className="text-xs font-bold text-slate-900 flex items-center justify-between">
-                <span>Consignment Activity Timeline</span>
-                <span className="text-[11px] text-slate-500 font-normal">
-                  Recorded in OrderStatusHistory & AuditLog
-                </span>
-              </div>
-
-              {isLoadingDetails ? (
-                <div className="py-8 text-center text-xs text-slate-400">Loading audit trail...</div>
-              ) : detailedOrder?.statusHistory && detailedOrder.statusHistory.length > 0 ? (
-                <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                  {detailedOrder.statusHistory.map((item) => (
-                    <div key={item.id} className="relative text-xs">
-                      <div className="absolute -left-6 top-0.5 w-3 h-3 rounded-full bg-violet-600 ring-4 ring-white" />
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-slate-900">
-                            {item.fromStatus ? `${item.fromStatus} ➔ ${item.toStatus}` : item.toStatus}
+            /* Activity history timeline */
+            <div className="p-5">
+              <Section
+                icon={History}
+                title="Activity timeline"
+                action={<span className="ui-muted">Order status history & audit log</span>}
+              >
+                {isLoadingDetails ? (
+                  <div className="py-8 text-center text-xs text-slate-400">Loading audit trail...</div>
+                ) : detailedOrder?.statusHistory && detailedOrder.statusHistory.length > 0 ? (
+                  <ol className="relative space-y-4 pl-5 before:absolute before:bottom-1 before:left-[5px] before:top-1 before:w-px before:bg-slate-200">
+                    {detailedOrder.statusHistory.map((item) => (
+                      <li key={item.id} className="relative text-xs">
+                        <span className="absolute -left-5 top-1 h-[11px] w-[11px] rounded-full border-2 border-white bg-violet-600 ring-1 ring-violet-200" />
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                          <span className="font-semibold text-slate-900">
+                            {item.fromStatus ? `${item.fromStatus} → ${item.toStatus}` : item.toStatus}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {formatDateTimeDisplay(item.timestamp)}
-                          </span>
+                          <span className="ui-mono text-[11px] text-slate-400">{formatDateTimeDisplay(item.timestamp)}</span>
                         </div>
-                        <div className="text-[11px] text-slate-600 mt-1">
-                          {item.reason || "Status updated"}
+                        <div className="mt-0.5 text-slate-600">{item.reason || "Status updated"}</div>
+                        <div className="ui-muted mt-0.5">
+                          by <span className="font-medium text-slate-700">{item.userName || "System"}</span>
+                          {item.userRole && <span> ({item.userRole})</span>}
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-1.5 flex items-center gap-1">
-                          <span>Updated by:</span>
-                          <span className="font-semibold text-slate-700">
-                            {item.userName || "System"}
-                          </span>
-                          {item.userRole && <span>({item.userRole})</span>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No status transition history recorded yet.
-                </div>
-              )}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <div className="py-8 text-center text-xs text-slate-400">No status transition history recorded yet.</div>
+                )}
+              </Section>
             </div>
           )}
         </div>
@@ -775,5 +652,50 @@ export function OrderDetailsDrawer({
         />
       )}
     </div>
+  );
+}
+
+type IconType = React.ComponentType<{ className?: string }>;
+
+/** Titled white card used for every drawer section. */
+function Section({ icon: Icon, title, action, children }: { icon: IconType; title: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="ui-card">
+      <div className="ui-card-header">
+        <h3 className="ui-card-title">
+          <Icon className="h-4 w-4 text-slate-400" />
+          <span>{title}</span>
+        </h3>
+        {action}
+      </div>
+      <div className="ui-card-body">{children}</div>
+    </section>
+  );
+}
+
+/** Definition-grid entry: label above value. */
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="ui-label">{label}</dt>
+      <dd className="break-words text-sm font-medium text-slate-900">{children}</dd>
+    </div>
+  );
+}
+
+function TabButton({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: IconType; label: string }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`flex cursor-pointer items-center gap-1.5 border-b-2 px-3 py-2 text-xs font-semibold transition ${
+        active ? "border-violet-600 text-violet-700" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      <span>{label}</span>
+    </button>
   );
 }

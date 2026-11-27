@@ -17,22 +17,27 @@ export function DelhiveryDrawerSection({ order, onOrderUpdated }: { order: Appoi
   if (!record.lrn && !state) return null;
 
   return (
-    <div className="space-y-3 pt-3 border-t border-slate-200">
-      <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-        <Truck className="w-3.5 h-3.5 text-red-600" />
-        <span>Delhivery One shipment</span>
+    <section className="ui-card">
+      <div className="ui-card-header">
+        <h3 className="ui-card-title">
+          <Truck className="h-4 w-4 text-slate-400" />
+          <span>Delhivery One shipment</span>
+        </h3>
+        <span className="ui-chip">Carrier API</span>
       </div>
-      {record.lrn ? (
-        <DelhiveryShipmentPanel order={order} record={record} status={status} onRecordChange={setRecord} onOrderUpdated={onOrderUpdated} />
-      ) : (
-        <p className="text-xs text-slate-600">
-          {state === "pending" || state === "submitting"
-            ? "Booking sent to Delhivery; waiting for the LR. Open the booking from the Booking Desk to check its status."
-            : state === "unknown_outcome"
-            ? "The last booking attempt has an unknown result. Check the Delhivery One panel before booking again."
-            : `Last booking attempt failed${record.manifest?.message ? `: ${record.manifest.message}` : "."}`}
-        </p>
-      )}
-    </div>
+      <div className="ui-card-body">
+        {record.lrn ? (
+          <DelhiveryShipmentPanel order={order} record={record} status={status} onRecordChange={setRecord} onOrderUpdated={onOrderUpdated} />
+        ) : (
+          <p className="text-xs text-slate-600">
+            {state === "pending" || state === "submitting"
+              ? "Booking sent to Delhivery; waiting for the LR. Open the booking from the Booking Desk to check its status."
+              : state === "unknown_outcome"
+              ? "The last booking attempt has an unknown result. Check the Delhivery One panel before booking again."
+              : `Last booking attempt failed${record.manifest?.message ? `: ${record.manifest.message}` : "."}`}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }

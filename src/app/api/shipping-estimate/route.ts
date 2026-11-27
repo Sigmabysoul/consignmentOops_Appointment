@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       appointmentDelivery: Boolean(body.appointmentDelivery),
       rovCover: body.rovCover || "none",
       invoiceValue: typeof body.invoiceValue === "number" ? body.invoiceValue : parseFloat(body.invoiceValue) || 0,
+      volumeCbm: Number(body.volumeCbm) > 0 ? Number(body.volumeCbm) : null,
     };
 
     // Load active presets from database/storage

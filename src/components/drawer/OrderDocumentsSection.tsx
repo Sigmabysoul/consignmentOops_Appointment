@@ -107,139 +107,137 @@ export function OrderDocumentsSection({ order, onMarkDelivered }: OrderDocuments
 
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-slate-500">
-        Files are kept with the order in the shared database, so the main consignment app sees them too.
-      </p>
+      <p className="ui-muted">Files are kept with the order in the shared database, so the main consignment app sees them too.</p>
 
       {loadError && (
-        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
+        <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+          <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="flex-1">{loadError}</span>
-          <button type="button" onClick={() => void load()} className="font-bold underline cursor-pointer">
+          <button type="button" onClick={() => void load()} className="ui-btn-ghost ui-btn-sm text-rose-700">
             Retry
           </button>
         </div>
       )}
 
-      {DOCUMENT_SLOTS.map((slot) => {
-        const Icon = SLOT_ICONS[slot.slot];
-        const slotDocs = docs.filter((d) => d.slot === slot.slot);
-        const latest = slotDocs[0];
-        const isBusy = uploading === slot.slot;
-        const acceptsUpload = slot.slot !== "POD";
-        const isDragOver = dragSlot === slot.slot;
+      <div className="ui-card divide-y divide-slate-100 overflow-hidden">
+        {DOCUMENT_SLOTS.map((slot) => {
+          const Icon = SLOT_ICONS[slot.slot];
+          const slotDocs = docs.filter((d) => d.slot === slot.slot);
+          const latest = slotDocs[0];
+          const isBusy = uploading === slot.slot;
+          const acceptsUpload = slot.slot !== "POD";
+          const isDragOver = dragSlot === slot.slot;
 
-        return (
-          <div
-            key={slot.slot}
-            onDragOver={(e) => {
-              if (!acceptsUpload) return;
-              e.preventDefault();
-              setDragSlot(slot.slot);
-            }}
-            onDragLeave={() => setDragSlot((s) => (s === slot.slot ? null : s))}
-            onDrop={(e) => {
-              if (!acceptsUpload) return;
-              e.preventDefault();
-              setDragSlot(null);
-              void upload(slot, e.dataTransfer.files?.[0]);
-            }}
-            className={`rounded-xl border p-3.5 transition ${
-              isDragOver ? "border-violet-500 bg-violet-50 ring-2 ring-violet-200" : latest ? "border-slate-200 bg-white" : "border-dashed border-slate-300 bg-slate-50/60"
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${latest ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-white text-slate-400 border border-slate-200"}`}>
-                <Icon className="w-4 h-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-xs font-extrabold text-slate-900">{slot.label}</h4>
-                  {loading ? (
-                    <span className="text-[10px] text-slate-400">Loading…</span>
-                  ) : latest ? (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> On file
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">Missing</span>
-                  )}
-                  {slot.slot === "SHIPPING_LABEL" && labelCount > 0 && (
-                    <span className="text-[10px] font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full">
-                      {labelCount} box label{labelCount === 1 ? "" : "s"} for BoxTrace
-                    </span>
-                  )}
+          return (
+            <div
+              key={slot.slot}
+              onDragOver={(e) => {
+                if (!acceptsUpload) return;
+                e.preventDefault();
+                setDragSlot(slot.slot);
+              }}
+              onDragLeave={() => setDragSlot((s) => (s === slot.slot ? null : s))}
+              onDrop={(e) => {
+                if (!acceptsUpload) return;
+                e.preventDefault();
+                setDragSlot(null);
+                void upload(slot, e.dataTransfer.files?.[0]);
+              }}
+              className={`p-4 transition ${isDragOver ? "bg-violet-50 ring-2 ring-inset ring-violet-300" : ""}`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                    latest ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">{slot.hint}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-semibold text-slate-900">{slot.label}</h4>
+                    {loading ? (
+                      <span className="ui-muted">Loading…</span>
+                    ) : latest ? (
+                      <span className="ui-chip border-emerald-200 bg-emerald-50 text-emerald-700">
+                        <CheckCircle2 className="h-3 w-3" /> On file
+                      </span>
+                    ) : (
+                      <span className="ui-chip border-amber-200 bg-amber-50 text-amber-800">Missing</span>
+                    )}
+                    {slot.slot === "SHIPPING_LABEL" && labelCount > 0 && (
+                      <span className="ui-chip">
+                        {labelCount} box label{labelCount === 1 ? "" : "s"} for BoxTrace
+                      </span>
+                    )}
+                  </div>
+                  <p className="ui-muted mt-0.5">{slot.hint}</p>
 
-                {slotDocs.length > 0 && (
-                  <ul className="mt-2 space-y-1">
-                    {slotDocs.map((d, idx) => (
-                      <li key={d.id} className={`flex items-center gap-2 text-[11px] ${idx > 0 ? "text-slate-400" : "text-slate-700"}`}>
-                        <span className="font-semibold truncate max-w-[220px]" title={d.fileName}>
-                          {d.fileName}
-                        </span>
-                        <span className="shrink-0">{formatSize(d.fileSize)}</span>
-                        <span className="shrink-0 truncate">
-                          · {formatDateTimeDisplay(d.uploadedAt)}
-                          {d.uploadedByName ? ` · ${d.uploadedByName}` : ""}
-                        </span>
-                        {d.viewUrl && (
-                          <a
-                            href={d.viewUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-auto shrink-0 font-bold text-violet-700 hover:underline flex items-center gap-1"
-                          >
-                            View <ExternalLink className="w-3 h-3" />
-                          </a>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
-                  {acceptsUpload ? (
-                    <>
-                      <input
-                        ref={(el) => {
-                          inputs.current[slot.slot] = el;
-                        }}
-                        type="file"
-                        accept={slot.extensions.map((e) => `.${e}`).join(",")}
-                        className="hidden"
-                        onChange={(e) => void upload(slot, e.target.files?.[0])}
-                      />
-                      <button
-                        type="button"
-                        disabled={isBusy || Boolean(uploading)}
-                        onClick={() => inputs.current[slot.slot]?.click()}
-                        className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                        <span>{isBusy ? "Uploading…" : latest ? "Upload new version" : `Upload ${slot.label.toLowerCase()}`}</span>
-                      </button>
-                      <span className="text-[10px] text-slate-400">or drop a file here · {slot.extensions.join(", ")}</span>
-                    </>
-                  ) : latest ? null : canMarkDelivered ? (
-                    <button
-                      type="button"
-                      onClick={onMarkDelivered}
-                      className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ClipboardCheck className="w-3.5 h-3.5" />
-                      <span>Mark Delivered & upload POD</span>
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-slate-500">The POD is added when the order is marked Delivered (once it is in transit).</span>
+                  {slotDocs.length > 0 && (
+                    <ul className="mt-2.5 divide-y divide-slate-100 rounded-lg bg-slate-50">
+                      {slotDocs.map((d, idx) => (
+                        <li key={d.id} className={`flex items-center gap-2 px-2.5 py-1.5 text-xs ${idx > 0 ? "text-slate-400" : "text-slate-700"}`}>
+                          <span className="max-w-[220px] truncate font-medium" title={d.fileName}>
+                            {d.fileName}
+                          </span>
+                          <span className="shrink-0 text-[11px]">{formatSize(d.fileSize)}</span>
+                          <span className="shrink-0 truncate text-[11px]">
+                            · {formatDateTimeDisplay(d.uploadedAt)}
+                            {d.uploadedByName ? ` · ${d.uploadedByName}` : ""}
+                          </span>
+                          {d.viewUrl && (
+                            <a
+                              href={d.viewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-auto flex shrink-0 items-center gap-1 font-semibold text-violet-700 hover:underline"
+                            >
+                              View <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
                   )}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {acceptsUpload ? (
+                      <>
+                        <input
+                          ref={(el) => {
+                            inputs.current[slot.slot] = el;
+                          }}
+                          type="file"
+                          accept={slot.extensions.map((e) => `.${e}`).join(",")}
+                          className="hidden"
+                          onChange={(e) => void upload(slot, e.target.files?.[0])}
+                        />
+                        <button
+                          type="button"
+                          disabled={isBusy || Boolean(uploading)}
+                          onClick={() => inputs.current[slot.slot]?.click()}
+                          className={latest ? "ui-btn-secondary" : "ui-btn-primary"}
+                        >
+                          {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                          <span>{isBusy ? "Uploading…" : latest ? "Upload new version" : `Upload ${slot.label.toLowerCase()}`}</span>
+                        </button>
+                        <span className="text-[11px] text-slate-400">or drop a file here · {slot.extensions.join(", ")}</span>
+                      </>
+                    ) : latest ? null : canMarkDelivered ? (
+                      <button type="button" onClick={onMarkDelivered} className="ui-btn-success">
+                        <ClipboardCheck className="h-3.5 w-3.5" />
+                        <span>Mark Delivered & upload POD</span>
+                      </button>
+                    ) : (
+                      <span className="ui-muted">The POD is added when the order is marked Delivered (once it is in transit).</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }

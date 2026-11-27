@@ -228,50 +228,41 @@ export function ShippingPresetsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-      />
+      <div className="ui-overlay transition-opacity" onClick={onClose} />
 
       {/* Main Dialog */}
-      <div className="relative w-full max-w-5xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-10 flex flex-col max-h-[92vh] animate-scale-in text-slate-800">
+      <div className="ui-dialog max-w-5xl z-10 animate-scale-in">
         {/* Header */}
-        <div className="px-5 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-violet-600/30 flex items-center justify-center border border-violet-400/30">
-              <Sliders className="w-5 h-5 text-violet-400" />
+        <div className="ui-dialog-header">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
+              <Sliders className="w-5 h-5 text-violet-600" />
             </div>
-            <div>
-              <h3 className="font-extrabold text-base tracking-tight text-white flex items-center gap-2">
-                <span>Shipping & Logistics Presets Manager</span>
-                <span className="text-[10px] bg-violet-500/30 text-violet-200 font-bold px-2 py-0.5 rounded-full border border-violet-400/20">
-                  Data-Driven Rules
-                </span>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-slate-900 flex flex-wrap items-center gap-2">
+                <span>Shipping and logistics presets</span>
+                {!canEdit && !isLoading && <span className="ui-chip">View only</span>}
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="ui-muted mt-0.5">
                 Configure OM Logistics rate slabs, surcharges, state mappings, and partner carrier rates.
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
-          >
+          <button type="button" onClick={onClose} className="ui-icon-btn shrink-0" title="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200 bg-slate-50 px-4 shrink-0 overflow-x-auto">
+        <div className="flex gap-1 border-b border-slate-200 bg-white px-4 shrink-0 overflow-x-auto">
           {[
-            { id: "omRates", label: "1. OM Logistics Rate Card", icon: Truck },
-            { id: "omConfig", label: "2. OM Config & Surcharges", icon: DollarSign },
-            { id: "carriers", label: "3. Partner Carriers", icon: Sliders },
-            { id: "stateZones", label: "4. State to Zone Mapping", icon: MapPin },
-            { id: "oda", label: "5. ODA Distance Matrix", icon: Layers },
-            { id: "omWhatsApp", label: "6. OM WhatsApp Booking", icon: MessageSquare },
+            { id: "omRates", label: "OM rate card", icon: Truck },
+            { id: "omConfig", label: "OM config & surcharges", icon: DollarSign },
+            { id: "carriers", label: "Partner carriers", icon: Sliders },
+            { id: "stateZones", label: "State to zone", icon: MapPin },
+            { id: "oda", label: "ODA distance matrix", icon: Layers },
+            { id: "omWhatsApp", label: "OM WhatsApp booking", icon: MessageSquare },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -280,10 +271,10 @@ export function ShippingPresetsModal({
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`py-2.5 px-3.5 text-xs font-bold border-b-2 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                className={`-mb-px py-2.5 px-3 text-xs font-medium border-b-2 transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   isActive
-                    ? "border-violet-600 text-violet-700 bg-white"
-                    : "border-transparent text-slate-500 hover:text-slate-900"
+                    ? "border-violet-600 text-slate-900"
+                    : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
                 }`}
               >
                 <Icon className={`w-3.5 h-3.5 ${isActive ? "text-violet-600" : "text-slate-400"}`} />
@@ -294,11 +285,11 @@ export function ShippingPresetsModal({
         </div>
 
         {/* Tab Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+        <div className="flex-1 overflow-y-auto bg-slate-50/60 p-4 sm:p-5">
           {isLoading ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-2 text-slate-400">
+            <div className="ui-empty">
               <span className="w-6 h-6 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs font-bold">Loading active presets...</span>
+              <span className="text-xs font-medium">Loading active presets…</span>
             </div>
           ) : (
             <>
@@ -307,27 +298,27 @@ export function ShippingPresetsModal({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+                      <h4 className="text-sm font-semibold text-slate-900">
                         OM Logistics Surface Rate Slabs (Ex Kolkata PIN 700100)
                       </h4>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="ui-muted mt-0.5">
                         Light slab (≤250 kg) applies fuel % + ₹100 CN. Heavy slabs (&gt;250 kg) are all-inclusive.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleAddRateRow}
-                      className="px-2.5 py-1 text-xs font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 rounded-lg flex items-center gap-1 cursor-pointer"
+                      className="ui-btn-secondary"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Slab</span>
                     </button>
                   </div>
 
-                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <div className="ui-card overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                        <tr className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-200">
                           <th className="py-2.5 px-3">Zones</th>
                           <th className="py-2.5 px-2 w-20">Min kg</th>
                           <th className="py-2.5 px-2 w-20">Max kg</th>
@@ -340,7 +331,7 @@ export function ShippingPresetsModal({
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {omRateCard.map((row, idx) => (
-                          <tr key={row.id || idx} className="hover:bg-slate-50/80">
+                          <tr key={row.id || idx} className="hover:bg-slate-50/70">
                             <td className="py-1.5 px-3">
                               <input
                                 type="text"
@@ -352,7 +343,7 @@ export function ShippingPresetsModal({
                                     e.target.value.split(",").map((s) => s.trim())
                                   )
                                 }
-                                className="w-full bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-semibold text-slate-800"
+                                className="w-full bg-white border border-slate-200 rounded-md px-1.5 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-xs font-semibold text-slate-800"
                               />
                             </td>
                             <td className="py-1.5 px-2">
@@ -362,7 +353,7 @@ export function ShippingPresetsModal({
                                 onChange={(e) =>
                                   handleUpdateRateRow(idx, "minKg", parseFloat(e.target.value) || 0)
                                 }
-                                className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-xs text-slate-800 font-mono"
+                                className="w-16 bg-white border border-slate-200 rounded-md px-1 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-xs text-slate-800 font-mono"
                               />
                             </td>
                             <td className="py-1.5 px-2">
@@ -372,7 +363,7 @@ export function ShippingPresetsModal({
                                 onChange={(e) =>
                                   handleUpdateRateRow(idx, "maxKg", parseFloat(e.target.value) || 0)
                                 }
-                                className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-xs text-slate-800 font-mono"
+                                className="w-16 bg-white border border-slate-200 rounded-md px-1 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-xs text-slate-800 font-mono"
                               />
                             </td>
                             <td className="py-1.5 px-2">
@@ -383,7 +374,7 @@ export function ShippingPresetsModal({
                                 onChange={(e) =>
                                   handleUpdateRateRow(idx, "ratePerKg", parseFloat(e.target.value) || 0)
                                 }
-                                className="w-20 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-bold text-violet-700 font-mono"
+                                className="w-20 bg-white border border-slate-200 rounded-md px-1.5 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-xs font-semibold text-violet-700 font-mono"
                               />
                             </td>
                             <td className="py-1.5 px-2">
@@ -393,7 +384,7 @@ export function ShippingPresetsModal({
                                 onChange={(e) =>
                                   handleUpdateRateRow(idx, "fuelPercent", parseFloat(e.target.value) || 0)
                                 }
-                                className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-xs text-slate-800 font-mono"
+                                className="w-16 bg-white border border-slate-200 rounded-md px-1 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-xs text-slate-800 font-mono"
                               />
                             </td>
                             <td className="py-1.5 px-2">
@@ -403,7 +394,7 @@ export function ShippingPresetsModal({
                                 onChange={(e) =>
                                   handleUpdateRateRow(idx, "cnCharge", parseFloat(e.target.value) || 0)
                                 }
-                                className="w-16 bg-white border border-slate-200 rounded px-1 py-0.5 text-xs text-slate-800 font-mono"
+                                className="w-16 bg-white border border-slate-200 rounded-md px-1 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-xs text-slate-800 font-mono"
                               />
                             </td>
                             <td className="py-1.5 px-3">
@@ -413,14 +404,14 @@ export function ShippingPresetsModal({
                                 onChange={(e) =>
                                   handleUpdateRateRow(idx, "note", e.target.value)
                                 }
-                                className="w-full bg-white border border-slate-200 rounded px-1.5 py-0.5 text-[11px] text-slate-600"
+                                className="w-full bg-white border border-slate-200 rounded-md px-1.5 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-[11px] text-slate-600"
                               />
                             </td>
                             <td className="py-1.5 px-2 text-right">
                               <button
                                 type="button"
                                 onClick={() => handleDeleteRateRow(idx)}
-                                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                className="ui-icon-btn h-7 w-7 hover:text-rose-600 hover:bg-rose-50"
                                 title="Delete row"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -438,17 +429,17 @@ export function ShippingPresetsModal({
               {activeTab === "omConfig" && omConfig && (
                 <div className="space-y-4 max-w-2xl">
                   <div>
-                    <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+                    <h4 className="text-sm font-semibold text-slate-900">
                       OM Logistics Surcharges & Global Constants
                     </h4>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ui-muted mt-0.5">
                       Standard commercial parameters used across all calculations.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                  <div className="ui-card ui-card-body grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         GST Rate (%)
                       </label>
                       <input
@@ -457,12 +448,12 @@ export function ShippingPresetsModal({
                         onChange={(e) =>
                           setOmConfig({ ...omConfig, gstPercent: parseFloat(e.target.value) || 0 })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
+                        className="ui-input tabular-nums"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         Air Express Rate (₹/kg)
                       </label>
                       <input
@@ -474,12 +465,12 @@ export function ShippingPresetsModal({
                             airExpressRatePerKg: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
+                        className="ui-input tabular-nums"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         Appointment Min Charge (₹)
                       </label>
                       <input
@@ -491,15 +482,15 @@ export function ShippingPresetsModal({
                             appointmentMinFee: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
+                        className="ui-input tabular-nums"
                       />
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      <span className="ui-muted mt-1 block">
                         Base minimum applied up to threshold weight
                       </span>
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         Appointment Per-Kg Rate (₹/kg)
                       </label>
                       <input
@@ -511,15 +502,15 @@ export function ShippingPresetsModal({
                             appointmentPerKgFee: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
+                        className="ui-input tabular-nums"
                       />
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      <span className="ui-muted mt-1 block">
                         Applied when weight exceeds threshold
                       </span>
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         ROV Shipper's Risk (%)
                       </label>
                       <input
@@ -532,15 +523,15 @@ export function ShippingPresetsModal({
                             rovShipperRiskPercent: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
+                        className="ui-input tabular-nums"
                       />
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      <span className="ui-muted mt-1 block">
                         Default: 0.3% (Min ₹{omConfig.rovShipperRiskMin})
                       </span>
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         ROV Carrier's Risk (%)
                       </label>
                       <input
@@ -553,15 +544,15 @@ export function ShippingPresetsModal({
                             rovCarrierRiskPercent: parseFloat(e.target.value) || 0,
                           })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-bold text-slate-900"
+                        className="ui-input tabular-nums"
                       />
-                      <span className="text-[10px] text-slate-400 mt-0.5 block">
+                      <span className="ui-muted mt-1 block">
                         Default: 0.8% (Min ₹{omConfig.rovCarrierRiskMin})
                       </span>
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         OM Transporter ID
                       </label>
                       <input
@@ -570,12 +561,12 @@ export function ShippingPresetsModal({
                         onChange={(e) =>
                           setOmConfig({ ...omConfig, transporterId: e.target.value })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-mono text-slate-900 font-bold"
+                        className="ui-input ui-mono"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">
+                      <label className="ui-label">
                         Pickup Facility PIN
                       </label>
                       <input
@@ -584,7 +575,7 @@ export function ShippingPresetsModal({
                         onChange={(e) =>
                           setOmConfig({ ...omConfig, pickupPin: e.target.value })
                         }
-                        className="w-full bg-white border border-slate-300 rounded-lg p-2 font-mono text-slate-900 font-bold"
+                        className="ui-input ui-mono"
                       />
                     </div>
                   </div>
@@ -596,17 +587,17 @@ export function ShippingPresetsModal({
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+                      <h4 className="text-sm font-semibold text-slate-900">
                         Configured Partner Carriers for Shipping Comparison
                       </h4>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="ui-muted mt-0.5">
                         Adjust partner base rates, docket charges, and fuel surcharges.
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={handleAddCarrier}
-                      className="px-2.5 py-1 text-xs font-bold bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 rounded-lg flex items-center gap-1 cursor-pointer"
+                      className="ui-btn-secondary"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Carrier</span>
@@ -618,7 +609,7 @@ export function ShippingPresetsModal({
                     {carrierPresets.map((carrier, idx) => carrier.liveQuoteOnly ? null : (
                       <div
                         key={carrier.id || idx}
-                        className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-3"
+                        className="ui-card p-4 space-y-3"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -636,7 +627,7 @@ export function ShippingPresetsModal({
                               onChange={(e) =>
                                 handleUpdateCarrier(idx, "name", e.target.value)
                               }
-                              className="text-xs font-bold text-slate-900 bg-white border border-slate-200 rounded px-2 py-1"
+                              className="ui-input w-auto text-sm font-semibold"
                             />
                             <span className="text-[10px] text-slate-400">
                               (Slug: {carrier.slug})
@@ -646,16 +637,46 @@ export function ShippingPresetsModal({
                           <button
                             type="button"
                             onClick={() => handleDeleteCarrier(idx)}
-                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                            className="ui-icon-btn h-7 w-7 hover:text-rose-600 hover:bg-rose-50"
                             title="Remove carrier"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
 
+                        {/* Zone rate card (Delhivery): ₹/kg per destination zone replaces the flat base rate */}
+                        {carrier.zoneRatesPerKg && (
+                          <div className="space-y-1.5">
+                            <span className="ui-eyebrow block">
+                              Freight ₹/kg by destination zone · min {carrier.minChargeableWeightKg} kg · min freight ₹{carrier.minFreightAmount}
+                              {carrier.volumetricDivisor ? ` · volumetric L×B×H ÷ ${carrier.volumetricDivisor}` : ""}
+                            </span>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                              {Object.entries(carrier.zoneRatesPerKg).map(([zone, rate]) => (
+                                <label key={zone} className="block">
+                                  <span className="ui-label truncate">{zone}</span>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    value={rate}
+                                    onChange={(e) =>
+                                      handleUpdateCarrier(idx, "zoneRatesPerKg", {
+                                        ...carrier.zoneRatesPerKg,
+                                        [zone]: parseFloat(e.target.value) || 0,
+                                      })
+                                    }
+                                    className="ui-input tabular-nums"
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                          {!carrier.zoneRatesPerKg && (
                           <div>
-                            <span className="text-[10px] text-slate-400 block font-semibold">
+                            <span className="ui-label">
                               Base Rate (₹/kg)
                             </span>
                             <input
@@ -669,12 +690,13 @@ export function ShippingPresetsModal({
                                   parseFloat(e.target.value) || 0
                                 )
                               }
-                              className="w-full bg-white border border-slate-200 rounded px-2 py-1 font-bold text-slate-800"
+                              className="ui-input tabular-nums"
                             />
                           </div>
+                          )}
 
                           <div>
-                            <span className="text-[10px] text-slate-400 block font-semibold">
+                            <span className="ui-label">
                               Docket / CN (₹)
                             </span>
                             <input
@@ -687,12 +709,12 @@ export function ShippingPresetsModal({
                                   parseFloat(e.target.value) || 0
                                 )
                               }
-                              className="w-full bg-white border border-slate-200 rounded px-2 py-1 font-bold text-slate-800"
+                              className="ui-input tabular-nums"
                             />
                           </div>
 
                           <div>
-                            <span className="text-[10px] text-slate-400 block font-semibold">
+                            <span className="ui-label">
                               Fuel Surcharge (%)
                             </span>
                             <input
@@ -705,12 +727,12 @@ export function ShippingPresetsModal({
                                   parseFloat(e.target.value) || 0
                                 )
                               }
-                              className="w-full bg-white border border-slate-200 rounded px-2 py-1 font-bold text-slate-800"
+                              className="ui-input tabular-nums"
                             />
                           </div>
 
                           <div>
-                            <span className="text-[10px] text-slate-400 block font-semibold">
+                            <span className="ui-label">
                               Est Transit Days
                             </span>
                             <input
@@ -719,7 +741,7 @@ export function ShippingPresetsModal({
                               onChange={(e) =>
                                 handleUpdateCarrier(idx, "estimatedTransitDays", e.target.value)
                               }
-                              className="w-full bg-white border border-slate-200 rounded px-2 py-1 font-semibold text-slate-800"
+                              className="ui-input"
                             />
                           </div>
                         </div>
@@ -734,10 +756,10 @@ export function ShippingPresetsModal({
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+                      <h4 className="text-sm font-semibold text-slate-900">
                         State to Zone Mappings (OM Logistics)
                       </h4>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="ui-muted mt-0.5">
                         Assign each state/territory to its designated logistics zone.
                       </p>
                     </div>
@@ -747,7 +769,7 @@ export function ShippingPresetsModal({
                       placeholder="Search state..."
                       value={stateSearch}
                       onChange={(e) => setStateSearch(e.target.value)}
-                      className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-slate-800"
+                      className="ui-input w-56"
                     />
                   </div>
 
@@ -757,7 +779,7 @@ export function ShippingPresetsModal({
                       return (
                         <div
                           key={st}
-                          className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between text-xs"
+                          className="ui-card px-3 py-2 flex items-center justify-between text-xs"
                         >
                           <span className="font-semibold text-slate-800 truncate mr-2" title={st}>
                             {st}
@@ -774,9 +796,9 @@ export function ShippingPresetsModal({
                                 return copy;
                               });
                             }}
-                            className={`text-xs font-bold rounded px-2 py-1 border ${
+                            className={`text-xs font-medium rounded-md px-2 py-1 border focus:outline-none focus:ring-2 focus:ring-violet-500/20 ${
                               stateZoneMap[st]
-                                ? "bg-white border-violet-300 text-violet-800"
+                                ? "bg-white border-slate-300 text-slate-800"
                                 : "bg-rose-50 border-rose-300 text-rose-700"
                             }`}
                           >
@@ -803,18 +825,18 @@ export function ShippingPresetsModal({
               {activeTab === "oda" && (
                 <div className="space-y-4">
                   <div>
-                    <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider">
+                    <h4 className="text-sm font-semibold text-slate-900">
                       OM Logistics ODA (ESS) Rate Matrix
                     </h4>
-                    <p className="text-[11px] text-slate-500">
+                    <p className="ui-muted mt-0.5">
                       Out of delivery area surcharge in ₹ looked up by weight band and distance band (applied &gt; 40 km).
                     </p>
                   </div>
 
-                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <div className="ui-card overflow-x-auto">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                        <tr className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-200">
                           <th className="py-2.5 px-3">Weight Band (kg)</th>
                           {ODA_DISTANCE_BANDS.map((b) => (
                             <th key={b.label} className="py-2.5 px-2">
@@ -825,8 +847,8 @@ export function ShippingPresetsModal({
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {odaMatrix.map((row, rIdx) => (
-                          <tr key={rIdx} className="hover:bg-slate-50/80">
-                            <td className="py-2 px-3 font-bold text-slate-800">
+                          <tr key={rIdx} className="hover:bg-slate-50/70">
+                            <td className="py-2 px-3 font-medium tabular-nums text-slate-800">
                               {row.minKg}–{row.maxKg} kg
                             </td>
                             {row.rates.map((rateVal, cIdx) => (
@@ -842,7 +864,7 @@ export function ShippingPresetsModal({
                                       return copy;
                                     });
                                   }}
-                                  className="w-20 bg-white border border-slate-200 rounded px-1.5 py-0.5 text-xs font-mono font-bold text-slate-900"
+                                  className="w-20 bg-white border border-slate-200 rounded-md px-1.5 py-1 tabular-nums focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-xs font-mono font-medium text-slate-900"
                                 />
                               </td>
                             ))}
@@ -859,11 +881,11 @@ export function ShippingPresetsModal({
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-emerald-600" />
+                      <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-violet-600" />
                         <span>OM Logistics WhatsApp Pickup Booking Automation</span>
                       </h4>
-                      <p className="text-[11px] text-slate-500">
+                      <p className="ui-muted mt-0.5">
                         When OM Logistics is assigned, WhatsApp Web automatically opens with the drafted pickup details.
                       </p>
                     </div>
@@ -871,7 +893,7 @@ export function ShippingPresetsModal({
                     <button
                       type="button"
                       onClick={() => setOmWhatsAppConfig(DEFAULT_OM_WHATSAPP_CONFIG)}
-                      className="px-2.5 py-1 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg flex items-center gap-1 cursor-pointer transition"
+                      className="ui-btn-secondary"
                     >
                       <RotateCcw className="w-3 h-3 text-slate-500" />
                       <span>Reset WhatsApp Settings</span>
@@ -882,8 +904,8 @@ export function ShippingPresetsModal({
                     {/* Left Column: Config Inputs */}
                     <div className="space-y-4">
                       {/* WhatsApp Phone Number */}
-                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-800">
+                      <div className="ui-card p-4 space-y-1.5">
+                        <label className="ui-label">
                           OM Logistics WhatsApp Phone Number
                         </label>
                         <input
@@ -896,16 +918,16 @@ export function ShippingPresetsModal({
                             }))
                           }
                           placeholder="e.g. 9477070699"
-                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full text-sm bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-mono text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
                         />
-                        <p className="text-[11px] text-slate-500">
-                          Testing number: <strong className="text-emerald-700">9477070699</strong>. Normalized automatically to international format (+91).
+                        <p className="ui-muted mt-0.5">
+                          Testing number: <strong className="font-semibold text-slate-700">9477070699</strong>. Normalized automatically to international format (+91).
                         </p>
                       </div>
 
                       {/* Default Warehouse Pickup Address */}
-                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-800">
+                      <div className="ui-card p-4 space-y-1.5">
+                        <label className="ui-label">
                           Default Warehouse Pickup Address & Pin Code
                         </label>
                         <textarea
@@ -918,16 +940,16 @@ export function ShippingPresetsModal({
                             }))
                           }
                           placeholder="Warehouse pickup address..."
-                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full text-sm bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
                         />
-                        <p className="text-[11px] text-slate-500">
+                        <p className="ui-muted mt-0.5">
                           Replaces <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px]">{"{{pickupAddress}}"}</code> in the template.
                         </p>
                       </div>
 
                       {/* Contact Note */}
-                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1.5">
-                        <label className="block text-xs font-bold text-slate-800">
+                      <div className="ui-card p-4 space-y-1.5">
+                        <label className="ui-label">
                           Pickup Contact Queries Note
                         </label>
                         <textarea
@@ -940,9 +962,9 @@ export function ShippingPresetsModal({
                             }))
                           }
                           placeholder="For any pickup related queries..."
-                          className="w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          className="w-full text-sm bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
                         />
-                        <p className="text-[11px] text-slate-500">
+                        <p className="ui-muted mt-0.5">
                           Replaces <code className="bg-slate-200 px-1 py-0.5 rounded text-[10px]">{"{{contactNote}}"}</code> in the template.
                         </p>
                       </div>
@@ -950,12 +972,12 @@ export function ShippingPresetsModal({
 
                     {/* Right Column: Draft Message Template */}
                     <div className="space-y-4">
-                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                      <div className="ui-card p-4 space-y-2">
                         <div className="flex items-center justify-between">
-                          <label className="block text-xs font-bold text-slate-800">
+                          <label className="ui-label">
                             WhatsApp Draft Message Template
                           </label>
-                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">
+                          <span className="ui-chip">
                             Editable Preset
                           </span>
                         </div>
@@ -968,12 +990,12 @@ export function ShippingPresetsModal({
                               draftTemplate: e.target.value,
                             }))
                           }
-                          className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed"
+                          className="w-full text-xs font-mono bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 leading-relaxed"
                         />
 
                         {/* Available Placeholders Legend */}
                         <div className="pt-1 border-t border-slate-200 space-y-1.5">
-                          <span className="text-[10px] font-bold text-slate-600 block uppercase tracking-wider">
+                          <span className="ui-eyebrow block">
                             Available Template Placeholders:
                           </span>
                           <div className="flex flex-wrap gap-1 text-[10px]">
@@ -989,7 +1011,7 @@ export function ShippingPresetsModal({
                               <span
                                 key={p.tag}
                                 title={p.desc}
-                                className="bg-white border border-slate-300 text-slate-700 px-1.5 py-0.5 rounded font-mono font-bold"
+                                className="bg-white border border-slate-200 text-slate-700 hover:border-violet-300 hover:text-violet-700 px-1.5 py-0.5 rounded-md font-mono font-medium transition"
                               >
                                 {p.tag}
                               </span>
@@ -1006,26 +1028,26 @@ export function ShippingPresetsModal({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
+        <div className="ui-dialog-footer flex-wrap">
           <button
             type="button"
             disabled={isResetting || isLoading || !canEdit}
             title={canEdit ? undefined : "Only an admin can reset rate cards"}
             onClick={handleResetDefaults}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            className="ui-btn-ghost"
           >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-            <span>{isResetting ? "Resetting..." : "Reset to August 2026 Defaults"}</span>
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>{isResetting ? "Resetting..." : "Reset to August 2026 defaults"}</span>
           </button>
 
           <div className="flex items-center gap-2">
             {!canEdit && !isLoading && (
-              <span className="text-[11px] font-semibold text-amber-800">View only: an admin must save rate-card changes.</span>
+              <span className="text-[11px] font-medium text-amber-800">View only: an admin must save rate-card changes.</span>
             )}
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition cursor-pointer"
+              className="ui-btn-secondary"
             >
               Cancel
             </button>
@@ -1035,10 +1057,10 @@ export function ShippingPresetsModal({
               disabled={isSaving || isLoading || !canEdit}
               title={canEdit ? undefined : "Only an admin can save rate cards"}
               onClick={handleSave}
-              className="px-4 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold flex items-center gap-1.5 transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="ui-btn-primary px-4"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{isSaving ? "Saving..." : "Save Presets"}</span>
+              <span>{isSaving ? "Saving..." : "Save presets"}</span>
             </button>
           </div>
         </div>

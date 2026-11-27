@@ -62,10 +62,10 @@ interface RateComparisonCardsProps {
 }
 
 const TAG_STYLE: Record<RateCard["tags"][number]["tone"], string> = {
-  violet: "bg-violet-50 text-violet-800 border border-violet-200",
-  blue: "bg-blue-50 text-blue-800 border border-blue-200",
-  indigo: "bg-indigo-50 text-indigo-800 border border-indigo-200",
-  solid: "bg-violet-600 text-white",
+  violet: "bg-violet-50 text-violet-700 border border-violet-200",
+  blue: "bg-slate-50 text-slate-600 border border-slate-200",
+  indigo: "bg-slate-50 text-slate-600 border border-slate-200",
+  solid: "bg-violet-600 text-white border border-violet-600",
 };
 
 /**
@@ -197,17 +197,20 @@ export function RateComparisonCards({
   const lowest = locked || priced.length === 0 ? null : priced.reduce((a, b) => ((b.total as number) < (a.total as number) ? b : a));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-          Freight quotes · {cards.length} {cards.length === 1 ? "carrier" : "carriers"}
+        <div className="flex items-center gap-2 flex-wrap">
+          <h4 className="text-sm font-semibold text-slate-900">Freight quotes</h4>
+          <span className="ui-count">{cards.length}</span>
+          <span className="ui-muted">{cards.length === 1 ? "carrier" : "carriers"}</span>
           {lowest && (
-            <span className="ml-2 normal-case tracking-normal font-bold text-emerald-700">
-              Lowest: {lowest.title} {formatInr(lowest.total as number)}
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800">
+              Lowest: <span className="font-semibold">{lowest.title}</span>
+              <span className="tabular-nums font-semibold">{formatInr(lowest.total as number)}</span>
             </span>
           )}
-        </span>
-        <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer select-none">
+        </div>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={showBasis}
@@ -218,76 +221,81 @@ export function RateComparisonCards({
         </label>
       </div>
 
-      <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]">
         {cards.map((k) => {
           const best = lowest?.id === k.id;
           const visibleLines = k.lines.filter((l) => l.applied || showBasis);
           return (
             <div
               key={k.id}
-              className={`flex flex-col rounded-xl border bg-white overflow-hidden ${
-                best ? "border-emerald-400 ring-1 ring-emerald-400" : k.assigned ? "border-violet-400" : "border-slate-200"
+              className={`flex flex-col rounded-xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${
+                best
+                  ? "border-emerald-300 ring-1 ring-emerald-200"
+                  : k.assigned
+                  ? "border-violet-300 ring-1 ring-violet-100"
+                  : "border-slate-200"
               }`}
             >
-              {/* Header: name, tags, total, transit */}
-              <div className={`px-3 pt-3 pb-2.5 ${best ? "bg-emerald-50" : k.assigned ? "bg-violet-50/60" : "bg-slate-50"}`}>
+              {/* Header: name, service, tags, total, transit */}
+              <div className="px-4 pt-3.5 pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-extrabold text-slate-900 text-sm truncate" title={k.title}>
+                    <div className="text-sm font-semibold text-slate-900 truncate" title={k.title}>
                       {k.title}
                     </div>
-                    <div className="text-[10px] font-semibold text-slate-500 truncate">{k.subtitle}</div>
+                    <div className="ui-muted truncate">{k.subtitle}</div>
                   </div>
                   {best && (
-                    <span className="shrink-0 text-[9px] font-extrabold uppercase tracking-wider bg-emerald-600 text-white px-1.5 py-0.5 rounded-full">
+                    <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold text-white">
                       Lowest
                     </span>
                   )}
                 </div>
                 {k.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
+                  <div className="flex flex-wrap gap-1 mt-2">
                     {k.tags.map((t) => (
-                      <span key={t.label} className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 ${TAG_STYLE[t.tone]}`}>
+                      <span key={t.label} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${TAG_STYLE[t.tone]}`}>
                         {t.tone === "indigo" && <Radio className="w-2.5 h-2.5" />}
+                        {t.tone === "solid" && <Check className="w-2.5 h-2.5" />}
                         {t.label}
                       </span>
                     ))}
                   </div>
                 )}
 
-                <div className="mt-2 flex items-end justify-between gap-2">
-                  <div className={`font-black text-lg leading-none ${locked ? "text-slate-300" : best ? "text-emerald-900" : "text-slate-900"}`}>
+                <div className="mt-3 flex items-end justify-between gap-2">
+                  <div className={`text-2xl font-semibold leading-none tracking-tight tabular-nums ${locked ? "text-slate-300" : best ? "text-emerald-700" : "text-slate-900"}`}>
                     {k.pendingLive ? (
-                      <span className="text-xs font-bold text-indigo-700">Live rates not fetched</span>
+                      <span className="text-sm font-medium text-slate-500">Awaiting live rates</span>
                     ) : k.error ? (
-                      <span className="text-xs font-bold text-rose-600">Rate unavailable</span>
+                      <span className="text-sm font-medium text-rose-600">Rate unavailable</span>
                     ) : locked ? (
-                      <span className="text-xs font-bold">Pick state</span>
+                      <span className="text-sm font-medium">Pick state</span>
                     ) : (
                       formatInr(k.total as number)
                     )}
                   </div>
                   {k.transit && !k.pendingLive && (
-                    <span className="text-[11px] font-semibold text-slate-600 flex items-center gap-1 whitespace-nowrap">
-                      <Clock className="w-3 h-3" />
+                    <span className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-slate-600">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
                       {k.transit}
                     </span>
                   )}
                 </div>
                 {!k.pendingLive && !k.error && (k.zone || (k.costPerKg !== null && !locked)) && (
-                  <div className="mt-1 text-[10px] text-slate-500 flex justify-between gap-2">
+                  <div className="mt-1.5 flex justify-between gap-2 text-[11px] text-slate-500">
                     <span className="truncate">{k.zone ? `Zone ${k.zone}` : ""}</span>
-                    {k.costPerKg !== null && !locked && <span className="whitespace-nowrap">{formatInr(k.costPerKg)}/kg</span>}
+                    {k.costPerKg !== null && !locked && <span className="whitespace-nowrap tabular-nums">{formatInr(k.costPerKg)}/kg</span>}
                   </div>
                 )}
               </div>
 
               {/* Body: every charge, GST, billed weight */}
-              <div className="flex-1 px-3 py-2 text-xs">
+              <div className="flex-1 border-t border-slate-100 px-4 py-2.5 text-xs">
                 {k.pendingLive ? (
                   <p className="flex items-start gap-1.5 text-slate-600 py-1">
-                    <Rocket className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
-                    <span>Click <strong>Get live rates</strong> in the {k.title} panel below. Each serviceable carrier then appears here with its full charge breakdown.</span>
+                    <Rocket className="w-3.5 h-3.5 text-violet-600 shrink-0 mt-0.5" />
+                    <span>Live rates load automatically from the {k.title} panel below. Each carrier on your account then appears here with its full charge breakdown.</span>
                   </p>
                 ) : k.error ? (
                   <p className="flex items-start gap-1.5 text-rose-700 py-1">
@@ -295,12 +303,12 @@ export function RateComparisonCards({
                   </p>
                 ) : (
                   <>
-                    <div className="divide-y divide-slate-100">
+                    <div className="space-y-0.5">
                       {visibleLines.map((l) => (
-                        <div key={l.label} className="py-1" title={l.basis}>
+                        <div key={l.label} className="py-0.5" title={l.basis}>
                           <div className="flex justify-between gap-2">
-                            <span className={l.applied ? "text-slate-700" : "text-slate-400"}>{l.label}</span>
-                            <span className={`font-mono whitespace-nowrap ${!l.applied || locked ? "text-slate-300" : "text-slate-800 font-semibold"}`}>
+                            <span className={l.applied ? "text-slate-600" : "text-slate-400"}>{l.label}</span>
+                            <span className={`tabular-nums whitespace-nowrap ${!l.applied || locked ? "text-slate-300" : "text-slate-800 font-medium"}`}>
                               {l.applied ? formatInr(l.amount) : "—"}
                             </span>
                           </div>
@@ -310,27 +318,27 @@ export function RateComparisonCards({
                         </div>
                       ))}
                     </div>
-                    <div className="mt-1.5 pt-1.5 border-t border-slate-200 space-y-0.5">
+                    <div className="mt-2 pt-2 border-t border-dashed border-slate-200 space-y-0.5">
                       {k.subtotal !== null && (
                         <div className="flex justify-between gap-2 text-slate-600">
                           <span>Subtotal</span>
-                          <span className={`font-mono ${locked ? "text-slate-300" : ""}`}>{formatInr(k.subtotal)}</span>
+                          <span className={`tabular-nums ${locked ? "text-slate-300" : ""}`}>{formatInr(k.subtotal)}</span>
                         </div>
                       )}
                       {k.gst !== null && (
                         <div className="flex justify-between gap-2 text-slate-600">
                           <span>GST{k.gstPercent !== null ? ` ${k.gstPercent}%` : ""}</span>
-                          <span className={`font-mono ${locked ? "text-slate-300" : ""}`}>{formatInr(k.gst)}</span>
+                          <span className={`tabular-nums ${locked ? "text-slate-300" : ""}`}>{formatInr(k.gst)}</span>
                         </div>
                       )}
                     </div>
                     {(k.chargeableWeightKg !== null || k.extra.length > 0) && (
-                      <div className="mt-1.5 text-[10px] text-slate-500 space-y-0.5">
+                      <div className="mt-2 text-[11px] text-slate-500 space-y-0.5">
                         {k.chargeableWeightKg !== null && (
                           <div>
-                            {k.chargeableWeightKg.toFixed(2)} kg billed
+                            <span className="tabular-nums">{k.chargeableWeightKg.toFixed(2)} kg</span> billed
                             {k.chargeableWeightKg > actualWeightKg && actualWeightKg > 0 && (
-                              <span className="text-amber-700"> · minimum (actual {actualWeightKg.toFixed(2)} kg)</span>
+                              <span className="text-amber-700"> · above actual {actualWeightKg.toFixed(2)} kg (minimum or volumetric)</span>
                             )}
                           </div>
                         )}
@@ -344,22 +352,22 @@ export function RateComparisonCards({
               </div>
 
               {/* Footer: Assign / Book */}
-              <div className="px-3 pb-3">
+              <div className="px-4 pb-4 pt-1">
                 <button
                   type="button"
                   disabled={k.action.disabled}
                   onClick={k.action.onClick}
                   title={k.action.title}
-                  className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`w-full ${
                     k.assigned && !k.action.live
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                      : k.action.live
-                      ? "bg-indigo-600 hover:bg-indigo-700 text-white"
-                      : "bg-violet-600 hover:bg-violet-700 text-white"
+                      ? "ui-btn-secondary border-violet-200 text-violet-700 hover:text-violet-800"
+                      : best
+                      ? "ui-btn-primary"
+                      : "ui-btn-secondary"
                   }`}
                 >
                   {k.action.busy ? (
-                    <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
                   ) : k.assigned && !k.action.live ? (
                     <>
                       <Check className="w-3.5 h-3.5" /> Assigned

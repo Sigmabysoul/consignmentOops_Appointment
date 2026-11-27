@@ -450,11 +450,11 @@ export default function AppointmentDashboard() {
 
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-white">
-          <span className="w-6 h-6 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs font-semibold text-slate-300">
-            Initializing The Logistics WorkHub...
+      <div className="min-h-screen bg-[#f6f7f9] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <span className="w-6 h-6 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs font-medium text-slate-500">
+            Loading Logistics WorkHub…
           </span>
         </div>
       </div>
@@ -464,8 +464,8 @@ export default function AppointmentDashboard() {
   if (!currentUser) return null;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#f4f6fa]">
-      {/* ── ConsignmentOps Purple Header with Top Views & Platform Bar ── */}
+    <div className="min-h-screen flex flex-col bg-[#f6f7f9]">
+      {/* ── Header: desks + channel filter ── */}
       <AppHeader
         user={currentUser}
         activeView={activeView}
@@ -486,7 +486,7 @@ export default function AppointmentDashboard() {
       />
 
       {/* ── Main Workspace ── */}
-      <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-[1700px] mx-auto flex flex-col gap-4">
+      <main className="ui-page flex-1 py-4 sm:py-5 flex flex-col gap-4">
         {/* Metric Overview (when in Analytics view or summary mode) */}
         {activeView === "analytics" ? (
           <div className="space-y-6">
@@ -511,8 +511,8 @@ export default function AppointmentDashboard() {
 
             {/* Detailed Analytics Summary */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider mb-3">
+              <div className="ui-card p-4">
+                <h4 className="ui-card-title mb-3">
                   Channel Volume Distribution
                 </h4>
                 <div className="space-y-2">
@@ -527,8 +527,8 @@ export default function AppointmentDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider mb-3">
+              <div className="ui-card p-4">
+                <h4 className="ui-card-title mb-3">
                   Active Destinations & Warehouses
                 </h4>
                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
@@ -551,8 +551,8 @@ export default function AppointmentDashboard() {
                 </div>
               </div>
 
-              <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
-                <h4 className="font-extrabold text-xs text-slate-800 uppercase tracking-wider mb-3">
+              <div className="ui-card p-4">
+                <h4 className="ui-card-title mb-3">
                   Appointment Desk Isolation Status
                 </h4>
                 <div className="space-y-2 text-xs text-slate-600">
@@ -633,7 +633,7 @@ export default function AppointmentDashboard() {
 
         {metricFilter && activeView === "sheet" && (
           <div className="flex items-center gap-2 text-xs">
-            <span className="px-2.5 py-1 rounded-full bg-violet-50 border border-violet-200 text-violet-800 font-semibold">
+            <span className="ui-chip border-violet-200 bg-violet-50 text-violet-800">
               Showing metric: {metricFilter.label} ({totalOrders})
             </span>
             <button
@@ -642,7 +642,7 @@ export default function AppointmentDashboard() {
                 setMetricFilter(null);
                 setPage(1);
               }}
-              className="px-2 py-1 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 cursor-pointer flex items-center gap-1"
+              className="ui-btn-ghost ui-btn-sm"
             >
               <X className="w-3 h-3" />
               <span>Clear</span>
@@ -843,30 +843,30 @@ export default function AppointmentDashboard() {
       {activeNoteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            className="ui-overlay"
             onClick={() => setActiveNoteModal(null)}
           />
 
-          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 space-y-4 z-10 animate-scale-in text-slate-800">
+          <div className="ui-dialog max-w-md z-10 animate-slide-up p-5 space-y-4">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <Lock className="w-4 h-4 text-amber-700" />
+                <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
+                  <Lock className="w-4 h-4 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">
+                  <h3 className="font-semibold text-sm text-slate-900">
                     Private Note: {activeNoteModal.order.roPoNumber}
                   </h3>
-                  <p className="text-[10px] text-amber-700 font-semibold">
-                    🔒 Visible ONLY to Appointment Desk — Never sent to Consignment
+                  <p className="text-[11px] text-slate-500">
+                    Only visible on the Appointment desk. Never sent to the Consignment app.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveNoteModal(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="ui-icon-btn"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -874,8 +874,8 @@ export default function AppointmentDashboard() {
 
             {/* Note Textarea */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Internal Operational Reminder / Note
+              <label className="ui-label">
+                Internal note
               </label>
               <textarea
                 rows={4}
@@ -887,10 +887,10 @@ export default function AppointmentDashboard() {
                   })
                 }
                 placeholder="Write personal notes about this order so you remember it (e.g. called driver Ramesh, gate pass number, dock 4 reserved, special handling required)..."
-                className="w-full text-xs bg-amber-50/30 border border-amber-200 rounded-xl p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white resize-none"
+                className="ui-input resize-none"
                 autoFocus
               />
-              <p className="text-[10px] text-slate-400 mt-1">
+              <p className="ui-muted mt-1">
                 This note is stored in dedicated isolated storage. Other applications and consignment portals cannot see it.
               </p>
             </div>
@@ -906,16 +906,16 @@ export default function AppointmentDashboard() {
                       noteText: "",
                     })
                   }
-                  className="text-xs font-semibold text-rose-600 hover:text-rose-700 cursor-pointer"
+                  className="ui-btn-ghost text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                 >
-                  Clear Note
+                  Clear note
                 </button>
               )}
               <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="button"
                   onClick={() => setActiveNoteModal(null)}
-                  className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer transition"
+                  className="ui-btn-secondary"
                 >
                   Cancel
                 </button>
@@ -923,14 +923,14 @@ export default function AppointmentDashboard() {
                   type="button"
                   disabled={isSavingNote}
                   onClick={handleSavePersonalNote}
-                  className="px-4 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-xs hover:shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  className="ui-btn-primary"
                 >
                   {isSavingNote ? (
                     <span>Saving...</span>
                   ) : (
                     <>
                       <Lock className="w-3 h-3" />
-                      <span>Save Private Note</span>
+                      <span>Save note</span>
                     </>
                   )}
                 </button>

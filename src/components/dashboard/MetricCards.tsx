@@ -82,19 +82,19 @@ export function MetricCards({ stats, onSelectMetric }: MetricCardsProps) {
           <div
             key={card.id}
             onClick={() => onSelectMetric && onSelectMetric(card.id)}
-            className={`bg-white rounded-xl p-3 border ${card.accent} shadow-xs hover:shadow-md transition-all duration-150 cursor-pointer flex flex-col justify-between`}
+            className={`ui-card ${card.accent} p-3.5 cursor-pointer flex flex-col justify-between transition hover:border-slate-300 hover:shadow-sm`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-slate-500 truncate">{card.label}</span>
+              <span className="text-xs font-medium text-slate-500 truncate">{card.label}</span>
               <div className={`p-1.5 rounded-lg border shrink-0 ${card.iconColor}`}>
                 <Icon className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="mt-2">
-              <div className="text-xl font-extrabold text-slate-900 tracking-tight leading-none">
+              <div className="text-2xl font-semibold text-slate-900 tabular-nums leading-none">
                 {card.value}
               </div>
-              <div className="text-[10px] text-slate-500 font-medium mt-1 truncate">
+              <div className="text-[11px] text-slate-500 mt-1.5 truncate">
                 {card.sub}
               </div>
             </div>

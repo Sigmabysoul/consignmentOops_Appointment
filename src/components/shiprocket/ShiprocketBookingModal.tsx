@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { detectCityFromOrder } from "@/lib/order-logistics-autofill";
 import { channelsMatch } from "@/lib/channel-aliases";
 import { AlertCircle, CheckCircle2, ExternalLink, Plus, Rocket, Trash2, X } from "lucide-react";
 import type { AppointmentOrder } from "@/lib/types";
@@ -39,13 +40,12 @@ interface Props {
   onOrderUpdated: () => void;
 }
 
-const input =
-  "w-full text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400";
+const input = "ui-input";
 
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
   return (
-    <label className="block space-y-0.5">
-      <span className="text-[11px] font-bold text-slate-700">
+    <label className="block">
+      <span className="ui-label">
         {label}
         {required && <span className="text-rose-500"> *</span>}
       </span>
@@ -82,7 +82,7 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
         addressLine1: address.slice(0, 200),
         addressLine2: "",
         pincode: rec.quote?.destinationPin || extractPincode(address),
-        city: sc.city,
+        city: detectCityFromOrder(order) || sc.city,
         state: sc.state,
         contactName: "",
         contactEmail: "",
@@ -173,34 +173,33 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs" onClick={() => !busy && onClose()} />
-      <div className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-indigo-200 z-10 text-slate-800">
-        <div className="sticky top-0 bg-white flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center"><Rocket className="w-4 h-4 text-indigo-600" /></div>
-            <div>
-              <h3 className="font-extrabold text-sm text-slate-900">Book with Shiprocket Cargo</h3>
-              <p className="text-[11px] text-slate-500">
-                <span className="font-mono font-bold">{order.roPoNumber}</span> · land / surface only · step {step} of 3
+      <div className="ui-overlay" onClick={() => !busy && onClose()} />
+      <div className="ui-dialog max-w-2xl z-10">
+        <div className="ui-dialog-header">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center"><Rocket className="w-5 h-5 text-violet-600" /></div>
+            <div className="min-w-0">
+              <h3 className="text-base font-semibold text-slate-900">Book with Shiprocket Cargo</h3>
+              <p className="ui-muted mt-0.5">
+                <span className="ui-mono font-medium text-slate-700">{order.roPoNumber}</span> · land / surface only · step {step} of 3
               </p>
             </div>
           </div>
-          <button type="button" onClick={onClose} disabled={busy} aria-label="Close"
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"><X className="w-4 h-4" /></button>
+          <button type="button" onClick={onClose} disabled={busy} aria-label="Close" className="ui-icon-btn shrink-0"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="p-5 space-y-4 text-xs">
+        <div className="flex-1 overflow-y-auto bg-slate-50/60 p-4 sm:p-5 space-y-4 text-xs">
           {disabledReason && step < 3 && (
-            <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{disabledReason}</span>
             </div>
           )}
 
           {step === 1 && (
             <>
-              <section className="space-y-2">
-                <h4 className="font-extrabold text-slate-900">Deliver to</h4>
-                <div className="grid sm:grid-cols-2 gap-2">
+              <section className="ui-card">
+                <div className="ui-card-header"><h4 className="ui-card-title">Deliver to</h4></div>
+                <div className="ui-card-body grid sm:grid-cols-2 gap-3">
                   <Field label="Warehouse / facility name"><input className={input} value={dest.name || ""} onChange={(e) => setD("name", e.target.value)} /></Field>
                   <Field label="Recipient GSTIN"><input className={input} value={dest.gstin || ""} onChange={(e) => setD("gstin", e.target.value.toUpperCase())} /></Field>
                   <div className="sm:col-span-2"><Field label="Address line 1" required><input className={input} value={dest.addressLine1 || ""} onChange={(e) => setD("addressLine1", e.target.value)} /></Field></div>
@@ -214,29 +213,31 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
                 </div>
               </section>
 
-              <section className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-slate-900">Boxes</h4>
+              <section className="ui-card">
+                <div className="ui-card-header">
+                  <h4 className="ui-card-title">Boxes</h4>
                   <button type="button" onClick={() => setPackages((p) => [...p, { units: 1, lengthCm: 0, widthCm: 0, heightCm: 0, weightKg: 0 }])}
-                    className="text-[11px] font-bold text-indigo-700 flex items-center gap-1 cursor-pointer"><Plus className="w-3 h-3" /> Add size</button>
+                    className="ui-btn-ghost ui-btn-sm text-violet-700"><Plus className="w-3 h-3" /> Add size</button>
                 </div>
-                <div className="grid grid-cols-[repeat(5,minmax(0,1fr))_auto] gap-1.5 text-[10px] font-bold text-slate-500">
+                <div className="ui-card-body space-y-1.5">
+                <div className="grid grid-cols-[repeat(5,minmax(0,1fr))_2rem] gap-1.5 text-[11px] font-medium text-slate-500">
                   <span>Boxes</span><span>L (cm)</span><span>W (cm)</span><span>H (cm)</span><span>Kg / box</span><span />
                 </div>
                 {packages.map((p, i) => (
-                  <div key={i} className="grid grid-cols-[repeat(5,minmax(0,1fr))_auto] gap-1.5">
+                  <div key={i} className="grid grid-cols-[repeat(5,minmax(0,1fr))_2rem] gap-1.5">
                     {(["units", "lengthCm", "widthCm", "heightCm", "weightKg"] as const).map((k) => (
                       <input key={k} type="number" min={k === "units" ? 1 : 0} step={k === "units" ? 1 : 0.01} className={input} value={p[k] || ""}
                         onChange={(e) => setPackages((all) => all.map((x, j) => (j === i ? { ...x, [k]: Number(e.target.value) } : x)))} />
                     ))}
                     <button type="button" onClick={() => setPackages((all) => all.filter((_, j) => j !== i))} aria-label="Remove box size"
-                      className="p-1.5 text-slate-400 hover:text-rose-600 cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                      className="ui-icon-btn hover:text-rose-600"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
                 ))}
                 {!packagesReady(packages) && <p className="text-[11px] text-amber-700">Every row needs a box count, all three dimensions and a weight.</p>}
+                </div>
               </section>
 
-              <section className="grid sm:grid-cols-2 gap-2">
+              <section className="ui-card ui-card-body grid sm:grid-cols-2 gap-3">
                 <Field label="Invoice value (₹)" required>
                   <input className={input} type="number" min={0} step={0.01} value={invoiceValue || ""} onChange={(e) => setInvoiceValue(Number(e.target.value))} />
                 </Field>
@@ -260,23 +261,13 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
                 <p className="text-[11px] text-rose-700">Last attempt failed: {record.order.message}</p>
               )}
 
-              <div className="flex justify-end gap-2">
-                {orderState === "unknown_outcome" && canOverrideHere && (
-                  <button type="button" disabled={busy || Boolean(disabledReason)} onClick={() => createOrder(true)}
-                    className="px-3 py-2 rounded-lg border border-rose-300 text-rose-700 font-bold disabled:opacity-40 cursor-pointer">Retry anyway (admin)</button>
-                )}
-                <button type="button" disabled={busy || Boolean(disabledReason) || !packagesReady(packages) || orderState === "unknown_outcome"} onClick={() => createOrder(false)}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-                  {busy ? "Creating…" : "Step 1: Create Shiprocket order"}
-                </button>
-              </div>
             </>
           )}
 
           {step === 2 && record.order && (
             <>
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-                Shiprocket order <span className="font-mono font-bold">{record.order.orderId}</span> created
+              <div className="ui-card px-3 py-2.5 text-slate-700">
+                Shiprocket order <span className="ui-mono font-semibold text-slate-900">{record.order.orderId}</span> created
                 {" "}· {record.order.packages.reduce((s, p) => s + p.units, 0)} box(es) to {record.order.destination.city} {record.order.destination.pincode}
                 {" "}· invoice {rupees(record.order.invoice.value)}
               </div>
@@ -284,16 +275,16 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
                 <p className="text-rose-700">{record.order.message || "Shiprocket offered no surface carrier for this lane."}</p>
               ) : (
                 <section className="space-y-1.5" role="radiogroup" aria-label="Carrier">
-                  <h4 className="font-extrabold text-slate-900">Choose the carrier</h4>
+                  <h4 className="text-sm font-semibold text-slate-900">Choose the carrier</h4>
                   {record.order.carriers.map((c) => {
                     const key = `${c.deliveryPartnerId}:${c.modeId}`;
                     const price = quotePrice.get(key);
                     return (
-                      <label key={key} className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border cursor-pointer ${carrierKey === key ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:bg-slate-50"}`}>
+                      <label key={key} className={`flex items-center justify-between gap-2 p-3 rounded-lg border bg-white cursor-pointer transition ${carrierKey === key ? "border-violet-400 ring-1 ring-violet-200 bg-violet-50/50" : "border-slate-200 hover:bg-slate-50"}`}>
                         <span className="flex items-center gap-2">
-                          <input type="radio" name="sr-carrier" checked={carrierKey === key} onChange={() => setCarrierKey(key)} />
+                          <input type="radio" name="sr-carrier" checked={carrierKey === key} onChange={() => setCarrierKey(key)} className="text-violet-600 focus:ring-violet-500" />
                           <span>
-                            <span className="font-bold text-slate-900">{c.deliveryPartnerName}</span>
+                            <span className="font-semibold text-slate-900">{c.deliveryPartnerName}</span>
                             <span className="block text-[11px] text-slate-500">
                               {c.tatDays !== null ? `${c.tatDays} days` : "TAT n/a"}
                               {c.scheduledPickupDate ? ` · pickup ${formatDateDisplay(c.scheduledPickupDate)}` : ""}
@@ -302,7 +293,7 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
                             </span>
                           </span>
                         </span>
-                        <span className="font-black text-slate-900">{price !== undefined ? rupees(price) : ""}</span>
+                        <span className="text-sm font-semibold tabular-nums text-slate-900">{price !== undefined ? rupees(price) : ""}</span>
                       </label>
                     );
                   })}
@@ -318,39 +309,18 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
                 </p>
               )}
               {shipmentState === "failed" && record.shipment?.message && <p className="text-[11px] text-rose-700">Last attempt failed: {record.shipment.message}</p>}
-              <div className="flex justify-end gap-2">
-                {shipmentState === "unknown_outcome" && canOverrideHere && (
-                  <button type="button" disabled={busy || !chosen} onClick={() => bookShipment(true)}
-                    className="px-3 py-2 rounded-lg border border-rose-300 text-rose-700 font-bold disabled:opacity-40 cursor-pointer">Retry anyway (admin)</button>
-                )}
-                <button type="button" disabled={busy || !chosen || Boolean(disabledReason) || (needsEway && ewayBill.length !== 12) || shipmentState === "unknown_outcome"}
-                  onClick={() => bookShipment(false)}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-                  {busy ? "Booking…" : "Step 2: Book shipment"}
-                </button>
-              </div>
             </>
           )}
 
           {step === 3 && (
             <section className="space-y-2">
-              <div className="flex items-center gap-2 text-emerald-800 font-bold"><CheckCircle2 className="w-4 h-4" /> Booked with {record.deliveryPartner || record.shipment?.carrier?.deliveryPartnerName}</div>
-              <div className="grid sm:grid-cols-2 gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                <div>Waybill: <span className="font-mono font-bold">{record.waybill || "pending"}</span></div>
-                <div>LR / docket: <span className="font-mono font-bold">{record.lrn || "—"}</span></div>
+              <div className="flex items-center gap-2 text-sm text-emerald-800 font-semibold"><CheckCircle2 className="w-4 h-4" /> Booked with {record.deliveryPartner || record.shipment?.carrier?.deliveryPartnerName}</div>
+              <div className="ui-card ui-card-body grid sm:grid-cols-2 gap-2 text-slate-600">
+                <div>Waybill: <span className="ui-mono font-semibold text-slate-900">{record.waybill || "pending"}</span></div>
+                <div>LR / docket: <span className="ui-mono font-semibold text-slate-900">{record.lrn || "—"}</span></div>
                 <div>Shipment ID: <span className="font-mono">{record.shipment?.shipmentId}</span></div>
                 <div>Pickup: {record.scheduledPickupDate ? formatDateDisplay(record.scheduledPickupDate) : "—"}</div>
                 {record.childWaybills?.length ? <div className="sm:col-span-2">Box waybills: <span className="font-mono">{record.childWaybills.join(", ")}</span></div> : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {record.labelUrl && (
-                  <a href={record.labelUrl} target="_blank" rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-bold flex items-center gap-1.5"><ExternalLink className="w-3.5 h-3.5" /> Shipping labels</a>
-                )}
-                <button type="button" onClick={refreshDetails} disabled={busy}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 font-bold disabled:opacity-40 cursor-pointer">
-                  {record.waybill ? "Refresh details" : "Fetch waybill & label"}
-                </button>
               </div>
               <p className="text-[11px] text-slate-500">Tracking, POD link and delivery appointment are in the order's details drawer.</p>
             </section>
@@ -361,6 +331,51 @@ export function ShiprocketBookingModal({ order, isOpen, status, defaultWeightKg,
               <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> <span>{error}</span>
             </div>
           )}
+        </div>
+
+        <div className="ui-dialog-footer flex-wrap">
+          <span className="ui-muted">Land / surface only · step {step} of 3</span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {step === 1 && (
+              <>
+                {orderState === "unknown_outcome" && canOverrideHere && (
+                  <button type="button" disabled={busy || Boolean(disabledReason)} onClick={() => createOrder(true)} className="ui-btn-danger">
+                    Retry anyway (admin)
+                  </button>
+                )}
+                <button type="button" disabled={busy || Boolean(disabledReason) || !packagesReady(packages) || orderState === "unknown_outcome"} onClick={() => createOrder(false)}
+                  className="ui-btn-primary">
+                  {busy ? "Creating…" : "Step 1: Create Shiprocket order"}
+                </button>
+              </>
+            )}
+            {step === 2 && record.order && (
+              <>
+                {shipmentState === "unknown_outcome" && canOverrideHere && (
+                  <button type="button" disabled={busy || !chosen} onClick={() => bookShipment(true)} className="ui-btn-danger">
+                    Retry anyway (admin)
+                  </button>
+                )}
+                <button type="button" disabled={busy || !chosen || Boolean(disabledReason) || (needsEway && ewayBill.length !== 12) || shipmentState === "unknown_outcome"}
+                  onClick={() => bookShipment(false)}
+                  className="ui-btn-primary">
+                  {busy ? "Booking…" : "Step 2: Book shipment"}
+                </button>
+              </>
+            )}
+            {step === 3 && (
+              <>
+                <button type="button" onClick={refreshDetails} disabled={busy} className="ui-btn-secondary">
+                  {record.waybill ? "Refresh details" : "Fetch waybill & label"}
+                </button>
+                {record.labelUrl && (
+                  <a href={record.labelUrl} target="_blank" rel="noopener noreferrer" className="ui-btn-primary">
+                    <ExternalLink className="w-3.5 h-3.5" /> Shipping labels
+                  </a>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

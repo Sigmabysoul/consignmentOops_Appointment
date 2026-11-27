@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Upload,
   FileText,
+  Info,
 } from "lucide-react";
 import { AppointmentOrder, CourierPresetItem } from "@/lib/types";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
@@ -54,7 +55,10 @@ import {
   getOrderInvoiceValue,
   getInitialLogisticsInput,
   getOrderInvoiceSource,
+  detectCityFromOrder,
+  findPincode,
 } from "@/lib/order-logistics-autofill";
+import { formatCbm, summarizeCartons } from "@/lib/dimension-helper";
 import type { UnifiedShippingPresets } from "@/lib/shipping-presets-storage";
 
 interface BookingDetailModalProps {
@@ -135,6 +139,8 @@ export function BookingDetailModal({
   }, [isOpen]);
 
   const stateMissing = !state;
+  // Totals for the header strip and volumetric weight (carriers that bill it, e.g. Delhivery).
+  const cartons = useMemo(() => summarizeCartons(order), [order]);
 
   // Live Pure Pricing & Multi-Carrier Comparison (Strictly Land Surface & Channel Filtered)
   const comparisonResult: MultiCarrierComparisonResponse = useMemo(() => {
@@ -146,6 +152,7 @@ export function BookingDetailModal({
       appointmentDelivery,
       rovCover,
       invoiceValue: Number(Number(invoiceValue).toFixed(2)) || 0,
+      volumeCbm: cartons.totalCbm,
     };
     return compareShippingCarriers(input, {
       channel: order?.channel,
@@ -159,7 +166,7 @@ export function BookingDetailModal({
           }
         : {}),
     });
-  }, [state, weightKg, odaDistanceKm, appointmentDelivery, rovCover, invoiceValue, order?.channel, presets]);
+  }, [state, weightKg, odaDistanceKm, appointmentDelivery, rovCover, invoiceValue, order?.channel, presets, cartons.totalCbm]);
 
   if (!isOpen || !order) return null;
 
@@ -168,6 +175,10 @@ export function BookingDetailModal({
     (order.customData as any)?.warehouseAddress ||
     order.client?.address ||
     "";
+  const destPin = findPincode(deliveredTo);
+  const destCity = detectCityFromOrder(order);
+  const showDelhivery = comparisonResult.carriers.some((c) => c.name === DELHIVERY_NAME);
+  const showShiprocket = comparisonResult.carriers.some((c) => c.name === SHIPROCKET_COURIER_NAME);
 
   // Assign carrier directly to consignment order
   const handleAssignCarrier = async (carrierName: string) => {
@@ -238,42 +249,35 @@ export function BookingDetailModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-      />
+      <div className="ui-overlay transition-opacity" onClick={onClose} />
 
       {/* Main Dialog Window */}
-      <div className="relative w-full max-w-6xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-10 flex flex-col max-h-[92vh] animate-scale-in text-slate-800">
+      <div className="ui-dialog max-w-6xl z-10 animate-scale-in">
         {/* ── Modal Header ── */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-violet-900 via-indigo-900 to-purple-900 text-white flex items-center justify-between border-b border-violet-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center border border-white/20">
-              <Truck className="w-5 h-5 text-violet-300" />
+        <div className="ui-dialog-header">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center">
+              <Truck className="w-5 h-5 text-violet-600" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-sm sm:text-base tracking-tight font-mono text-white">
-                  {order.roPoNumber}
-                </h3>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="ui-mono text-base font-semibold tracking-tight text-slate-900">{order.roPoNumber}</h3>
                 <button
                   type="button"
                   onClick={handleCopyRo}
                   title="Copy RO/PO Number"
-                  className="p-1 rounded text-white/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                  className="ui-icon-btn h-7 w-7"
                 >
-                  {copiedRo ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedRo ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
                 <ChannelBadge channel={order.channel} size="sm" />
                 <StatusBadge status={order.courierStatus || order.status || "Pending"} />
               </div>
-              <p className="text-[11px] text-violet-200/80">
-                Compare rates · charges by carrier for this consignment
-              </p>
+              <p className="ui-muted mt-0.5">Freight comparison and carrier booking · land surface only</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             {onOpenPresets && (
               <button
                 type="button"
@@ -281,199 +285,191 @@ export function BookingDetailModal({
                   onClose();
                   onOpenPresets();
                 }}
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition border border-white/20 cursor-pointer"
+                className="ui-btn-secondary hidden sm:inline-flex"
                 title="Manage Rate Cards & Courier Presets"
               >
-                <Sliders className="w-3.5 h-3.5 text-violet-300" />
-                <span>Rate Presets</span>
+                <Sliders className="w-3.5 h-3.5 text-violet-600" />
+                <span>Rate presets</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
-            >
+            <button type="button" onClick={onClose} className="ui-icon-btn" title="Close">
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* ── Order Snapshot Strip ── */}
-        <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200/80 text-xs flex flex-wrap items-center justify-between gap-3 text-slate-700 shrink-0">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div>
-              <span className="text-slate-400 font-semibold">Warehouse: </span>
-              <span className="font-bold text-slate-900">{order.warehouseName || "—"}</span>
-            </div>
-            {deliveredTo && (
-              <div className="max-w-md truncate" title={deliveredTo}>
-                <span className="text-slate-400 font-semibold">Address: </span>
-                <span className="font-medium text-slate-800">{deliveredTo}</span>
-              </div>
-            )}
-            <div>
-              <span className="text-slate-400 font-semibold">Boxes: </span>
-              <span className="font-bold text-slate-900">{order.boxCount ?? 1}</span>
-            </div>
-            {order.boxDimensions && (
-              <div>
-                <span className="text-slate-400 font-semibold">Dims: </span>
-                <span className="font-mono text-slate-800 font-semibold">{order.boxDimensions}</span>
-              </div>
-            )}
+        {/* ── Scrollable Body: summary, parameters, quote cards, live API quotes, box dimensions ── */}
+        <div className="flex-1 overflow-y-auto bg-slate-50/60 p-4 sm:p-5 space-y-4">
+          {/* Order snapshot: what is being shipped, where, and who carries it */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-[minmax(16rem,2fr)_repeat(4,minmax(0,1fr))] gap-2">
+            <SnapshotStat label="Deliver to" wide>
+              <span className="font-semibold text-slate-900">{order.warehouseName || "—"}</span>
+              {(destCity || destPin) && (
+                <span className="text-slate-500"> · {[destCity, destPin].filter(Boolean).join(" ")}</span>
+              )}
+              {deliveredTo && (
+                <span className="block text-[11px] text-slate-400 truncate" title={deliveredTo}>
+                  {deliveredTo}
+                </span>
+              )}
+            </SnapshotStat>
+            <SnapshotStat label="Total boxes">
+              <span className="text-base font-semibold tabular-nums text-slate-900">{cartons.totalBoxes || order.boxCount || 1}</span>
+            </SnapshotStat>
+            <SnapshotStat label="Total weight">
+              <span className="text-base font-semibold tabular-nums text-slate-900">{weightKg > 0 ? `${weightKg.toFixed(2)} kg` : "—"}</span>
+            </SnapshotStat>
+            <SnapshotStat label="Total CBM">
+              <span className="text-base font-semibold tabular-nums text-slate-900">{formatCbm(cartons.totalCbm)}</span>
+            </SnapshotStat>
+            <SnapshotStat label="Assigned carrier">
+              <span className={`text-sm font-semibold ${order.courierPartner ? "text-violet-700" : "text-amber-700"}`}>
+                {order.courierPartner || "Not assigned"}
+              </span>
+            </SnapshotStat>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500 font-semibold">Assigned Carrier:</span>
-            <span className={`px-2 py-0.5 rounded-md font-bold text-xs ${order.courierPartner ? "bg-violet-100 text-violet-900 border border-violet-200" : "bg-amber-100 text-amber-900 border border-amber-200"}`}>
-              {order.courierPartner || "Not Assigned"}
-            </span>
-          </div>
-        </div>
-
-        {/* ── Scrollable Body: parameters bar, quote sheet, live API quotes, box dimensions ── */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          {/* Shipment parameters (every change re-prices the sheet live) */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-extrabold text-[11px] text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5 text-violet-600" />
+          {/* Shipment parameters (every change re-prices the cards live) */}
+          <section className="ui-card">
+            <div className="ui-card-header">
+              <h4 className="ui-card-title">
+                <Sliders className="w-4 h-4 text-violet-600" />
                 Shipment parameters
               </h4>
-              <span className="text-[10px] text-slate-500">Land surface only · prices update as you type</span>
+              <span className="ui-muted hidden sm:inline">Land surface only · prices update as you type</span>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5 text-xs">
-              <label className="col-span-2 md:col-span-1 xl:col-span-2 block">
-                <span className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                  Destination state <span className="text-rose-500">*</span>
-                </span>
-                <select
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  className={`w-full bg-white border rounded-lg px-2 py-1.5 font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 ${
-                    stateMissing ? "border-rose-400 ring-2 ring-rose-200" : "border-slate-300"
-                  }`}
-                >
-                  <option value="" disabled>
-                    Select destination state…
-                  </option>
-                  {ALL_STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                  Total weight (kg) <span className="text-rose-500">*</span>
-                </span>
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.5"
-                  value={weightKg || ""}
-                  onChange={(e) => setWeightKg(parseFloat(e.target.value) || 0)}
-                  placeholder="e.g. 250"
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                />
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-bold text-slate-600 mb-0.5">ODA distance (km)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="5"
-                  value={odaDistanceKm || ""}
-                  onChange={(e) => setOdaDistanceKm(parseInt(e.target.value, 10) || 0)}
-                  placeholder="0 = not ODA"
-                  title="ODA charges apply above 40 km"
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                />
-              </label>
-              <label className="block">
-                <span className="block text-[10px] font-bold text-slate-600 mb-0.5">ROV insurance</span>
-                <select
-                  value={rovCover}
-                  onChange={(e) => setRovCover(e.target.value as "none" | "shipper" | "carrier")}
-                  className="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                >
-                  <option value="none">None</option>
-                  <option value="shipper">Shipper risk (0.3%)</option>
-                  <option value="carrier">Carrier risk (0.8%)</option>
-                </select>
-              </label>
-              <div className="block">
-                <span className="block text-[10px] font-bold text-slate-600 mb-0.5">
-                  Invoice value (₹){rovCover !== "none" && <span className="text-rose-500"> *</span>}
-                </span>
-                <div className="flex gap-1">
-                  {invoiceSource ? (
-                    <div
-                      className="flex-1 min-w-0 bg-emerald-50 border border-emerald-300 rounded-lg px-2 py-1.5 font-bold text-slate-900 truncate"
-                      title={`Read from ${invoiceSource.fileName || "the uploaded tax invoice"}`}
-                    >
-                      ₹{invoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  ) : (
-                    <input
-                      type="number"
-                      min="0"
-                      value={invoiceValue || ""}
-                      onChange={(e) => setInvoiceValue(parseFloat(e.target.value) || 0)}
-                      placeholder="Upload invoice →"
-                      title="Upload the tax invoice to fill this in. Type it only if the invoice cannot be read."
-                      className="flex-1 min-w-0 bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                    />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => invoiceInput.current?.click()}
-                    disabled={invoiceUploading}
-                    title={invoiceSource ? "Replace the tax invoice" : "Upload the tax invoice (PDF): its total is read automatically"}
-                    className="shrink-0 px-2 rounded-lg border border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100 disabled:opacity-50 cursor-pointer"
-                  >
-                    {invoiceUploading ? (
-                      <span className="block w-3.5 h-3.5 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Upload className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-                  <input
-                    ref={invoiceInput}
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    className="hidden"
-                    onChange={(e) => void handleInvoiceUpload(e.target.files?.[0])}
-                  />
-                </div>
-                {invoiceSource ? (
-                  <span className="mt-0.5 flex items-center gap-1 text-[10px] text-emerald-700 truncate">
-                    <FileText className="w-3 h-3 shrink-0" />
-                    From invoice {invoiceSource.number || invoiceSource.fileName || ""}
+            <div className="ui-card-body space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                <label className="col-span-2 md:col-span-1 xl:col-span-2 block">
+                  <span className="ui-label">
+                    Destination state <span className="text-rose-500">*</span>
                   </span>
-                ) : invoiceProblem ? (
-                  <span className="mt-0.5 block text-[10px] text-rose-600 leading-tight">{invoiceProblem}</span>
-                ) : null}
+                  <select
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    className={`ui-select ${stateMissing ? "border-rose-400 ring-2 ring-rose-200" : ""}`}
+                  >
+                    <option value="" disabled>
+                      Select destination state…
+                    </option>
+                    {ALL_STATES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="ui-label">
+                    Total weight (kg) <span className="text-rose-500">*</span>
+                  </span>
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="0.5"
+                    value={weightKg || ""}
+                    onChange={(e) => setWeightKg(parseFloat(e.target.value) || 0)}
+                    placeholder="e.g. 250"
+                    className="ui-input tabular-nums"
+                  />
+                </label>
+                <label className="block">
+                  <span className="ui-label">ODA distance (km)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="5"
+                    value={odaDistanceKm || ""}
+                    onChange={(e) => setOdaDistanceKm(parseInt(e.target.value, 10) || 0)}
+                    placeholder="0 = not ODA"
+                    title="ODA charges apply above 40 km"
+                    className="ui-input tabular-nums"
+                  />
+                </label>
+                <label className="block">
+                  <span className="ui-label">ROV insurance</span>
+                  <select
+                    value={rovCover}
+                    onChange={(e) => setRovCover(e.target.value as "none" | "shipper" | "carrier")}
+                    className="ui-select"
+                  >
+                    <option value="none">None</option>
+                    <option value="shipper">Shipper risk (0.3%)</option>
+                    <option value="carrier">Carrier risk (0.8%)</option>
+                  </select>
+                </label>
+                <div className="block">
+                  <span className="ui-label">
+                    Invoice value (₹){rovCover !== "none" && <span className="text-rose-500"> *</span>}
+                  </span>
+                  <div className="flex gap-1.5">
+                    {invoiceSource ? (
+                      <div
+                        className="flex-1 min-w-0 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-sm font-semibold tabular-nums text-slate-900 truncate"
+                        title={`Read from ${invoiceSource.fileName || "the uploaded tax invoice"}`}
+                      >
+                        ₹{invoiceValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    ) : (
+                      <input
+                        type="number"
+                        min="0"
+                        value={invoiceValue || ""}
+                        onChange={(e) => setInvoiceValue(parseFloat(e.target.value) || 0)}
+                        placeholder="Upload invoice →"
+                        title="Upload the tax invoice to fill this in. Type it only if the invoice cannot be read."
+                        className="ui-input flex-1 min-w-0 tabular-nums"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => invoiceInput.current?.click()}
+                      disabled={invoiceUploading}
+                      title={invoiceSource ? "Replace the tax invoice" : "Upload the tax invoice (PDF): its total is read automatically"}
+                      className="ui-btn-secondary shrink-0 px-2.5"
+                    >
+                      {invoiceUploading ? (
+                        <span className="block w-3.5 h-3.5 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Upload className="w-3.5 h-3.5 text-violet-600" />
+                      )}
+                    </button>
+                    <input
+                      ref={invoiceInput}
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      className="hidden"
+                      onChange={(e) => void handleInvoiceUpload(e.target.files?.[0])}
+                    />
+                  </div>
+                  {invoiceSource ? (
+                    <span className="mt-1 flex items-center gap-1 text-[11px] text-emerald-700 truncate">
+                      <FileText className="w-3 h-3 shrink-0" />
+                      From invoice {invoiceSource.number || invoiceSource.fileName || ""}
+                    </span>
+                  ) : invoiceProblem ? (
+                    <span className="mt-1 block text-[11px] text-rose-600 leading-tight">{invoiceProblem}</span>
+                  ) : null}
+                </div>
               </div>
+              <label className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={appointmentDelivery}
+                  onChange={(e) => setAppointmentDelivery(e.target.checked)}
+                  className="w-4 h-4 text-violet-600 rounded border-slate-300 focus:ring-violet-500"
+                />
+                <span className="font-medium text-slate-800">Appointment-based delivery</span>
+                <span className="ui-muted">Standard for warehouses · OM adds ₹1,000 min (₹1/kg above 1,000 kg)</span>
+              </label>
             </div>
-            <label className="mt-2.5 inline-flex items-center gap-2 text-xs cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={appointmentDelivery}
-                onChange={(e) => setAppointmentDelivery(e.target.checked)}
-                className="w-4 h-4 text-violet-600 rounded border-slate-300 focus:ring-violet-500"
-              />
-              <span className="font-bold text-slate-800">Appointment-based delivery</span>
-              <span className="text-[10px] text-slate-500">standard for warehouses · OM adds ₹1,000 min (₹1/kg above 1,000 kg)</span>
-            </label>
-          </div>
+          </section>
 
           {stateMissing && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-start gap-2">
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>
-                <strong>Destination state required.</strong> It was not found in the delivery address or PIN code.
+                <strong className="font-semibold">Destination state required.</strong> It was not found in the delivery address or PIN code.
                 Pick it above: totals, courier assignment and API bookings stay locked until then.
               </span>
             </div>
@@ -507,57 +503,66 @@ export function BookingDetailModal({
             }}
           />
 
-          {/* Live API quotes and bookings for carriers priced by their own API */}
-          {!stateMissing &&
-            comparisonResult.carriers.some((c) => c.name === DELHIVERY_NAME || c.name === SHIPROCKET_COURIER_NAME) && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {comparisonResult.carriers.some((c) => c.name === DELHIVERY_NAME) && (
-                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-                      {DELHIVERY_NAME} · live quote & booking
-                    </div>
-                    <DelhiveryQuoteCard
-                      order={order}
-                      status={delhiveryStatus}
-                      weightKg={Number(Number(weightKg).toFixed(2)) || 0}
-                      invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
-                      rovCarrierRisk={rovCover === "carrier"}
-                      onBook={() => setDelhiveryModalOpen(true)}
-                    />
-                  </div>
-                )}
-                {comparisonResult.carriers.some((c) => c.name === SHIPROCKET_COURIER_NAME) && (
-                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-                      {SHIPROCKET_COURIER_NAME} · live rates & booking
-                    </div>
-                    <ShiprocketQuoteCard
-                      order={order}
-                      status={shiprocketStatus}
-                      weightKg={Number(Number(weightKg).toFixed(2)) || 0}
-                      invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
-                      stateLabel={state}
-                      onBook={() => setShiprocketModalOpen(true)}
-                      onQuotesChange={setShiprocketQuotes}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+          {/* Live carrier APIs. Delhivery without credentials is priced from its rate card above. */}
+          {!stateMissing && showShiprocket && (
+            <ShiprocketQuoteCard
+              order={order}
+              status={shiprocketStatus}
+              weightKg={Number(Number(weightKg).toFixed(2)) || 0}
+              invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
+              stateLabel={state}
+              onBook={() => setShiprocketModalOpen(true)}
+              onQuotesChange={setShiprocketQuotes}
+            />
+          )}
+          {!stateMissing && showDelhivery && delhiveryStatus?.configured && (
+            <DelhiveryQuoteCard
+              order={order}
+              status={delhiveryStatus}
+              weightKg={Number(Number(weightKg).toFixed(2)) || 0}
+              invoiceValue={Number(Number(invoiceValue).toFixed(2)) || 0}
+              rovCarrierRisk={rovCover === "carrier"}
+              onBook={() => setDelhiveryModalOpen(true)}
+            />
+          )}
+          {!stateMissing && showDelhivery && delhiveryStatus && !delhiveryStatus.configured && (
+            <p className="flex items-start gap-1.5 ui-muted px-1">
+              <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-px" />
+              Delhivery API is not connected yet: the {DELHIVERY_NAME} price above is worked out from the Delhivery B2B
+              rate card (zone rate × chargeable kg, volumetric 6 kg/CFT). Edit the rates in Rate Presets.
+            </p>
+          )}
 
           {/* 1-Click box dimensions for carrier portals */}
-          <BoxDimensionCopyHelper
-            groups={order.boxDimensionGroups || []}
-            compact={false}
-            wide={true}
-            orderNumber={order.roPoNumber}
-          />
+          <details className="group ui-card">
+            <summary className="flex items-center justify-between gap-2 px-4 py-3 cursor-pointer select-none list-none rounded-xl hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+              <span className="ui-card-title flex-wrap">
+                <Package className="w-4 h-4 text-violet-600" />
+                Box dimensions for carrier portals
+                <span className="font-normal text-slate-500">
+                  ·{" "}
+                  {cartons.groups.length === 0
+                    ? "not recorded yet"
+                    : `${cartons.groups.length} size${cartons.groups.length === 1 ? "" : "s"} · ${cartons.totalBoxes} box${cartons.totalBoxes === 1 ? "" : "es"}`}
+                </span>
+              </span>
+              <ChevronDown className="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="border-t border-slate-100 p-3">
+              <BoxDimensionCopyHelper
+                groups={order.boxDimensionGroups || []}
+                compact={false}
+                wide={true}
+                orderNumber={order.roPoNumber}
+              />
+            </div>
+          </details>
         </div>
 
         {/* ── Modal Footer ── */}
-        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
-          <div className="text-slate-500">
-            Consignment #{order.roPoNumber} • Ready for Logistics Booking & Courier Assignment
+        <div className="ui-dialog-footer flex-wrap">
+          <div className="ui-muted">
+            Consignment <span className="ui-mono">#{order.roPoNumber}</span> · ready for booking and courier assignment
           </div>
 
           <div className="flex items-center gap-2">
@@ -568,9 +573,9 @@ export function BookingDetailModal({
                   onClose();
                   onSwitchToAppointment(order);
                 }}
-                className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold flex items-center gap-1.5 transition cursor-pointer"
+                className="ui-btn-secondary"
               >
-                <span>Enter CN & Slot</span>
+                <span>Enter CN & slot</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -578,7 +583,7 @@ export function BookingDetailModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition cursor-pointer"
+              className="ui-btn-secondary px-4"
             >
               Close
             </button>
@@ -621,6 +626,16 @@ export function BookingDetailModal({
           setWhatsAppModalOpen(false);
         }}
       />
+    </div>
+  );
+}
+
+/** One labelled figure in the modal's order snapshot row. */
+function SnapshotStat({ label, wide = false, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`ui-card px-3 py-2 min-w-0 ${wide ? "col-span-2 sm:col-span-4 lg:col-span-1" : ""}`}>
+      <span className="ui-eyebrow block">{label}</span>
+      <div className="mt-0.5 text-sm leading-snug">{children}</div>
     </div>
   );
 }

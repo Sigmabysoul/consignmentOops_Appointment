@@ -11,7 +11,7 @@ import {
 } from "@/lib/consignment-statuses";
 
 const TONE_CLASS: Record<StatusTone, string> = {
-  slate: "bg-slate-100 text-slate-700 border-slate-200",
+  slate: "bg-slate-50 text-slate-700 border-slate-200",
   red: "bg-rose-50 text-rose-800 border-rose-200",
   amber: "bg-amber-50 text-amber-900 border-amber-300",
   yellow: "bg-yellow-50 text-yellow-900 border-yellow-300",
@@ -38,26 +38,31 @@ const DOT_CLASS: Record<StatusTone, string> = {
 
 function Row({ label, view }: { label: string; view: ConsignmentStatusView }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+    <>
+      <dt className="pt-0.5 text-[11px] font-medium text-slate-500">{label}</dt>
       {/* Read-only badge: status values are owned by the Consignment app and never mutated from here. */}
-      <span
-        className={`inline-flex w-fit max-w-full items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold select-none ${TONE_CLASS[view.tone]}`}
-      >
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT_CLASS[view.tone]}`} />
-        <span className="truncate">{view.label}</span>
-      </span>
-    </div>
+      <dd className="min-w-0">
+        <span
+          className={`inline-flex w-fit max-w-full select-none items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[11px] font-medium ${TONE_CLASS[view.tone]}`}
+        >
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT_CLASS[view.tone]}`} />
+          <span className="truncate">{view.label}</span>
+        </span>
+      </dd>
+    </>
   );
 }
 
 /** Order, printing and fulfilment statuses from the Consignment app, stacked in one cell. */
 export function ConsignmentStatusStack({ order }: { order: AppointmentOrder }) {
   return (
-    <div className="flex min-w-[150px] max-w-[190px] flex-col gap-2" title="Statuses from the Consignment app (read-only)">
+    <dl
+      className="grid min-w-[170px] max-w-[220px] grid-cols-[auto_minmax(0,1fr)] items-start gap-x-2.5 gap-y-1.5"
+      title="Statuses from the Consignment app (read-only)"
+    >
       <Row label="Order" view={getOrderStatus(order)} />
       <Row label="Printing" view={getPrintingStatus(order)} />
       <Row label="Fulfilment" view={getFulfilmentStatus(order)} />
-    </div>
+    </dl>
   );
 }

@@ -134,41 +134,41 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
   const pickupUnknown = Boolean(record.pickup && !record.pickup.cancelledAt && record.pickup.state === "unknown_outcome");
   const pickupActive = record.pickup && !record.pickup.cancelledAt && !(pickupUnknown && canOverrideHere);
 
-  const box = "p-3 rounded-xl border border-slate-200 bg-white space-y-2";
-  const h = "font-extrabold text-[11px] uppercase tracking-wide text-slate-900 flex items-center gap-1.5";
-  const input = "w-full text-xs bg-white border border-slate-300 rounded-lg p-2 font-semibold focus:outline-none focus:ring-2 focus:ring-red-400";
-  const btn = "px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer";
+  const box = "rounded-lg bg-slate-50 p-3 space-y-2.5";
+  const h = "text-xs font-semibold text-slate-900 flex items-center gap-1.5";
+  const icon = "w-3.5 h-3.5 text-slate-400";
+  const input = "ui-input";
+  const label = "ui-label";
 
   return (
     <div className="space-y-3 text-xs">
       <DelhiveryStatusNote status={status} />
 
       {/* LR summary */}
-      <div className="p-3 rounded-xl border border-red-200 bg-red-50/50 flex flex-wrap items-center justify-between gap-2">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <Truck className="w-4 h-4 text-red-600" />
-            <span className="text-slate-500 font-semibold">Delhivery LR</span>
-            <span className="font-mono font-black text-sm text-slate-900">{lrn}</span>
-            <button type="button" onClick={copyLrn} className="p-1 rounded hover:bg-white cursor-pointer" title="Copy LR">
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
+        <div className="min-w-0 space-y-0.5">
+          <div className="ui-eyebrow">Delhivery LR</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="ui-mono text-base font-semibold text-slate-900">{lrn}</span>
+            <button type="button" onClick={copyLrn} className="ui-icon-btn h-7 w-7" title="Copy LR">
+              {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
-            {record.cancelled && <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[10px]">Cancelled</span>}
+            {record.cancelled && <span className="ui-chip border-rose-200 bg-rose-50 text-rose-700">Cancelled</span>}
           </div>
-          <div className="text-[11px] text-slate-500">
+          <div className="ui-muted">
             {record.awbs?.length ?? 0} AWB(s) · booked {formatDateTimeDisplay(record.bookedAt)} by {record.manifest?.submittedBy || "—"}
             {record.env && ` · ${record.env === "production" ? "Production" : "Staging"}`}
           </div>
         </div>
         {!!record.awbs?.length && (
-          <button type="button" onClick={() => setShowAwbs(!showAwbs)} className="text-red-700 font-bold cursor-pointer">
+          <button type="button" onClick={() => setShowAwbs(!showAwbs)} className="ui-btn-ghost ui-btn-sm">
             {showAwbs ? "Hide AWBs" : "Show AWBs"}
           </button>
         )}
         {showAwbs && (
-          <div className="w-full flex flex-wrap gap-1.5">
+          <div className="flex w-full flex-wrap gap-1.5">
             {record.awbs!.map((a) => (
-              <span key={a} className="px-2 py-0.5 rounded bg-white border border-slate-200 font-mono text-[11px]">
+              <span key={a} className="ui-mono rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
                 {a}
               </span>
             ))}
@@ -181,34 +181,34 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
           Cancelled {formatDateTimeDisplay(record.cancelled.at)} by {record.cancelled.by}: {record.cancelled.reason}
         </p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {/* Tracking */}
           <div className={box}>
             <div className="flex items-center justify-between">
               <span className={h}>
-                <RefreshCw className="w-3.5 h-3.5 text-red-600" /> Tracking
+                <RefreshCw className={icon} /> Tracking
               </span>
               <button
                 type="button"
                 disabled={disabled || busy === "track"}
                 onClick={() => run("track", () => delhiveryApi(`/orders/${order.id}/track`, { method: "POST" }))}
-                className={`${btn} bg-slate-100 hover:bg-slate-200`}
+                className="ui-btn-secondary ui-btn-sm"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${busy === "track" ? "animate-spin" : ""}`} /> Refresh
+                <RefreshCw className={`h-3 w-3 ${busy === "track" ? "animate-spin" : ""}`} /> Refresh
               </button>
             </div>
-            {/* Read-only status badge (never a button). */}
-            <div className="font-black text-sm text-slate-900">{statusLabel(record.tracking?.status)}</div>
+            {/* Read-only status text (never a button). */}
+            <div className="text-sm font-semibold text-slate-900">{statusLabel(record.tracking?.status)}</div>
             {record.tracking && (
-              <div className="text-[11px] text-slate-500">
+              <div className="ui-muted">
                 {record.tracking.location && <>{record.tracking.location} · </>}checked {formatDateTimeDisplay(record.tracking.checkedAt)}
               </div>
             )}
             {!!record.statusHistory?.length && (
-              <ol className="border-l-2 border-slate-200 pl-3 space-y-1 max-h-32 overflow-y-auto">
+              <ol className="max-h-32 space-y-1 overflow-y-auto border-l border-slate-200 pl-3">
                 {[...record.statusHistory].reverse().map((s, i) => (
-                  <li key={i} className="text-[11px]">
-                    <b>{statusLabel(s.status)}</b>
+                  <li key={i} className="text-[11px] text-slate-600">
+                    <span className="font-medium text-slate-800">{statusLabel(s.status)}</span>
                     {s.location && <> · {s.location}</>} <span className="text-slate-400">· {formatDateTimeDisplay(s.at)}</span>
                   </li>
                 ))}
@@ -220,14 +220,14 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
           {/* Appointment */}
           <div className={box}>
             <span className={h}>
-              <CalendarCheck className="w-3.5 h-3.5 text-red-600" /> Delivery appointment
+              <CalendarCheck className={icon} /> Delivery appointment
             </span>
             {record.appointment ? (
               <div className="space-y-0.5">
-                <div className="font-bold text-slate-900">
+                <div className="text-sm font-semibold text-slate-900">
                   {dmyDisplay(record.appointment.date)} · {record.appointment.slot}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="ui-muted">
                   PO {record.appointment.poNumbers.join(", ")}
                   {record.appointment.appointmentId && <> · Appt ID {record.appointment.appointmentId}</>} · booked by {record.appointment.bookedBy}
                 </div>
@@ -235,12 +235,12 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold mb-1">Date</label>
+                  <label className={label}>Date</label>
                   <DateInput className={input} value={apptDate} onChange={(e) => setApptDate(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold mb-1">Slot</label>
-                  <select className={input} value={apptSlot} onChange={(e) => setApptSlot(e.target.value)}>
+                  <label className={label}>Slot</label>
+                  <select className="ui-select" value={apptSlot} onChange={(e) => setApptSlot(e.target.value)}>
                     {DELHIVERY_SLOT_OPTIONS.map((s) => (
                       <option key={s} value={s}>
                         {s}
@@ -249,41 +249,43 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold mb-1">PO number(s)</label>
+                  <label className={label}>PO number(s)</label>
                   <input className={input} value={apptPo} onChange={(e) => setApptPo(e.target.value)} placeholder="comma separated, max 5" />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold mb-1">PO expiry</label>
+                  <label className={label}>PO expiry</label>
                   <DateInput className={input} value={poExpiry} onChange={(e) => setPoExpiry(e.target.value)} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[11px] font-bold mb-1">Appointment ID (from the platform)</label>
+                  <label className={label}>Appointment ID (from the platform)</label>
                   <input className={input} value={apptId} onChange={(e) => setApptId(e.target.value)} />
                 </div>
-                <button
-                  type="button"
-                  disabled={disabled || !apptDate || !poExpiry || busy === "appt"}
-                  onClick={() =>
-                    run(
-                      "appt",
-                      () =>
-                        delhiveryApi(
-                          `/orders/${order.id}/appointment`,
-                          postJson({
-                            date: apptDate,
-                            slot: apptSlot,
-                            poNumbers: apptPo.split(",").map((p) => p.trim()).filter(Boolean),
-                            appointmentId: apptId,
-                            poExpiryDate: poExpiry,
-                          })
-                        ),
-                      "Appointment booked with Delhivery"
-                    )
-                  }
-                  className={`${btn} col-span-2 justify-center bg-red-600 hover:bg-red-700 text-white`}
-                >
-                  Book appointment
-                </button>
+                <div className="col-span-2 flex justify-end pt-1">
+                  <button
+                    type="button"
+                    disabled={disabled || !apptDate || !poExpiry || busy === "appt"}
+                    onClick={() =>
+                      run(
+                        "appt",
+                        () =>
+                          delhiveryApi(
+                            `/orders/${order.id}/appointment`,
+                            postJson({
+                              date: apptDate,
+                              slot: apptSlot,
+                              poNumbers: apptPo.split(",").map((p) => p.trim()).filter(Boolean),
+                              appointmentId: apptId,
+                              poExpiryDate: poExpiry,
+                            })
+                          ),
+                        "Appointment booked with Delhivery"
+                      )
+                    }
+                    className="ui-btn-primary"
+                  >
+                    Book appointment
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -291,22 +293,22 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
           {/* Pickup */}
           <div className={box}>
             <span className={h}>
-              <Truck className="w-3.5 h-3.5 text-red-600" /> Pickup request
+              <Truck className={icon} /> Pickup request
             </span>
             {pickupActive ? (
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="font-bold">
+                  <div className="font-semibold text-slate-900">
                     {formatDateDisplay(record.pickup!.date)} from {record.pickup!.startTime.slice(0, 5)} · {record.pickup!.expectedPackageCount} box(es)
                   </div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="ui-muted">
                     {record.pickup!.id ? `Pickup ID ${record.pickup!.id}` : "Pickup ID not recognised"} · by {record.pickup!.requestedBy}
                   </div>
                   {record.pickup!.state === "submitting" && (
-                    <div className="text-[11px] font-semibold text-amber-700">Being sent to Delhivery…</div>
+                    <div className="text-[11px] font-medium text-amber-700">Being sent to Delhivery…</div>
                   )}
                   {pickupUnknown && (
-                    <div className="text-[11px] font-semibold text-amber-700">
+                    <div className="text-[11px] font-medium text-amber-700">
                       The request timed out and may not have reached Delhivery. Check the Delhivery One panel; an admin can retry.
                     </div>
                   )}
@@ -315,44 +317,46 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
                   type="button"
                   disabled={disabled || busy === "pickup-cancel" || !record.pickup!.id}
                   onClick={() => run("pickup-cancel", () => delhiveryApi(`/orders/${order.id}/pickup`, { method: "DELETE" }), "Pickup request cancelled")}
-                  className={`${btn} bg-slate-100 hover:bg-slate-200 text-rose-700`}
+                  className="ui-btn-danger ui-btn-sm shrink-0"
                 >
                   Cancel pickup
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-2 items-end">
+              <div className="grid grid-cols-3 items-end gap-2">
                 <div>
-                  <label className="block text-[11px] font-bold mb-1">Date</label>
+                  <label className={label}>Date</label>
                   <DateInput className={input} value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold mb-1">From</label>
+                  <label className={label}>From</label>
                   <input type="time" className={input} value={pickupTime} onChange={(e) => setPickupTime(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold mb-1">Boxes</label>
-                  <input className={input} inputMode="numeric" value={pickupCount} onChange={(e) => setPickupCount(e.target.value.replace(/\D/g, ""))} />
+                  <label className={label}>Boxes</label>
+                  <input className={`${input} ui-mono`} inputMode="numeric" value={pickupCount} onChange={(e) => setPickupCount(e.target.value.replace(/\D/g, ""))} />
                 </div>
-                <button
-                  type="button"
-                  disabled={disabled || !pickupDate || !pickupCount || busy === "pickup"}
-                  onClick={() =>
-                    run(
-                      "pickup",
-                      () =>
-                        delhiveryApi(
-                          `/orders/${order.id}/pickup`,
-                          postJson({ date: pickupDate, time: pickupTime, expectedPackageCount: parseInt(pickupCount, 10), override: pickupUnknown })
-                        ),
-                      "Pickup requested"
-                    )
-                  }
-                  className={`${btn} col-span-3 justify-center bg-red-600 hover:bg-red-700 text-white`}
-                >
-                  {pickupUnknown ? "I've checked: request pickup again" : "Request pickup"}
-                </button>
-                <p className="col-span-3 text-[10px] text-slate-500">Delhivery needs one day's notice for pickups.</p>
+                <div className="col-span-3 flex items-center justify-between gap-2 pt-1">
+                  <p className="ui-muted">Delhivery needs one day&apos;s notice for pickups.</p>
+                  <button
+                    type="button"
+                    disabled={disabled || !pickupDate || !pickupCount || busy === "pickup"}
+                    onClick={() =>
+                      run(
+                        "pickup",
+                        () =>
+                          delhiveryApi(
+                            `/orders/${order.id}/pickup`,
+                            postJson({ date: pickupDate, time: pickupTime, expectedPackageCount: parseInt(pickupCount, 10), override: pickupUnknown })
+                          ),
+                        "Pickup requested"
+                      )
+                    }
+                    className="ui-btn-primary shrink-0"
+                  >
+                    {pickupUnknown ? "I've checked: request pickup again" : "Request pickup"}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -360,18 +364,18 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
           {/* Documents */}
           <div className={box}>
             <span className={h}>
-              <FileText className="w-3.5 h-3.5 text-red-600" /> Documents
+              <FileText className={icon} /> Documents
             </span>
             <div className="flex items-center gap-2">
-              <select className={`${input} w-auto`} value={labelSize} onChange={(e) => setLabelSize(e.target.value as LabelSize)}>
+              <select className="ui-select w-auto" value={labelSize} onChange={(e) => setLabelSize(e.target.value as LabelSize)}>
                 {(Object.keys(LABEL_PAGE) as LabelSize[]).map((s) => (
                   <option key={s} value={s}>
                     {LABEL_PAGE[s].name}
                   </option>
                 ))}
               </select>
-              <button type="button" disabled={disabled || busy === "labels"} onClick={printLabels} className={`${btn} bg-slate-900 hover:bg-slate-800 text-white`}>
-                <Printer className="w-3.5 h-3.5" /> Print box labels
+              <button type="button" disabled={disabled || busy === "labels"} onClick={printLabels} className="ui-btn-primary">
+                <Printer className="h-3.5 w-3.5" /> Print box labels
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -379,7 +383,7 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
                 type="button"
                 disabled={disabled || busy === "lr"}
                 onClick={() => run("lr", () => openDelhiveryDocument(`/orders/${order.id}/lr-copy`))}
-                className={`${btn} bg-slate-100 hover:bg-slate-200`}
+                className="ui-btn-secondary"
               >
                 LR copy (PDF)
               </button>
@@ -387,7 +391,7 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
                 type="button"
                 disabled={disabled || busy === "pod"}
                 onClick={() => run("pod", () => openDelhiveryDocument(`/orders/${order.id}/pod`))}
-                className={`${btn} bg-slate-100 hover:bg-slate-200`}
+                className="ui-btn-secondary"
               >
                 Proof of delivery
               </button>
@@ -398,55 +402,62 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
           <div className={`${box} md:col-span-2`}>
             <div className="flex items-center justify-between">
               <span className={h}>
-                <Wallet className="w-3.5 h-3.5 text-red-600" /> Freight: estimated vs billed
+                <Wallet className={icon} /> Freight: estimated vs billed
               </span>
               <button
                 type="button"
                 disabled={disabled || busy === "freight"}
                 onClick={() => run("freight", () => delhiveryApi(`/orders/${order.id}/freight-breakup`, { method: "POST" }))}
-                className={`${btn} bg-slate-100 hover:bg-slate-200`}
+                className="ui-btn-secondary ui-btn-sm"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${busy === "freight" ? "animate-spin" : ""}`} /> Fetch billed charges
+                <RefreshCw className={`h-3 w-3 ${busy === "freight" ? "animate-spin" : ""}`} /> Fetch billed charges
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="text-[10px] text-slate-400 block font-semibold">Estimate</span>
-                <b>{rupees(est?.total)}</b>
+            <dl className="grid grid-cols-3 gap-3">
+              <div>
+                <dt className="ui-label">Estimate</dt>
+                <dd className="ui-mono text-sm font-semibold text-slate-900">{rupees(est?.total)}</dd>
               </div>
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="text-[10px] text-slate-400 block font-semibold">Billed</span>
-                <b>{rupees(act?.total)}</b>
+              <div>
+                <dt className="ui-label">Billed</dt>
+                <dd className="ui-mono text-sm font-semibold text-slate-900">{rupees(act?.total)}</dd>
               </div>
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <span className="text-[10px] text-slate-400 block font-semibold">Difference</span>
-                <b className={est?.total != null && act?.total != null && act.total > est.total ? "text-rose-700" : "text-emerald-700"}>
+              <div>
+                <dt className="ui-label">Difference</dt>
+                <dd
+                  className={`ui-mono text-sm font-semibold ${
+                    est?.total != null && act?.total != null && act.total > est.total ? "text-rose-700" : "text-emerald-700"
+                  }`}
+                >
                   {est?.total != null && act?.total != null ? rupees(Number((act.total - est.total).toFixed(2))) : "—"}
-                </b>
+                </dd>
               </div>
-            </div>
-            {act && <p className="text-[10px] text-slate-500">Billed charges fetched {formatDateTimeDisplay(act.fetchedAt)}.</p>}
+            </dl>
+            {act && <p className="ui-muted">Billed charges fetched {formatDateTimeDisplay(act.fetchedAt)}.</p>}
           </div>
         </div>
       )}
 
       {/* Admin-only LR cancellation with typed confirmation */}
       {canOverrideHere && !record.cancelled && (
-        <div className="p-3 rounded-xl border border-rose-200 bg-rose-50/40 space-y-2">
+        <div className="border-t border-slate-100 pt-3">
           {!cancelOpen ? (
-            <button type="button" onClick={() => setCancelOpen(true)} className={`${btn} text-rose-700 hover:bg-rose-100`}>
-              <Ban className="w-3.5 h-3.5" /> Cancel this LR with Delhivery…
+            <button type="button" onClick={() => setCancelOpen(true)} className="ui-btn-danger">
+              <Ban className="h-3.5 w-3.5" /> Cancel this LR with Delhivery…
             </button>
           ) : (
-            <>
-              <p className="text-rose-900 font-semibold">
+            <div className="space-y-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3">
+              <p className="font-medium text-rose-900">
                 Cancelling is allowed only before delivery (Manifested, In Transit, Pending, Open, Scheduled). Type the LR number to confirm.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input className={`${input} font-mono`} placeholder={lrn} value={cancelLrn} onChange={(e) => setCancelLrn(e.target.value.trim())} />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <input className={`${input} ui-mono`} placeholder={lrn} value={cancelLrn} onChange={(e) => setCancelLrn(e.target.value.trim())} />
                 <input className={input} placeholder="Reason" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
               </div>
-              <div className="flex gap-2">
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setCancelOpen(false)} className="ui-btn-secondary">
+                  Keep it
+                </button>
                 <button
                   type="button"
                   disabled={disabled || cancelLrn !== lrn || cancelReason.trim().length < 3 || busy === "cancel"}
@@ -455,15 +466,12 @@ export function DelhiveryShipmentPanel({ order, record, status, onRecordChange, 
                       () => setCancelOpen(false)
                     )
                   }
-                  className={`${btn} bg-rose-600 hover:bg-rose-700 text-white`}
+                  className="ui-btn bg-rose-600 text-white shadow-sm hover:bg-rose-700"
                 >
                   Cancel LR
                 </button>
-                <button type="button" onClick={() => setCancelOpen(false)} className={`${btn} bg-white border border-slate-200`}>
-                  Keep it
-                </button>
               </div>
-            </>
+            </div>
           )}
         </div>
       )}

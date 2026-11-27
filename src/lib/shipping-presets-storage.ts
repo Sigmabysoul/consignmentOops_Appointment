@@ -190,5 +190,10 @@ export async function resetShippingPresets(
  */
 function withLiveQuoteCarriers(list: CarrierRatePreset[]): CarrierRatePreset[] {
   const live = DEFAULT_CARRIER_PRESETS.filter((p) => p.liveQuoteOnly);
-  return [...list.filter((p) => !p.liveQuoteOnly && !live.some((l) => l.id === p.id)), ...live];
+  const upgraded = list.map((p) => {
+    // A preset saved before its zone rate card existed (old flat Delhivery ₹/kg) takes the card.
+    const def = DEFAULT_CARRIER_PRESETS.find((d) => d.id === p.id && d.zoneRatesPerKg);
+    return def && !p.zoneRatesPerKg ? { ...def, isActive: p.isActive } : p;
+  });
+  return [...upgraded.filter((p) => !p.liveQuoteOnly && !live.some((l) => l.id === p.id)), ...live];
 }

@@ -13,8 +13,8 @@ export function StatusBadge({ status, size = "md" }: StatusBadgeProps) {
   let label = status || "Pending";
 
   if (s.includes("delivered") || s === "completed") {
-    badgeClass = "bg-green-100 text-green-800 border-green-300 dark:bg-green-950/70 dark:text-green-300 dark:border-green-800";
-    dotClass = "bg-green-600";
+    badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-300 dark:border-emerald-800";
+    dotClass = "bg-emerald-500";
     label = "Delivered";
   } else if (s.includes("transit") || s === "dispatched" || s === "shipped") {
     badgeClass = "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/70 dark:text-violet-300 dark:border-violet-800";

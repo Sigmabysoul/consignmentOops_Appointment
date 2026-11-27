@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { BoxDimensionGroup, formatTabSeparatedBoxRow, summarizeCartons } from "@/lib/dimension-helper";
+import { BoxDimensionGroup, formatCbm, formatTabSeparatedBoxRow, summarizeCartons } from "@/lib/dimension-helper";
 import { formatDecimalNumber } from "@/lib/courier-defaults";
-import { Copy, Check, Sparkles, Layers, ArrowRight } from "lucide-react";
+import { Copy, Check, Layers, ArrowRight } from "lucide-react";
 
 interface BoxDimensionCopyHelperProps {
   groups: BoxDimensionGroup[];
@@ -12,6 +12,53 @@ interface BoxDimensionCopyHelperProps {
   wide?: boolean;
   orderNumber?: string;
   onDimensionsUpdated?: () => void;
+}
+
+type CopyField = "boxCount" | "lengthCm" | "widthCm" | "heightCm" | "weightKg";
+
+/** Visual state of a copy target: just copied (green), next in the auto-advance sequence (violet ring), idle. */
+function chipState(copied: boolean, next: boolean) {
+  if (copied) return "border-emerald-600 bg-emerald-600 text-white";
+  if (next) return "border-violet-400 bg-violet-50 text-violet-900 ring-2 ring-violet-400/60";
+  return "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50";
+}
+
+/** Small "Copy row" / "Copy string" button with a copied confirmation. */
+function CopyTextButton({
+  copied,
+  onClick,
+  title,
+  label,
+  copiedLabel,
+  primary = false,
+}: {
+  copied: boolean;
+  onClick: () => void;
+  title: string;
+  label: string;
+  copiedLabel: string;
+  primary?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`${primary ? "ui-btn-secondary text-violet-700 hover:text-violet-800" : "ui-btn-ghost"} ui-btn-sm`}
+    >
+      {copied ? (
+        <>
+          <Check className="h-3.5 w-3.5 text-emerald-600" />
+          <span className="text-emerald-700">{copiedLabel}</span>
+        </>
+      ) : (
+        <>
+          <Copy className="h-3.5 w-3.5" />
+          <span>{label}</span>
+        </>
+      )}
+    </button>
+  );
 }
 
 export function BoxDimensionCopyHelper({
@@ -102,164 +149,99 @@ export function BoxDimensionCopyHelper({
 
   if (!groups || groups.length === 0) {
     return (
-      <div className="text-[11px] text-slate-400 italic flex items-center gap-1.5 py-1">
-        <Layers className="w-3.5 h-3.5 text-slate-300" />
+      <div className="flex items-center gap-1.5 py-1 text-xs text-slate-400">
+        <Layers className="h-3.5 w-3.5 text-slate-300" />
         <span>No box dimensions recorded yet</span>
       </div>
     );
   }
 
+  const isNext = (groupId: string, field: CopyField) =>
+    activeStep?.groupId === groupId && activeStep?.field === field;
+
   // COMPACT TABLE CELL MODE (Used in Booking Table view)
   if (compact) {
     return (
-      <div className="space-y-1.5 py-0.5">
+      <div className="space-y-2">
         {groups.map((g, idx) => {
-          const countKey = `${g.id}-boxCount`;
-          const lKey = `${g.id}-lengthCm`;
-          const wKey = `${g.id}-widthCm`;
-          const hKey = `${g.id}-heightCm`;
-          const wtKey = `${g.id}-weightKg`;
           const tsvKey = `${g.id}-tsv`;
-
-          const isNextCount = activeStep?.groupId === g.id && activeStep?.field === "boxCount";
-          const isNextL = activeStep?.groupId === g.id && activeStep?.field === "lengthCm";
-          const isNextW = activeStep?.groupId === g.id && activeStep?.field === "widthCm";
-          const isNextH = activeStep?.groupId === g.id && activeStep?.field === "heightCm";
-          const isNextWt = activeStep?.groupId === g.id && activeStep?.field === "weightKg";
+          const chips: { field: CopyField; label: string; display: React.ReactNode; value: number | string | null; title: string }[] = [
+            { field: "boxCount", label: "Qty", display: g.boxCount, value: g.boxCount, title: "Click to copy box count" },
+            { field: "lengthCm", label: "L", display: g.lengthCm ?? "?", value: g.lengthCm, title: "Click to copy Length" },
+            { field: "widthCm", label: "B", display: g.widthCm ?? "?", value: g.widthCm, title: "Click to copy Breadth / Width" },
+            { field: "heightCm", label: "H", display: g.heightCm ?? "?", value: g.heightCm, title: "Click to copy Height" },
+          ];
+          // Weight chip (if present) - Formatted to 2 decimals (.00)
+          if (g.weightKg !== null) {
+            chips.push({
+              field: "weightKg",
+              label: "Wt/box",
+              display: formatDecimalNumber(g.weightKg),
+              value: formatDecimalNumber(g.weightKg),
+              title: "Click to copy the weight of ONE box",
+            });
+          }
 
           return (
-            <div
-              key={g.id || idx}
-              className="bg-white/90 border border-slate-200/90 rounded-lg p-1.5 shadow-2xs hover:border-violet-300 transition-colors"
-            >
-              {/* Group Mini Header & Row Copy */}
-              <div className="flex items-center justify-between mb-1 text-[10px]">
-                <span className="font-bold text-slate-700 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-600" />
-                  {g.boxCount} Box{g.boxCount > 1 ? "es" : ""}
-                  {g.isRemainder ? " (Rem)" : ""}
+            <div key={g.id || idx} className="space-y-1">
+              {/* Group header & row copy */}
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                  <span className="tabular-nums">
+                    {g.boxCount} box{g.boxCount > 1 ? "es" : ""}
+                  </span>
+                  {g.isRemainder && (
+                    <span className="rounded bg-slate-100 px-1 py-px text-[10px] font-medium text-slate-500">Rem</span>
+                  )}
                 </span>
                 <button
                   type="button"
                   onClick={() => handleCopyRowTsv(g)}
                   title="Copy full row (Tab-separated: Count, L, B, H, Wt per box)"
-                  className="flex items-center gap-1 text-[9px] font-semibold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 px-1.5 py-0.5 rounded transition cursor-pointer"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-[11px] font-medium text-violet-700 transition hover:bg-violet-50 hover:text-violet-800"
                 >
                   {copiedKey === tsvKey ? (
                     <>
-                      <Check className="w-2.5 h-2.5 text-emerald-600" />
-                      <span className="text-emerald-700">Row Copied!</span>
+                      <Check className="h-3.5 w-3.5 text-emerald-600" />
+                      <span className="text-emerald-700">Row copied</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-2.5 h-2.5" />
-                      <span>Copy Row</span>
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>Copy row</span>
                     </>
                   )}
                 </button>
               </div>
 
-              {/* 1-Click Copy Chips */}
+              {/* 1-click copy chips */}
               <div className="flex flex-wrap items-center gap-1">
-                {/* Count Chip */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(g, "boxCount", g.boxCount)}
-                  title="Click to copy box count"
-                  className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 cursor-pointer transition ${
-                    copiedKey === countKey
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : isNextCount
-                      ? "bg-amber-100 text-amber-900 ring-2 ring-amber-400 font-extrabold animate-pulse"
-                      : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                  }`}
-                >
-                  <span className="text-[9px] text-slate-500 font-sans">Qty:</span>
-                  <span>{g.boxCount}</span>
-                  {copiedKey === countKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
-                </button>
-
-                {/* Length Chip */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(g, "lengthCm", g.lengthCm)}
-                  title="Click to copy Length"
-                  className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 cursor-pointer transition ${
-                    copiedKey === lKey
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : isNextL
-                      ? "bg-amber-100 text-amber-900 ring-2 ring-amber-400 font-extrabold animate-pulse"
-                      : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                  }`}
-                >
-                  <span className="text-[9px] text-slate-500 font-sans">L:</span>
-                  <span>{g.lengthCm ?? "?"}</span>
-                  {copiedKey === lKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
-                </button>
-
-                {/* Breadth / Width Chip */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(g, "widthCm", g.widthCm)}
-                  title="Click to copy Breadth / Width"
-                  className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 cursor-pointer transition ${
-                    copiedKey === wKey
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : isNextW
-                      ? "bg-amber-100 text-amber-900 ring-2 ring-amber-400 font-extrabold animate-pulse"
-                      : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                  }`}
-                >
-                  <span className="text-[9px] text-slate-500 font-sans">B:</span>
-                  <span>{g.widthCm ?? "?"}</span>
-                  {copiedKey === wKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
-                </button>
-
-                {/* Height Chip */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(g, "heightCm", g.heightCm)}
-                  title="Click to copy Height"
-                  className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 cursor-pointer transition ${
-                    copiedKey === hKey
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : isNextH
-                      ? "bg-amber-100 text-amber-900 ring-2 ring-amber-400 font-extrabold animate-pulse"
-                      : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                  }`}
-                >
-                  <span className="text-[9px] text-slate-500 font-sans">H:</span>
-                  <span>{g.heightCm ?? "?"}</span>
-                  {copiedKey === hKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
-                </button>
-
-                {/* Weight Chip (if present) - Formatted to 2 decimals (.00) */}
-                {g.weightKg !== null && (
-                  <button
-                    type="button"
-                    onClick={() => handleFieldClick(g, "weightKg", formatDecimalNumber(g.weightKg))}
-                    title="Click to copy the weight of ONE box"
-                    className={`px-1.5 py-0.5 text-[10px] font-mono font-bold rounded flex items-center gap-1 cursor-pointer transition ${
-                      copiedKey === wtKey
-                        ? "bg-emerald-600 text-white shadow-xs"
-                        : isNextWt
-                        ? "bg-amber-100 text-amber-900 ring-2 ring-amber-400 font-extrabold animate-pulse"
-                        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                    }`}
-                  >
-                    <span className="text-[9px] text-slate-500 font-sans">Wt/box:</span>
-                    <span>{formatDecimalNumber(g.weightKg)}</span>
-                    {copiedKey === wtKey ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2 h-2 opacity-50" />}
-                  </button>
-                )}
+                {chips.map((c) => {
+                  const key = `${g.id}-${c.field}`;
+                  const copied = copiedKey === key;
+                  return (
+                    <button
+                      key={c.field}
+                      type="button"
+                      onClick={() => handleFieldClick(g, c.field, c.value)}
+                      title={c.title}
+                      className={`inline-flex cursor-pointer items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] transition ${chipState(copied, isNext(g.id, c.field))}`}
+                    >
+                      <span className={copied ? "text-emerald-100" : "text-slate-400"}>{c.label}</span>
+                      <span className="font-mono font-semibold tabular-nums">{c.display}</span>
+                      {copied && <Check className="h-3 w-3" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           );
         })}
         {summary.totalBoxes > 0 && (
-          <div className="text-[10px] font-semibold text-slate-600 px-0.5">
+          <div className="border-t border-slate-100 pt-1.5 text-[11px] font-medium tabular-nums text-slate-500">
             Total: {summary.totalBoxes} box{summary.totalBoxes > 1 ? "es" : ""}
             {summary.totalWeightKg !== null ? ` · ${formatDecimalNumber(summary.totalWeightKg)} kg` : ""}
+            {summary.totalCbm !== null ? ` · ${formatCbm(summary.totalCbm)}` : ""}
           </div>
         )}
       </div>
@@ -268,204 +250,92 @@ export function BoxDimensionCopyHelper({
 
   // EXPANDED / MODAL / DRAWER MODE (High-Productivity Copy Wizard)
   return (
-    <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3 space-y-3">
-      {/* Wizard Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-        <div className="flex items-center gap-1.5">
-          <Sparkles className="w-4 h-4 text-violet-600" />
-          <h4 className="text-xs font-extrabold text-slate-800">
-            Carrier Booking Box Dimensions
-          </h4>
-        </div>
-        <span className="text-[10px] font-semibold text-slate-500">
-          Click any value to copy to booking form
-        </span>
+    <div className="ui-card overflow-hidden">
+      {/* Wizard header */}
+      <div className="ui-card-header">
+        <h4 className="ui-card-title">
+          <Layers className="h-4 w-4 text-violet-600" />
+          Carrier booking box dimensions
+        </h4>
+        <span className="ui-muted hidden sm:inline">Click any value to copy it into the booking form</span>
       </div>
 
-      {/* Box Dimension Groups */}
-      <div className="space-y-2.5">
+      {/* Box dimension groups */}
+      <div className="divide-y divide-slate-100">
         {groups.map((group, idx) => {
-          const countKey = `${group.id}-boxCount`;
-          const lKey = `${group.id}-lengthCm`;
-          const wKey = `${group.id}-widthCm`;
-          const hKey = `${group.id}-heightCm`;
-          const wtKey = `${group.id}-weightKg`;
           const tsvKey = `${group.id}-tsv`;
           const dimKey = `${group.id}-dim`;
-
-          const isNextCount = activeStep?.groupId === group.id && activeStep?.field === "boxCount";
-          const isNextL = activeStep?.groupId === group.id && activeStep?.field === "lengthCm";
-          const isNextW = activeStep?.groupId === group.id && activeStep?.field === "widthCm";
-          const isNextH = activeStep?.groupId === group.id && activeStep?.field === "heightCm";
-          const isNextWt = activeStep?.groupId === group.id && activeStep?.field === "weightKg";
+          const fields: { field: CopyField; label: string; display: React.ReactNode; value: number | string | null }[] = [
+            { field: "boxCount", label: "1. Box count", display: group.boxCount, value: group.boxCount },
+            { field: "lengthCm", label: `2. Length (${group.dimensionUnit})`, display: group.lengthCm ?? "-", value: group.lengthCm },
+            { field: "widthCm", label: `3. Breadth (${group.dimensionUnit})`, display: group.widthCm ?? "-", value: group.widthCm },
+            { field: "heightCm", label: `4. Height (${group.dimensionUnit})`, display: group.heightCm ?? "-", value: group.heightCm },
+            {
+              field: "weightKg",
+              label: `5. Wt/box (${group.weightUnit})`,
+              display: group.weightKg !== null ? formatDecimalNumber(group.weightKg) : "-",
+              value: group.weightKg !== null ? formatDecimalNumber(group.weightKg) : "",
+            },
+          ];
 
           return (
             <div
               key={group.id || idx}
               className={
                 wide
-                  ? "bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3"
-                  : "bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs space-y-2"
+                  ? "flex flex-col gap-2 px-4 py-3 lg:flex-row lg:items-center lg:gap-4"
+                  : "space-y-2 px-4 py-3"
               }
             >
-              <div className={wide ? "flex items-center justify-between gap-2 lg:contents" : "flex items-center justify-between"}>
-                <div className={wide ? "flex items-center gap-2 lg:order-1 lg:w-40 lg:shrink-0" : "flex items-center gap-2"}>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-violet-100 text-violet-800">
-                    Group {idx + 1}
+              <div className={wide ? "flex items-center justify-between gap-2 lg:contents" : "flex items-center justify-between gap-2"}>
+                <div className={wide ? "flex items-center gap-2 lg:order-1 lg:w-44 lg:shrink-0" : "flex items-center gap-2"}>
+                  <span className="ui-eyebrow">Group {idx + 1}</span>
+                  <span className="text-sm font-semibold tabular-nums text-slate-900">
+                    {group.boxCount} box{group.boxCount > 1 ? "es" : ""}
                   </span>
-                  <span className="text-xs font-bold text-slate-800">
-                    {group.boxCount} Box{group.boxCount > 1 ? "es" : ""}
-                    {group.isRemainder ? " (Remainder Box)" : ""}
-                  </span>
+                  {group.isRemainder && (
+                    <span className="rounded bg-slate-100 px-1.5 py-px text-[11px] font-medium text-slate-600">Remainder</span>
+                  )}
                 </div>
 
-                <div className={wide ? "flex items-center gap-1.5 lg:order-3 lg:shrink-0" : "flex items-center gap-1.5"}>
-                  <button
-                    type="button"
+                <div className={wide ? "flex items-center gap-1 lg:order-3 lg:shrink-0" : "flex items-center gap-1"}>
+                  <CopyTextButton
+                    copied={copiedKey === dimKey}
                     onClick={() => handleCopyDimString(group)}
                     title="Copy dimension string e.g. 23x40x25"
-                    className="text-[10px] font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md transition cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                  >
-                    {copiedKey === dimKey ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        <span className="text-emerald-700">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3 text-slate-500" />
-                        <span>Copy String</span>
-                      </>
-                    )}
-                  </button>
-
-                  <button
-                    type="button"
+                    label="Copy string"
+                    copiedLabel="Copied"
+                  />
+                  <CopyTextButton
+                    primary
+                    copied={copiedKey === tsvKey}
                     onClick={() => handleCopyRowTsv(group)}
                     title="Copy entire row (tab-separated) for quick Excel/form paste"
-                    className="text-[10px] font-bold text-violet-700 hover:text-violet-900 bg-violet-50 hover:bg-violet-100 px-2.5 py-1 rounded-md transition cursor-pointer flex items-center gap-1 border border-violet-200 whitespace-nowrap"
-                  >
-                    {copiedKey === tsvKey ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        <span className="text-emerald-700">Row Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        <span>{wide ? "Copy Row" : "Copy Row (Tab-separated)"}</span>
-                      </>
-                    )}
-                  </button>
+                    label={wide ? "Copy row" : "Copy row (tab-separated)"}
+                    copiedLabel="Row copied"
+                  />
                 </div>
               </div>
 
-              {/* Sequential / Step-by-Step Value Buttons */}
-              <div className={wide ? "grid grid-cols-2 sm:grid-cols-5 gap-1.5 lg:order-2 lg:flex-1" : "grid grid-cols-2 sm:grid-cols-5 gap-1.5"}>
-                {/* 1. Box Count */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(group, "boxCount", group.boxCount)}
-                  className={`p-2 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
-                    copiedKey === countKey
-                      ? "bg-emerald-600 border-emerald-700 text-white shadow-xs"
-                      : isNextCount
-                      ? "bg-amber-50 border-amber-400 ring-2 ring-amber-400 text-amber-900"
-                      : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
-                    <span>1. Box Count</span>
-                    {copiedKey === countKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
-                  </div>
-                  <div className="text-sm font-mono font-extrabold mt-1">
-                    {group.boxCount}
-                  </div>
-                </button>
-
-                {/* 2. Length */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(group, "lengthCm", group.lengthCm)}
-                  className={`p-2 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
-                    copiedKey === lKey
-                      ? "bg-emerald-600 border-emerald-700 text-white shadow-xs"
-                      : isNextL
-                      ? "bg-amber-50 border-amber-400 ring-2 ring-amber-400 text-amber-900"
-                      : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
-                    <span>2. Length ({group.dimensionUnit})</span>
-                    {copiedKey === lKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
-                  </div>
-                  <div className="text-sm font-mono font-extrabold mt-1">
-                    {group.lengthCm ?? "-"}
-                  </div>
-                </button>
-
-                {/* 3. Breadth / Width */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(group, "widthCm", group.widthCm)}
-                  className={`p-2 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
-                    copiedKey === wKey
-                      ? "bg-emerald-600 border-emerald-700 text-white shadow-xs"
-                      : isNextW
-                      ? "bg-amber-50 border-amber-400 ring-2 ring-amber-400 text-amber-900"
-                      : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
-                    <span>3. Breadth ({group.dimensionUnit})</span>
-                    {copiedKey === wKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
-                  </div>
-                  <div className="text-sm font-mono font-extrabold mt-1">
-                    {group.widthCm ?? "-"}
-                  </div>
-                </button>
-
-                {/* 4. Height */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(group, "heightCm", group.heightCm)}
-                  className={`p-2 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
-                    copiedKey === hKey
-                      ? "bg-emerald-600 border-emerald-700 text-white shadow-xs"
-                      : isNextH
-                      ? "bg-amber-50 border-amber-400 ring-2 ring-amber-400 text-amber-900"
-                      : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
-                    <span>4. Height ({group.dimensionUnit})</span>
-                    {copiedKey === hKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
-                  </div>
-                  <div className="text-sm font-mono font-extrabold mt-1">
-                    {group.heightCm ?? "-"}
-                  </div>
-                </button>
-
-                {/* 5. Weight */}
-                <button
-                  type="button"
-                  onClick={() => handleFieldClick(group, "weightKg", group.weightKg !== null ? formatDecimalNumber(group.weightKg) : "")}
-                  className={`p-2 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
-                    copiedKey === wtKey
-                      ? "bg-emerald-600 border-emerald-700 text-white shadow-xs"
-                      : isNextWt
-                      ? "bg-amber-50 border-amber-400 ring-2 ring-amber-400 text-amber-900"
-                      : "bg-slate-50/70 hover:bg-slate-100 border-slate-200 text-slate-800"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 text-[10px] opacity-75 font-semibold whitespace-nowrap">
-                    <span>5. Wt/box ({group.weightUnit})</span>
-                    {copiedKey === wtKey ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3 opacity-60" />}
-                  </div>
-                  <div className="text-sm font-mono font-extrabold mt-1">
-                    {group.weightKg !== null ? formatDecimalNumber(group.weightKg) : "-"}
-                  </div>
-                </button>
+              {/* Sequential / step-by-step value buttons */}
+              <div className={wide ? "grid grid-cols-2 gap-1.5 sm:grid-cols-5 lg:order-2 lg:flex-1" : "grid grid-cols-2 gap-1.5 sm:grid-cols-5"}>
+                {fields.map((f) => {
+                  const copied = copiedKey === `${group.id}-${f.field}`;
+                  return (
+                    <button
+                      key={f.field}
+                      type="button"
+                      onClick={() => handleFieldClick(group, f.field, f.value)}
+                      className={`flex cursor-pointer flex-col justify-between rounded-lg border px-2.5 py-2 text-left transition ${chipState(copied, isNext(group.id, f.field))}`}
+                    >
+                      <span className={`flex items-center justify-between gap-1 whitespace-nowrap text-[11px] font-medium ${copied ? "text-emerald-50" : "text-slate-500"}`}>
+                        <span>{f.label}</span>
+                        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5 opacity-40" />}
+                      </span>
+                      <span className="mt-1 font-mono text-sm font-semibold tabular-nums">{f.display}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           );
@@ -473,23 +343,22 @@ export function BoxDimensionCopyHelper({
       </div>
 
       {/* Order totals (weights above are per box) */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
-        <span>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-slate-100 bg-slate-50 px-4 py-2.5">
+        <span className="text-xs font-semibold tabular-nums text-slate-800">
           Total: {summary.totalBoxes} box{summary.totalBoxes === 1 ? "" : "es"}
           {summary.totalWeightKg !== null ? ` · ${formatDecimalNumber(summary.totalWeightKg)} kg` : " · weight pending"}
+          {summary.totalCbm !== null ? ` · ${formatCbm(summary.totalCbm)}` : ""}
         </span>
-        <span className="text-[10px] font-semibold text-slate-500">
+        <span className="ui-muted">
           Weights shown are per box. Rows of the same size can differ by 0.01 kg so the boxes add up to
           the exact order total.
         </span>
       </div>
 
-      {/* Productivity Tip */}
-      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-200/60">
-        <div className="flex items-center gap-1">
-          <ArrowRight className="w-3 h-3 text-violet-600" />
-          <span>Sequential Copy Guide: clicking a box auto-highlights the next value to paste into the carrier portal.</span>
-        </div>
+      {/* Productivity tip */}
+      <div className="flex items-center gap-1.5 border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500">
+        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-violet-600" />
+        <span>Sequential copy: clicking a value highlights the next one to paste into the carrier portal.</span>
       </div>
     </div>
   );

@@ -1,10 +1,10 @@
 "use client";
 
+import { formatCbm, summarizeCartons } from "@/lib/dimension-helper";
 import React, { useState } from "react";
 import { getOrderTone } from "@/lib/order-tone";
 import { AppointmentOrder } from "@/lib/types";
 import { ChannelBadge } from "@/components/ui/ChannelBadge";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { formatDateDisplay } from "@/lib/date-utils";
 import { useToast } from "@/components/ui/Toast";
 import { MarkDeliveredModal } from "@/components/delivery/MarkDeliveredModal";
@@ -20,7 +20,6 @@ import {
   ExternalLink,
   Eye,
   ArrowRight,
-  PackageCheck,
   Layers,
   Hash,
   Calendar,
@@ -41,10 +40,11 @@ interface KanbanColumn {
   id: string;
   stage: KanbanStage;
   title: string;
+  hint: string;
   category: "remaining" | "gone" | "issue";
   icon: React.ReactNode;
-  headerBg: string;
-  badgeBg: string;
+  /** Small colour dot next to the column title (the only colour in the header). */
+  dot: string;
 }
 
 /** The server tags each row with its stage; the shared classifier is the fallback (same rules). */
@@ -90,47 +90,47 @@ export function KanbanView({
     {
       id: "remaining_pending",
       stage: "remaining",
-      title: "1. Remaining (To Book)",
+      title: "Remaining",
+      hint: "To book",
       category: "remaining",
-      icon: <Clock className="w-4 h-4 text-amber-600" />,
-      headerBg: "bg-amber-50/90 border-amber-200 text-amber-950",
-      badgeBg: "bg-amber-200 text-amber-950 font-bold",
+      icon: <Clock className="h-4 w-4 text-slate-400" />,
+      dot: "bg-amber-500",
     },
     {
       id: "booked_ready",
       stage: "booked",
-      title: "2. Booked (CN / Scheduled)",
+      title: "Booked",
+      hint: "CN / scheduled",
       category: "remaining",
-      icon: <CalendarCheck className="w-4 h-4 text-blue-600" />,
-      headerBg: "bg-blue-50/90 border-blue-200 text-blue-950",
-      badgeBg: "bg-blue-200 text-blue-950 font-bold",
+      icon: <CalendarCheck className="h-4 w-4 text-slate-400" />,
+      dot: "bg-sky-500",
     },
     {
       id: "in_transit_gone",
       stage: "in_transit",
-      title: "3. Gone (In Transit / Road)",
+      title: "Gone",
+      hint: "In transit",
       category: "gone",
-      icon: <Truck className="w-4 h-4 text-indigo-600" />,
-      headerBg: "bg-indigo-50/90 border-indigo-200 text-indigo-950",
-      badgeBg: "bg-indigo-200 text-indigo-950 font-bold",
+      icon: <Truck className="h-4 w-4 text-slate-400" />,
+      dot: "bg-violet-500",
     },
     {
       id: "delivered_gone",
       stage: "delivered",
-      title: "4. Delivered (Completed)",
+      title: "Delivered",
+      hint: "Completed",
       category: "gone",
-      icon: <CheckCircle2 className="w-4 h-4 text-emerald-600" />,
-      headerBg: "bg-emerald-50/90 border-emerald-200 text-emerald-950",
-      badgeBg: "bg-emerald-200 text-emerald-950 font-bold",
+      icon: <CheckCircle2 className="h-4 w-4 text-slate-400" />,
+      dot: "bg-emerald-500",
     },
     {
       id: "grn_issue",
       stage: "grn_issue",
-      title: "5. GRN Discrepancy",
+      title: "GRN discrepancy",
+      hint: "Needs attention",
       category: "issue",
-      icon: <AlertTriangle className="w-4 h-4 text-rose-600" />,
-      headerBg: "bg-rose-50/90 border-rose-200 text-rose-950",
-      badgeBg: "bg-rose-200 text-rose-950 font-bold",
+      icon: <AlertTriangle className="h-4 w-4 text-slate-400" />,
+      dot: "bg-rose-500",
     },
   ];
 
@@ -145,242 +145,228 @@ export function KanbanView({
 
   if (isLoading) {
     return (
-      <div className="py-24 flex items-center justify-center">
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-xl">
-          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          <span>Organizing Gone vs Remaining Logistics Pipeline...</span>
+      <div className="ui-card flex items-center justify-center py-24">
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-violet-600" />
+          <span>Loading pipeline…</span>
         </div>
       </div>
     );
   }
 
+  const summary = [
+    {
+      key: "remaining",
+      label: "Remaining",
+      value: remainingCount,
+      unit: "at warehouse",
+      note: "Pending / booked",
+      icon: <Clock className="h-4 w-4 text-amber-600" />,
+      iconBg: "bg-amber-50",
+    },
+    {
+      key: "gone",
+      label: "Gone",
+      value: goneCount,
+      unit: "dispatched",
+      note: "In transit / delivered",
+      icon: <Truck className="h-4 w-4 text-violet-600" />,
+      iconBg: "bg-violet-50",
+    },
+    {
+      key: "issue",
+      label: "GRN issues",
+      value: issueCount,
+      unit: "dock alerts",
+      note: "Requires attention",
+      icon: <AlertTriangle className="h-4 w-4 text-rose-600" />,
+      iconBg: "bg-rose-50",
+    },
+  ];
+
   return (
     <div className="space-y-4">
-      {/* ── Gone vs Remaining Summary Bar ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Metric 1: Remaining */}
-        <div className="bg-white p-3.5 rounded-2xl border border-amber-200 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-amber-700" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-amber-900 uppercase tracking-wider">
-                📦 Remaining Shipments
-              </div>
-              <div className="text-xl font-black text-slate-900">
-                {remainingCount}{" "}
-                <span className="text-xs font-semibold text-slate-500">at warehouse</span>
+      {/* Gone vs Remaining summary */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {summary.map((m) => (
+          <div key={m.key} className="ui-card flex items-center gap-3 px-4 py-3">
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${m.iconBg}`}>{m.icon}</div>
+            <div className="min-w-0 flex-1">
+              <div className="ui-muted font-medium">{m.label}</div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-semibold tabular-nums text-slate-900">{m.value}</span>
+                <span className="text-xs text-slate-500">{m.unit}</span>
               </div>
             </div>
+            <span className="ui-muted hidden text-right lg:block">{m.note}</span>
           </div>
-          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-            Pending / Booked
-          </span>
-        </div>
-
-        {/* Metric 2: Gone */}
-        <div className="bg-white p-3.5 rounded-2xl border border-indigo-200 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
-              <Truck className="w-5 h-5 text-indigo-700" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider">
-                🚚 Shipments Gone
-              </div>
-              <div className="text-xl font-black text-slate-900">
-                {goneCount}{" "}
-                <span className="text-xs font-semibold text-slate-500">dispatched</span>
-              </div>
-            </div>
-          </div>
-          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-200">
-            In Transit / Delivered
-          </span>
-        </div>
-
-        {/* Metric 3: GRN Issues */}
-        <div className="bg-white p-3.5 rounded-2xl border border-rose-200 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-rose-100 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-rose-700" />
-            </div>
-            <div>
-              <div className="text-[11px] font-bold text-rose-900 uppercase tracking-wider">
-                ⚠️ GRN Issues
-              </div>
-              <div className="text-xl font-black text-slate-900">
-                {issueCount}{" "}
-                <span className="text-xs font-semibold text-slate-500">dock alerts</span>
-              </div>
-            </div>
-          </div>
-          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-rose-100 text-rose-900 border border-rose-200">
-            Requires Attention
-          </span>
-        </div>
+        ))}
       </div>
 
-      {/* ── Main Kanban Columns ── */}
-      <div className="flex gap-4 overflow-x-auto pb-6 scrollbar-thin">
+      {/* Kanban columns */}
+      <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-thin">
         {columns.map((col) => {
           const colOrders = loadedByStage(col.stage);
           const colTotal = totalFor(col.stage);
 
           return (
-            <div
+            <section
               key={col.id}
-              className="flex flex-col min-w-[290px] sm:min-w-[320px] max-w-[340px] flex-1 bg-slate-100/70 rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden"
+              className="flex min-w-[280px] max-w-[340px] flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-100/60 sm:min-w-[300px]"
             >
-              {/* Column Header */}
-              <div className={`p-3 border-b flex items-center justify-between ${col.headerBg}`}>
-                <div className="flex items-center gap-2">
-                  {col.icon}
-                  <h3 className="font-extrabold text-xs">{col.title}</h3>
+              {/* Column header */}
+              <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${col.dot}`} aria-hidden />
+                  <h3 className="truncate text-sm font-semibold text-slate-900">{col.title}</h3>
+                  <span className="ui-muted truncate">{col.hint}</span>
                 </div>
-                <span className={`text-[11px] px-2 py-0.5 rounded-full ${col.badgeBg}`}>
-                  {colTotal}
-                </span>
-              </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {col.icon}
+                  <span className="ui-count">{colTotal}</span>
+                </div>
+              </header>
               {colOrders.length < colTotal && (
-                <div className="px-3 py-1 text-[10px] font-semibold text-slate-600 bg-white/70 border-b border-slate-200">
+                <div className="border-b border-slate-200 bg-white/70 px-3 py-1.5 text-[11px] text-slate-500">
                   Showing {colOrders.length} of {colTotal}
                   {columnLimit ? ` (first ${columnLimit} by current sort)` : ""} — narrow with filters to see the rest
                 </div>
               )}
 
-              {/* Cards Container */}
-              <div className="p-2.5 flex-1 space-y-2.5 overflow-y-auto max-h-[calc(100vh-280px)]">
+              {/* Cards */}
+              <div className="max-h-[calc(100vh-280px)] flex-1 space-y-2 overflow-y-auto p-2">
                 {colOrders.length === 0 ? (
-                  <div className="py-10 text-center text-slate-400">
-                    <p className="text-xs font-semibold">No orders in this stage</p>
-                  </div>
+                  <div className="px-3 py-10 text-center text-xs text-slate-400">No orders in this stage</div>
                 ) : (
                   colOrders.map((order) => {
                     const isBusy = isUpdatingId === order.id;
+                    const cbm = summarizeCartons(order).totalCbm;
+                    const boxes = order.boxCount || 1;
 
                     return (
-                      <div
+                      <article
                         key={order.id}
-                        className="bg-white rounded-xl border border-slate-200 border-l-4 p-3 shadow-2xs hover:shadow-md transition-all space-y-2.5 group relative"
+                        className="group relative space-y-2.5 rounded-lg border border-slate-200 border-l-[3px] bg-white p-3 transition hover:border-slate-300 hover:shadow-sm"
                         style={{ borderLeftColor: getOrderTone(order as any).tone.accent }}
                       >
-                        {/* Row 1: Platform & RO/PO */}
+                        {/* RO number, channel, quick actions */}
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="font-mono font-black text-xs text-slate-900 group-hover:text-violet-600 transition-colors">
+                          <div className="min-w-0 space-y-1">
+                            <div className="ui-mono truncate text-[13px] font-semibold text-slate-900">
                               {order.roPoNumber}
                             </div>
-                            <div className="mt-1">
-                              <ChannelBadge channel={order.channel} size="sm" />
-                            </div>
+                            <ChannelBadge channel={order.channel} size="sm" />
                           </div>
 
-                          <div className="flex items-center gap-1">
+                          <div className="-mr-1 -mt-1 flex shrink-0 items-center">
                             {order.personalNote && (
                               <button
                                 type="button"
                                 onClick={() => onQuickNoteClick?.(order)}
-                                className="p-1 rounded bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 cursor-pointer"
+                                className="ui-icon-btn h-7 w-7 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
                                 title={`Private note: ${order.personalNote}`}
                               >
-                                <Lock className="w-3 h-3 text-amber-600" />
+                                <Lock className="h-3.5 w-3.5" />
                               </button>
                             )}
 
                             <button
                               type="button"
                               onClick={() => onOpenOrderDrawer(order)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                              className="ui-icon-btn h-7 w-7"
                               title="Inspect details"
                             >
-                              <Eye className="w-3.5 h-3.5" />
+                              <Eye className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </div>
 
-                        {/* Row 2: Destination & Box Count */}
-                        <div className="space-y-1 text-xs text-slate-600">
-                          <div className="flex items-center gap-1 font-semibold truncate">
-                            <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="truncate">{order.warehouseName || "Destination Pending"}</span>
-                          </div>
+                        {/* Warehouse */}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                          <Building className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">{order.warehouseName || "Destination pending"}</span>
+                        </div>
 
-                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-                            <span className="flex items-center gap-1">
-                              <Layers className="w-3 h-3 text-slate-400" />
-                              <strong className="font-bold text-slate-800">
-                                {order.boxCount || 1} Box{(order.boxCount || 1) > 1 ? "es" : ""}
-                              </strong>
-                              {order.boxDimensions ? ` (${order.boxDimensions})` : ""}
+                        {/* Boxes · CBM, carrier */}
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="flex items-center gap-1.5 text-slate-600">
+                            <Layers className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <span className="tabular-nums">
+                              <span className="font-semibold text-slate-900">{boxes}</span> box{boxes > 1 ? "es" : ""}
+                              {cbm !== null && <span className="text-slate-500"> · {formatCbm(cbm)}</span>}
                             </span>
+                          </span>
 
-                            {order.courierPartner && (
-                              <span className="font-bold text-violet-700 bg-violet-50 px-1.5 py-0.2 rounded">
-                                {order.courierPartner}
-                              </span>
+                          {order.courierPartner && (
+                            <span className="ui-chip max-w-[50%] truncate">
+                              <Truck className="h-3 w-3 shrink-0 text-slate-400" />
+                              <span className="truncate">{order.courierPartner}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {/* CN and dates */}
+                        {(order.trackingId || order.appointmentDate || order.pickupDate) && (
+                          <dl className="space-y-1 border-t border-slate-100 pt-2 text-[11px]">
+                            {order.trackingId && (
+                              <div className="flex items-center gap-1.5">
+                                <Hash className="h-3 w-3 shrink-0 text-slate-400" />
+                                <dt className="text-slate-500">CN</dt>
+                                <dd className="ui-mono truncate font-medium text-slate-900">{order.trackingId}</dd>
+                              </div>
                             )}
+
+                            {order.appointmentDate && (
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="h-3 w-3 shrink-0 text-slate-400" />
+                                <dt className="text-slate-500">Appt</dt>
+                                <dd className="tabular-nums font-medium text-slate-900">
+                                  {formatDateDisplay(order.appointmentDate)}
+                                  {order.appointmentSlot ? <span className="font-normal text-slate-500"> · {order.appointmentSlot}</span> : ""}
+                                </dd>
+                              </div>
+                            )}
+
+                            {order.pickupDate && !order.appointmentDate && (
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="h-3 w-3 shrink-0 text-slate-400" />
+                                <dt className="text-slate-500">Pickup</dt>
+                                <dd className="tabular-nums font-medium text-slate-900">{formatDateDisplay(order.pickupDate)}</dd>
+                              </div>
+                            )}
+                          </dl>
+                        )}
+
+                        {col.id === "grn_issue" && (
+                          <div className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] text-rose-800">
+                            <span className="font-semibold">Discrepancy:</span> {order.grnReport || order.comment || "Dock Issue"}
                           </div>
-                        </div>
+                        )}
 
-                        {/* Row 3: Priority Tracking Info based on Stage */}
-                        <div className="pt-1.5 border-t border-slate-100 text-[11px] space-y-1">
-                          {order.trackingId && (
-                            <div className="flex items-center gap-1 text-indigo-900 font-mono font-bold bg-indigo-50/80 px-2 py-0.5 rounded">
-                              <Hash className="w-3 h-3 text-indigo-600" />
-                              <span>CN: {order.trackingId}</span>
-                            </div>
-                          )}
-
-                          {order.appointmentDate && (
-                            <div className="flex items-center gap-1 text-purple-900 font-semibold bg-purple-50/80 px-2 py-0.5 rounded">
-                              <Calendar className="w-3 h-3 text-purple-600" />
-                              <span>Appt: {formatDateDisplay(order.appointmentDate)}</span>
-                              {order.appointmentSlot ? ` (${order.appointmentSlot})` : ""}
-                            </div>
-                          )}
-
-                          {order.pickupDate && !order.appointmentDate && (
-                            <div className="flex items-center gap-1 text-slate-600">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              <span>Pickup: {formatDateDisplay(order.pickupDate)}</span>
-                            </div>
-                          )}
-
-                          {col.id === "grn_issue" && (
-                            <div className="text-[10px] font-semibold text-rose-700 bg-rose-50 p-1.5 rounded border border-rose-200">
-                              <strong>Discrepancy:</strong> {order.grnReport || order.comment || "Dock Issue"}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Row 4: Quick Action Pipeline Mover */}
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                          {/* Main App Link */}
+                        {/* Footer: main app link + stage action */}
+                        <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
                           <a
                             href={`https://consignmentops.averretail.com/?search=${encodeURIComponent(order.roPoNumber)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[10px] text-slate-400 hover:text-indigo-600 flex items-center gap-1"
+                            className="flex items-center gap-1 text-[11px] text-slate-400 transition hover:text-violet-600"
                             title="Open in Main Consignment Operations App"
                           >
                             <span>Consignment</span>
-                            <ExternalLink className="w-2.5 h-2.5" />
+                            <ExternalLink className="h-3 w-3" />
                           </a>
 
-                          {/* Stage Transition Buttons */}
                           <div className="flex items-center gap-1">
                             {col.id === "remaining_pending" && (
                               <button
                                 type="button"
                                 disabled={isBusy}
                                 onClick={() => handleQuickMilestone(order, "Tracking Assigned")}
-                                className="px-2 py-1 text-[10px] font-bold bg-blue-600 hover:bg-blue-700 text-white rounded transition cursor-pointer flex items-center gap-1"
+                                className="ui-btn-primary ui-btn-sm"
                                 title="Set the shipment milestone to Tracking Assigned"
                               >
                                 <span>Booked</span>
-                                <ArrowRight className="w-2.5 h-2.5" />
+                                <ArrowRight className="h-3 w-3" />
                               </button>
                             )}
 
@@ -391,21 +377,20 @@ export function KanbanView({
                                 type="button"
                                 disabled={isBusy}
                                 onClick={() => setDeliverOrder(order)}
-                                className="px-2 py-1 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded transition cursor-pointer flex items-center gap-1"
+                                className="ui-btn-success ui-btn-sm"
                               >
-                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                <CheckCircle2 className="h-3 w-3" />
                                 <span>Delivered</span>
                               </button>
                             )}
-
                           </div>
                         </div>
-                      </div>
+                      </article>
                     );
                   })
                 )}
               </div>
-            </div>
+            </section>
           );
         })}
       </div>

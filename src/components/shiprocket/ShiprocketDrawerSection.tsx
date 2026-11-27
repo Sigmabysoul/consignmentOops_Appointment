@@ -38,97 +38,139 @@ export function ShiprocketDrawerSection({ order, onOrderUpdated }: { order: Appo
   };
 
   return (
-    <div className="space-y-3 pt-3 border-t border-slate-200 text-xs">
-      <div className="font-bold text-slate-900 flex items-center gap-1.5">
-        <Rocket className="w-3.5 h-3.5 text-indigo-600" /> Shiprocket Cargo shipment
-      </div>
-
-      {!booked ? (
-        <p className="text-slate-600">
-          Shiprocket order {rec.order.orderId ?? "(not created)"} —{" "}
-          {rec.shipment?.state === "unknown_outcome"
-            ? "the last booking attempt has an unknown result; check the Shiprocket Cargo panel."
-            : rec.shipment?.state === "failed"
-            ? `booking failed${rec.shipment.message ? `: ${rec.shipment.message}` : "."}`
-            : "no carrier booked yet. Continue from Compare Rates on the Booking Desk."}
-        </p>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 gap-1.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-            <div>Carrier: <b>{rec.deliveryPartner || rec.shipment?.carrier?.deliveryPartnerName}</b></div>
-            <div>Waybill: <span className="font-mono font-bold">{rec.waybill || "pending"}</span></div>
-            <div>LR / docket: <span className="font-mono">{rec.lrn || "—"}</span></div>
-            <div>Pickup: {rec.scheduledPickupDate ? formatDateDisplay(rec.scheduledPickupDate) : "—"}</div>
-            <div className="col-span-2">
-              Status: <b>{rec.tracking?.status || "not checked"}</b>
-              {rec.tracking?.location ? ` · ${rec.tracking.location}` : ""}
-              {rec.tracking?.edd ? ` · EDD ${formatDateDisplay(rec.tracking.edd)}` : ""}
-              {rec.tracking?.checkedAt ? <span className="text-slate-400"> (checked {formatDateTimeDisplay(rec.tracking.checkedAt)})</span> : null}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {rec.labelUrl && (
-              <a href={rec.labelUrl} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold flex items-center gap-1">
-                <ExternalLink className="w-3 h-3" /> Labels
-              </a>
-            )}
-            {rec.podUrl && (
-              <a href={rec.podUrl} target="_blank" rel="noopener noreferrer" className="px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold flex items-center gap-1">
-                <ExternalLink className="w-3 h-3" /> Carrier POD
-              </a>
-            )}
+    <section className="ui-card text-xs">
+      <div className="ui-card-header">
+        <h3 className="ui-card-title">
+          <Rocket className="h-4 w-4 text-slate-400" />
+          <span>Shiprocket Cargo shipment</span>
+        </h3>
+        {booked ? (
+          <div className="flex items-center gap-1.5">
             <button type="button" disabled={Boolean(busy) || !status?.configured}
               onClick={() => call("details", () => shiprocketApi(`/orders/${order.id}/shipment`), "Shipment details refreshed")}
-              className="px-2.5 py-1.5 rounded-lg border border-slate-300 font-bold flex items-center gap-1 disabled:opacity-40 cursor-pointer">
-              <RefreshCw className={`w-3 h-3 ${busy === "details" ? "animate-spin" : ""}`} /> Details
+              className="ui-btn-secondary ui-btn-sm">
+              <RefreshCw className={`h-3 w-3 ${busy === "details" ? "animate-spin" : ""}`} /> Details
             </button>
             <button type="button" disabled={Boolean(busy) || !rec.waybill || !status?.configured}
               onClick={() => call("track", () => shiprocketApi(`/orders/${order.id}/track`, { method: "POST" }), "Tracking refreshed")}
-              className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white font-bold flex items-center gap-1 disabled:opacity-40 cursor-pointer">
-              <RefreshCw className={`w-3 h-3 ${busy === "track" ? "animate-spin" : ""}`} /> Track
+              className="ui-btn-secondary ui-btn-sm">
+              <RefreshCw className={`h-3 w-3 ${busy === "track" ? "animate-spin" : ""}`} /> Track
             </button>
           </div>
+        ) : (
+          <span className="ui-chip">Carrier API</span>
+        )}
+      </div>
 
-          {(rec.statusHistory?.length ?? 0) > 0 && (
-            <details>
-              <summary className="font-bold text-slate-600 cursor-pointer select-none">Tracking history ({rec.statusHistory!.length})</summary>
-              <ul className="mt-1.5 space-y-0.5 max-h-48 overflow-y-auto">
-                {[...rec.statusHistory!].reverse().map((h, i) => (
-                  <li key={i} className="text-[11px] text-slate-600">
-                    <span className="text-slate-400">{h.timestamp ? formatDateTimeDisplay(h.timestamp) : "—"}</span> · <b>{h.status}</b>
-                    {h.location ? ` · ${h.location}` : ""}
-                    {h.remarks ? ` — ${h.remarks}` : ""}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
+      <div className="ui-card-body space-y-4">
+        {!booked ? (
+          <p className="text-slate-600">
+            Shiprocket order {rec.order.orderId ?? "(not created)"} —{" "}
+            {rec.shipment?.state === "unknown_outcome"
+              ? "the last booking attempt has an unknown result; check the Shiprocket Cargo panel."
+              : rec.shipment?.state === "failed"
+              ? `booking failed${rec.shipment.message ? `: ${rec.shipment.message}` : "."}`
+              : "no carrier booked yet. Continue from Compare Rates on the Booking Desk."}
+          </p>
+        ) : (
+          <>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+              <div className="min-w-0">
+                <dt className="ui-label">Carrier</dt>
+                <dd className="truncate text-sm font-medium text-slate-900">{rec.deliveryPartner || rec.shipment?.carrier?.deliveryPartnerName}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="ui-label">Waybill</dt>
+                <dd className="ui-mono truncate text-sm font-medium text-slate-900">{rec.waybill || "pending"}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="ui-label">LR / docket</dt>
+                <dd className="ui-mono truncate text-sm font-medium text-slate-900">{rec.lrn || "—"}</dd>
+              </div>
+              <div className="min-w-0">
+                <dt className="ui-label">Pickup</dt>
+                <dd className="text-sm font-medium text-slate-900">{rec.scheduledPickupDate ? formatDateDisplay(rec.scheduledPickupDate) : "—"}</dd>
+              </div>
+              <div className="col-span-2 sm:col-span-4">
+                <dt className="ui-label">Status</dt>
+                <dd className="text-slate-700">
+                  <span className="text-sm font-semibold text-slate-900">{rec.tracking?.status || "not checked"}</span>
+                  {rec.tracking?.location ? ` · ${rec.tracking.location}` : ""}
+                  {rec.tracking?.edd ? ` · EDD ${formatDateDisplay(rec.tracking.edd)}` : ""}
+                  {rec.tracking?.checkedAt ? <span className="text-slate-400"> (checked {formatDateTimeDisplay(rec.tracking.checkedAt)})</span> : null}
+                </dd>
+              </div>
+            </dl>
 
-          <div className="p-2.5 rounded-xl border border-slate-200 space-y-2">
-            <div className="font-bold text-slate-800 flex items-center gap-1.5"><CalendarClock className="w-3.5 h-3.5" /> Delivery appointment</div>
-            {rec.appointment && (
-              <div className="text-[11px] text-emerald-800">
-                Sent: {formatDateDisplay(rec.appointment.start.slice(0, 10))}, {rec.appointment.start.slice(11, 16)}–{rec.appointment.end.slice(11, 16)} by {rec.appointment.bookedBy}
+            {(rec.labelUrl || rec.podUrl) && (
+              <div className="flex flex-wrap gap-2">
+                {rec.labelUrl && (
+                  <a href={rec.labelUrl} target="_blank" rel="noopener noreferrer" className="ui-btn-secondary">
+                    <ExternalLink className="h-3 w-3" /> Labels
+                  </a>
+                )}
+                {rec.podUrl && (
+                  <a href={rec.podUrl} target="_blank" rel="noopener noreferrer" className="ui-btn-secondary">
+                    <ExternalLink className="h-3 w-3" /> Carrier POD
+                  </a>
+                )}
               </div>
             )}
-            <div className="grid grid-cols-3 gap-2">
-              <DateInput value={apptDate} onChange={(e) => setApptDate(e.target.value)}
-                className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2 py-1.5" />
-              <input type="time" value={apptStart} onChange={(e) => setApptStart(e.target.value)} aria-label="From"
-                className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2 py-1.5" />
-              <input type="time" value={apptEnd} onChange={(e) => setApptEnd(e.target.value)} aria-label="To"
-                className="w-full text-xs bg-white border border-slate-300 rounded-lg px-2 py-1.5" />
+
+            {(rec.statusHistory?.length ?? 0) > 0 && (
+              <details className="group">
+                <summary className="cursor-pointer select-none font-medium text-slate-600 hover:text-slate-900">
+                  Tracking history ({rec.statusHistory!.length})
+                </summary>
+                <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto border-l border-slate-200 pl-3">
+                  {[...rec.statusHistory!].reverse().map((h, i) => (
+                    <li key={i} className="text-[11px] text-slate-600">
+                      <span className="text-slate-400">{h.timestamp ? formatDateTimeDisplay(h.timestamp) : "—"}</span> ·{" "}
+                      <span className="font-medium text-slate-800">{h.status}</span>
+                      {h.location ? ` · ${h.location}` : ""}
+                      {h.remarks ? ` — ${h.remarks}` : ""}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
+            <div className="space-y-2.5 rounded-lg bg-slate-50 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-900">
+                <CalendarClock className="h-3.5 w-3.5 text-slate-400" /> Delivery appointment
+              </div>
+              {rec.appointment && (
+                <div className="text-[11px] text-emerald-700">
+                  Sent: {formatDateDisplay(rec.appointment.start.slice(0, 10))}, {rec.appointment.start.slice(11, 16)}–{rec.appointment.end.slice(11, 16)} by {rec.appointment.bookedBy}
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="ui-label">Date</label>
+                  <DateInput value={apptDate} onChange={(e) => setApptDate(e.target.value)} className="ui-input" />
+                </div>
+                <div>
+                  <label className="ui-label">From</label>
+                  <input type="time" value={apptStart} onChange={(e) => setApptStart(e.target.value)} aria-label="From" className="ui-input" />
+                </div>
+                <div>
+                  <label className="ui-label">To</label>
+                  <input type="time" value={apptEnd} onChange={(e) => setApptEnd(e.target.value)} aria-label="To" className="ui-input" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button type="button" disabled={Boolean(busy) || !apptDate || !status?.configured}
+                  onClick={() =>
+                    call("appt", () => shiprocketApi(`/orders/${order.id}/appointment`, postJson({ start: `${apptDate}T${apptStart}`, end: `${apptDate}T${apptEnd}` })), "Appointment sent to Shiprocket")
+                  }
+                  className="ui-btn-primary">
+                  {rec.appointment ? "Update appointment" : "Send appointment"}
+                </button>
+              </div>
             </div>
-            <button type="button" disabled={Boolean(busy) || !apptDate || !status?.configured}
-              onClick={() =>
-                call("appt", () => shiprocketApi(`/orders/${order.id}/appointment`, postJson({ start: `${apptDate}T${apptStart}`, end: `${apptDate}T${apptEnd}` })), "Appointment sent to Shiprocket")
-              }
-              className="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-bold disabled:opacity-40 cursor-pointer">
-              {rec.appointment ? "Update appointment" : "Send appointment"}
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+          </>
+        )}
+      </div>
+    </section>
   );
 }

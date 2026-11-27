@@ -13,7 +13,6 @@ import {
   Lock,
   Eye,
   AlertCircle,
-  CheckCircle2,
 } from "lucide-react";
 
 interface TimelineViewProps {
@@ -31,10 +30,10 @@ export function TimelineView({
 }: TimelineViewProps) {
   if (isLoading) {
     return (
-      <div className="py-20 flex items-center justify-center">
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-xl">
-          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          <span>Building Delivery Timeline...</span>
+      <div className="ui-card flex items-center justify-center py-20">
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-violet-600" />
+          <span>Building delivery timeline…</span>
         </div>
       </div>
     );
@@ -84,50 +83,50 @@ export function TimelineView({
   const sections = [
     {
       id: "overdue",
-      title: "Past Due / Overdue Appointments",
-      badgeColor: "bg-rose-100 text-rose-800 border-rose-300",
-      accentBg: "border-l-4 border-l-rose-500",
-      icon: <AlertCircle className="w-4 h-4 text-rose-600" />,
+      title: "Past due",
+      hint: "Appointment date has passed",
+      dot: "bg-rose-500",
+      icon: <AlertCircle className="h-4 w-4 text-rose-500" />,
       items: overdue,
     },
     {
       id: "today",
-      title: "Today's Schedule & Appointments",
-      badgeColor: "bg-amber-100 text-amber-900 border-amber-300",
-      accentBg: "border-l-4 border-l-amber-500",
-      icon: <Clock className="w-4 h-4 text-amber-600" />,
+      title: "Today",
+      hint: "Appointments scheduled today",
+      dot: "bg-amber-500",
+      icon: <Clock className="h-4 w-4 text-amber-500" />,
       items: today,
     },
     {
       id: "tomorrow",
-      title: "Tomorrow's Pipeline",
-      badgeColor: "bg-indigo-100 text-indigo-900 border-indigo-300",
-      accentBg: "border-l-4 border-l-indigo-500",
-      icon: <Calendar className="w-4 h-4 text-indigo-600" />,
+      title: "Tomorrow",
+      hint: "Next day pipeline",
+      dot: "bg-sky-500",
+      icon: <Calendar className="h-4 w-4 text-sky-500" />,
       items: tomorrow,
     },
     {
       id: "this_week",
-      title: "This Week (Upcoming 7 Days)",
-      badgeColor: "bg-purple-100 text-purple-900 border-purple-300",
-      accentBg: "border-l-4 border-l-purple-500",
-      icon: <Truck className="w-4 h-4 text-purple-600" />,
+      title: "This week",
+      hint: "Upcoming 7 days",
+      dot: "bg-violet-500",
+      icon: <Truck className="h-4 w-4 text-violet-500" />,
       items: thisWeek,
     },
     {
       id: "later",
-      title: "Scheduled Further Out",
-      badgeColor: "bg-slate-100 text-slate-800 border-slate-300",
-      accentBg: "border-l-4 border-l-slate-400",
-      icon: <Calendar className="w-4 h-4 text-slate-500" />,
+      title: "Further out",
+      hint: "Scheduled beyond this week",
+      dot: "bg-slate-400",
+      icon: <Calendar className="h-4 w-4 text-slate-400" />,
       items: later,
     },
     {
       id: "unscheduled",
-      title: "Unscheduled / Awaiting Slot",
-      badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
-      accentBg: "border-l-4 border-l-slate-300",
-      icon: <Clock className="w-4 h-4 text-slate-400" />,
+      title: "Unscheduled",
+      hint: "Awaiting a slot",
+      dot: "bg-slate-300",
+      icon: <Clock className="h-4 w-4 text-slate-400" />,
       items: unscheduled,
     },
   ];
@@ -138,113 +137,103 @@ export function TimelineView({
         if (section.items.length === 0) return null;
 
         return (
-          <div key={section.id} className="space-y-3">
-            {/* Section Header */}
+          <section key={section.id} className="space-y-2.5">
+            {/* Section header */}
             <div className="flex items-center gap-2">
               {section.icon}
-              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-                {section.title}
-              </h3>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${section.badgeColor}`}
-              >
-                {section.items.length} {section.items.length === 1 ? "order" : "orders"}
-              </span>
+              <h3 className="text-sm font-semibold text-slate-900">{section.title}</h3>
+              <span className="ui-count">{section.items.length}</span>
+              <span className="ui-muted hidden sm:inline">· {section.hint}</span>
             </div>
 
-            {/* Section Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* Section cards */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               {section.items.map((order) => (
-                <div
+                <article
                   key={order.id}
-                  className={`bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition p-3.5 space-y-2.5 text-slate-800 ${section.accentBg}`}
+                  className="ui-card flex flex-col gap-2.5 p-3.5 text-slate-800 transition hover:border-slate-300 hover:shadow-sm"
                 >
-                  {/* Top Bar */}
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => onOpenOrderDrawer(order)}
-                      className="font-bold text-sm text-violet-700 hover:text-violet-900 hover:underline cursor-pointer truncate"
-                    >
-                      {order.roPoNumber}
-                    </button>
-                    <ChannelBadge channel={order.channel} />
+                  {/* RO number + channel */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${section.dot}`} aria-hidden />
+                      <button
+                        onClick={() => onOpenOrderDrawer(order)}
+                        className="ui-mono cursor-pointer truncate text-[13px] font-semibold text-slate-900 hover:text-violet-700 hover:underline"
+                      >
+                        {order.roPoNumber}
+                      </button>
+                    </div>
+                    <ChannelBadge channel={order.channel} size="sm" />
                   </div>
 
                   {/* Destination */}
-                  <div className="text-xs text-slate-600 flex items-center gap-1.5 truncate">
-                    <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <div className="flex items-center gap-1.5 truncate text-xs text-slate-600">
+                    <Building className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                     <span className="truncate">{order.warehouseName || order.client?.name || "Destination not set"}</span>
                   </div>
 
-                  {/* Date & Slot Info */}
-                  <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-xs flex items-center justify-between">
-                    <div>
-                      <span className="text-slate-400 text-[10px] block">APPOINTMENT</span>
-                      <span className="font-semibold text-slate-800">
+                  {/* Appointment, slot, carrier, CN */}
+                  <dl className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                    <div className="min-w-0">
+                      <dt className="ui-muted">Appointment</dt>
+                      <dd className="font-medium tabular-nums text-slate-900">
                         {formatDateDisplay(order.appointmentDate || order.deliveryDate)}
-                      </span>
+                      </dd>
                     </div>
-                    {order.appointmentSlot && (
-                      <div className="text-right">
-                        <span className="text-slate-400 text-[10px] block">SLOT</span>
-                        <span className="font-medium text-purple-700 text-[11px]">
-                          {order.appointmentSlot}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                    <div className="min-w-0">
+                      <dt className="ui-muted">Slot</dt>
+                      <dd className="truncate font-medium text-slate-900">{order.appointmentSlot || "—"}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="ui-muted">Carrier</dt>
+                      <dd className="truncate font-medium text-slate-900">{order.courierPartner || "Carrier pending"}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="ui-muted">CN / AWB</dt>
+                      <dd className="ui-mono truncate text-slate-700">{order.trackingId || "No AWB"}</dd>
+                    </div>
+                  </dl>
 
-                  {/* Courier & Tracking */}
-                  <div className="flex items-center justify-between text-xs pt-1">
-                    <span className="font-medium text-slate-700">
-                      {order.courierPartner || "Carrier Pending"}
-                    </span>
-                    <span className="font-mono text-[11px] text-slate-500">
-                      {order.trackingId || "No AWB"}
-                    </span>
-                  </div>
-
-                  {/* 🔒 Isolated Personal Note */}
+                  {/* Private note */}
                   {order.personalNote ? (
                     <div
                       onClick={() => onQuickNoteClick?.(order)}
-                      className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs cursor-pointer hover:bg-amber-100 transition flex items-start gap-1.5"
+                      className="flex cursor-pointer items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 transition hover:bg-amber-100"
                       title="Private Appointment Note"
                     >
-                      <Lock className="w-3 h-3 text-amber-600 shrink-0 mt-0.5" />
+                      <Lock className="mt-0.5 h-3 w-3 shrink-0 text-amber-600" />
                       <span className="line-clamp-2 leading-tight">{order.personalNote}</span>
                     </div>
                   ) : (
                     <button
                       onClick={() => onQuickNoteClick?.(order)}
-                      className="text-[11px] text-slate-400 hover:text-violet-600 flex items-center gap-1 cursor-pointer transition"
+                      className="flex w-fit cursor-pointer items-center gap-1 text-[11px] text-slate-400 transition hover:text-violet-600"
                     >
-                      <Lock className="w-2.5 h-2.5" />
-                      <span>+ Write Private Note</span>
+                      <Lock className="h-3 w-3" />
+                      <span>Add private note</span>
                     </button>
                   )}
 
-                  {/* Status & Inspector Button */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  {/* Status + inspect */}
+                  <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-2.5">
                     <StatusBadge status={order.courierStatus || "Pending"} size="sm" />
-                    <button
-                      onClick={() => onOpenOrderDrawer(order)}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200 transition cursor-pointer"
-                    >
-                      <Eye className="w-3 h-3" />
+                    <button onClick={() => onOpenOrderDrawer(order)} className="ui-btn-secondary ui-btn-sm">
+                      <Eye className="h-3 w-3" />
                       <span>Inspect</span>
                     </button>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
-          </div>
+          </section>
         );
       })}
 
       {orders.length === 0 && (
-        <div className="py-20 text-center text-slate-400 text-xs">
-          No orders found matching your date criteria.
+        <div className="ui-card ui-empty">
+          <Calendar className="h-8 w-8 text-slate-300" />
+          <p>No orders found matching your date criteria.</p>
         </div>
       )}
     </div>

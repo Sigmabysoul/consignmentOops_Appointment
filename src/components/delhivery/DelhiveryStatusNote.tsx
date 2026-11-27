@@ -17,7 +17,7 @@ export function DelhiveryStatusNote({ status, forBooking = false }: { status: De
   }
   if (!problems.length) return null;
   return (
-    <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] space-y-0.5">
+    <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
       {problems.map((p) => (
         <div key={p} className="flex items-start gap-1.5">
           {status.configured ? <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> : <KeyRound className="w-3.5 h-3.5 shrink-0 mt-0.5" />}
@@ -31,9 +31,9 @@ export function DelhiveryStatusNote({ status, forBooking = false }: { status: De
 /** Shown wherever a value came from a provisional (unverified) response mapper. */
 export function DelhiveryProvisionalNote({ matched }: { matched?: string[] }) {
   return (
-    <p className="text-[10px] text-slate-500 leading-snug">
+    <p className="text-[11px] leading-snug text-slate-400">
       Read from Delhivery's response using field names that have not been checked against real staging data yet.
-      {matched && matched.length === 0 && <b className="text-amber-700"> No fields were recognised; check the server log.</b>}
+      {matched && matched.length === 0 && <b className="font-semibold text-amber-700"> No fields were recognised; check the server log.</b>}
     </p>
   );
 }

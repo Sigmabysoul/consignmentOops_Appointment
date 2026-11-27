@@ -20,68 +20,27 @@ import { useRouter } from "next/navigation";
 interface PlatformDef {
   code: string;
   name: string;
-  activeClass: string;
-  dotColor: string;
-  ringClass: string;
+  /** Brand dot colour for the channel chip. */
+  dot: string;
 }
 
 const PLATFORMS: PlatformDef[] = [
-  {
-    code: "ALL",
-    name: "All Channels",
-    activeClass: "bg-gradient-to-r from-violet-600 to-indigo-600 text-white border-white/40 shadow-md",
-    dotColor: "bg-white",
-    ringClass: "ring-2 ring-violet-300/50",
-  },
-  {
-    code: "SWIGGY",
-    name: "Swiggy Instamart",
-    activeClass: "bg-gradient-to-r from-orange-500 to-rose-500 text-white border-white/40 shadow-md",
-    dotColor: "bg-orange-300",
-    ringClass: "ring-2 ring-orange-300/50",
-  },
-  {
-    code: "BLINKIT_STO",
-    name: "Blinkit STO",
-    activeClass: "bg-gradient-to-r from-yellow-400 to-amber-500 text-white border-white/40 shadow-md",
-    dotColor: "bg-yellow-200",
-    ringClass: "ring-2 ring-yellow-300/50",
-  },
-  {
-    code: "FLIPKART_MINUTES",
-    name: "Flipkart Minutes",
-    activeClass: "bg-gradient-to-r from-blue-600 to-indigo-500 text-white border-white/40 shadow-md",
-    dotColor: "bg-blue-300",
-    ringClass: "ring-2 ring-blue-300/50",
-  },
-  {
-    code: "FLIPKART_FBF",
-    name: "Flipkart FBF",
-    activeClass: "bg-gradient-to-r from-sky-500 to-blue-600 text-white border-white/40 shadow-md",
-    dotColor: "bg-sky-300",
-    ringClass: "ring-2 ring-sky-300/50",
-  },
-  {
-    code: "FKSB_FLIPKART",
-    name: "FKSB Flipkart",
-    activeClass: "bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-white/40 shadow-md",
-    dotColor: "bg-indigo-300",
-    ringClass: "ring-2 ring-indigo-300/50",
-  },
-  {
-    code: "AMAZON_VC",
-    name: "Amazon VC",
-    activeClass: "bg-gradient-to-r from-amber-500 to-orange-600 text-white border-white/40 shadow-md",
-    dotColor: "bg-amber-300",
-    ringClass: "ring-2 ring-amber-300/50",
-  },
-  {
-    code: "AMAZON_FBA",
-    name: "Amazon FBA",
-    activeClass: "bg-gradient-to-r from-orange-600 to-red-600 text-white border-white/40 shadow-md",
-    dotColor: "bg-red-300",
-    ringClass: "ring-2 ring-orange-400/50",
-  },
+  { code: "ALL", name: "All channels", dot: "bg-slate-400" },
+  { code: "SWIGGY", name: "Swiggy Instamart", dot: "bg-orange-500" },
+  { code: "BLINKIT_STO", name: "Blinkit STO", dot: "bg-yellow-400" },
+  { code: "FLIPKART_MINUTES", name: "Flipkart Minutes", dot: "bg-blue-600" },
+  { code: "FLIPKART_FBF", name: "Flipkart FBF", dot: "bg-sky-500" },
+  { code: "FKSB_FLIPKART", name: "FKSB Flipkart", dot: "bg-indigo-500" },
+  { code: "AMAZON_VC", name: "Amazon VC", dot: "bg-amber-500" },
+  { code: "AMAZON_FBA", name: "Amazon FBA", dot: "bg-red-500" },
+];
+
+/** The four desks, in workflow order. */
+const VIEWS: Array<{ view: ActiveView; label: string; title: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { view: "booking", label: "Booking", title: "Booking & pickup desk: printed orders waiting for a carrier", icon: Truck },
+  { view: "appointment", label: "Appointment", title: "Appointment & CN desk: in-transit orders", icon: Calendar },
+  { view: "kanban", label: "Kanban", title: "Remaining vs gone", icon: Kanban },
+  { view: "sheet", label: "All data", title: "Every consignment in one sheet", icon: TableProperties },
 ];
 
 interface AppHeaderProps {
@@ -148,265 +107,150 @@ export function AppHeader({
     .substring(0, 2)
     .toUpperCase();
 
+  const viewCount = (view: ActiveView): number | undefined =>
+    view === "booking" ? bookingCount : view === "appointment" ? appointmentCount : view === "sheet" ? allDataCount ?? totalOrdersCount : undefined;
+
   return (
-    <header className="sticky top-0 z-30 select-none shadow-md">
-      {/* ── ROW 1: Purple Gradient Navigation Bar (ConsignmentOps Brand Bar) ── */}
-      <div
-        className="bg-gradient-to-r from-violet-600 to-indigo-600 px-3 sm:px-5 lg:px-8 transition-all duration-300 border-b border-indigo-700/40"
-        style={{
-          background: "linear-gradient(135deg, rgb(109, 40, 217) 0%, rgb(79, 70, 229) 100%)",
-        }}
-      >
-        <div className="flex items-center justify-between h-14 gap-2 sm:gap-4">
-          {/* LEFT: Branding */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30 shadow-lg">
-                <Boxes className="w-4.5 h-4.5 text-white" />
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-white font-black text-sm tracking-tight leading-none">
-                  The Logistics WorkHub
-                </div>
-                <div className="text-white/70 text-[10px] font-medium tracking-wider">
-                  APPOINTMENT & DISPATCH DESK
-                </div>
-              </div>
-            </div>
-
+    <header className="sticky top-0 z-30 select-none border-b border-slate-200 bg-white/95 backdrop-blur">
+      {/* Row 1: brand · desks · refresh & user */}
+      <div className="ui-page flex h-14 items-center justify-between gap-3">
+        <div className="flex shrink-0 items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
+            <Boxes className="h-4 w-4" />
           </div>
-
-          {/* MIDDLE: Operational View Switchers (1. Booking, 2. Appointment, 3. Kanban, Sheet) */}
-          <div className="flex items-center bg-black/20 backdrop-blur-sm p-0.5 rounded-xl border border-white/15 gap-0.5">
-            {/* Part 1: Booking View */}
-            <button
-              onClick={() => onSelectView("booking")}
-              title="Part 1: Booking & Pickup Desk (Priority: Pickup Data & Dimensions)"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "booking"
-                  ? "bg-white text-gray-900 shadow-md"
-                  : "text-white/80 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <Truck className="w-3.5 h-3.5 text-violet-600" />
-              <span>1. Booking</span>
-              {typeof bookingCount === "number" && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
-                    activeView === "booking"
-                      ? "bg-violet-600 text-white"
-                      : "bg-white/20 text-white"
-                  }`}
-                >
-                  {bookingCount}
-                </span>
-              )}
-            </button>
-
-            {/* Part 2: Appointment View */}
-            <button
-              onClick={() => onSelectView("appointment")}
-              title="Part 2: Appointment & CN Desk (Priority: CN & Appointment Date)"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "appointment"
-                  ? "bg-white text-gray-900 shadow-md"
-                  : "text-white/80 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-              <span>2. Appointment</span>
-              {typeof appointmentCount === "number" && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
-                    activeView === "appointment"
-                      ? "bg-indigo-600 text-white"
-                      : "bg-white/20 text-white"
-                  }`}
-                >
-                  {appointmentCount}
-                </span>
-              )}
-            </button>
-
-            {/* Part 3: Kanban View */}
-            <button
-              onClick={() => onSelectView("kanban")}
-              title="Part 3: Normal Kanban View (Gone vs Remaining)"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "kanban"
-                  ? "bg-white text-gray-900 shadow-md"
-                  : "text-white/80 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <Kanban className="w-3.5 h-3.5 text-amber-500" />
-              <span>3. Kanban</span>
-            </button>
-
-            {/* All / Sheet View */}
-            <button
-              onClick={() => onSelectView("sheet")}
-              title="All Consignments Spreadsheet"
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
-                activeView === "sheet"
-                  ? "bg-white text-gray-900 shadow-md font-bold"
-                  : "text-white/70 hover:text-white hover:bg-white/15"
-              }`}
-            >
-              <TableProperties className="w-3.5 h-3.5 opacity-70" />
-              <span className="hidden md:inline">All Data</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
-                  activeView === "sheet"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-white/20 text-white"
-                }`}
-              >
-                {allDataCount ?? totalOrdersCount}
-              </span>
-            </button>
+          <div className="hidden leading-tight sm:block">
+            <div className="text-sm font-semibold text-slate-900">Logistics WorkHub</div>
+            <div className="text-[11px] text-slate-500">Appointment & dispatch desk</div>
           </div>
+        </div>
 
-          {/* RIGHT: Actions & User Dropdown */}
-          <div className="flex items-center gap-2">
-            {/* Refresh button */}
-            {onRefresh && (
+        <nav className="ui-segment overflow-x-auto scrollbar-none" aria-label="Desks">
+          {VIEWS.map(({ view, label, title, icon: Icon }, i) => {
+            const active = activeView === view;
+            const count = viewCount(view);
+            return (
               <button
-                onClick={onRefresh}
-                disabled={isRefreshing}
-                className="flex items-center justify-center w-8 h-8 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 text-white transition active:scale-95 cursor-pointer disabled:opacity-50"
-                title="Refresh order data"
+                key={view}
+                type="button"
+                onClick={() => onSelectView(view)}
+                title={title}
+                aria-current={active ? "page" : undefined}
+                className={`ui-segment-item ${active ? "ui-segment-item-active" : ""}`}
               >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-                />
+                <Icon className={`h-3.5 w-3.5 ${active ? "text-violet-600" : "text-slate-400"}`} />
+                <span className={view === "sheet" ? "hidden md:inline" : ""}>
+                  {view === "sheet" ? label : `${i + 1}. ${label}`}
+                </span>
+                {typeof count === "number" && (
+                  <span className={`ui-count ${active ? "bg-violet-100 text-violet-700" : ""}`}>{count}</span>
+                )}
               </button>
-            )}
+            );
+          })}
+        </nav>
 
-            {/* User Dropdown */}
-            <div className="relative" ref={menuRef}>
-              <button
-                onClick={() => setUserMenuOpen((prev) => !prev)}
-                className="flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-lg border border-white/25 bg-white/15 backdrop-blur-sm hover:bg-white/25 transition cursor-pointer"
-                title="User Profile & Quick Tools"
-              >
-                <div className="w-7 h-7 rounded-full bg-white/90 text-gray-900 flex items-center justify-center font-black text-xs uppercase shadow-sm">
-                  {userInitials}
+        <div className="flex items-center gap-1.5">
+          {onRefresh && (
+            <button type="button" onClick={onRefresh} disabled={isRefreshing} className="ui-icon-btn" title="Refresh order data">
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </button>
+          )}
+
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen((prev) => !prev)}
+              className="flex cursor-pointer items-center gap-2 rounded-lg py-1 pl-1 pr-2 transition hover:bg-slate-100"
+              title="Account & tools"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold uppercase text-white">
+                {userInitials}
+              </div>
+              <div className="hidden text-left sm:block">
+                <div className="max-w-[140px] truncate text-xs font-semibold leading-tight text-slate-900">{user.name || user.username}</div>
+                <div className="text-[10px] leading-none text-slate-500">{roleDisplay}</div>
+              </div>
+              <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {userMenuOpen && (
+              <div className="animate-slide-up absolute right-0 z-50 mt-2 w-60 rounded-xl border border-slate-200 bg-white py-1.5 text-slate-800 shadow-xl">
+                <div className="border-b border-slate-100 px-3.5 py-2.5">
+                  <div className="text-xs font-semibold text-slate-900">{user.name || user.username}</div>
+                  <div className="text-[11px] text-slate-500">@{user.username}</div>
+                  <div className="ui-chip mt-1.5">
+                    <Shield className="h-3 w-3 text-violet-600" />
+                    <span>{roleDisplay}</span>
+                  </div>
                 </div>
-                <div className="hidden sm:block text-left">
-                  <div className="text-xs font-bold text-white leading-tight truncate max-w-[120px]">
-                    {user.name || user.username}
-                  </div>
-                  <div className="text-[10px] text-white/60 font-medium leading-none">
-                    {roleDisplay}
-                  </div>
-                </div>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-white/70 transition-transform ${
-                    userMenuOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
-
-              {userMenuOpen && (
-                <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-50 text-slate-800 animate-slide-up">
-                  <div className="px-3.5 py-2.5 border-b border-slate-100">
-                    <div className="text-xs font-bold text-slate-900">
-                      {user.name || user.username}
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      @{user.username}
-                    </div>
-                    <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-100">
-                      <Shield className="w-3 h-3" />
-                      <span>{roleDisplay}</span>
-                    </div>
-                  </div>
-
-                  <div className="px-2 py-1">
-                    {onOpenPresets && (
-                      <button
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          onOpenPresets();
-                        }}
-                        className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-violet-50 hover:text-violet-900 transition cursor-pointer text-left"
-                        title="OM Logistics rate cards, fuel surcharge, ODA matrix and courier presets"
-                      >
-                        <Sliders className="w-3.5 h-3.5 text-violet-600" />
-                        <span>Rate Presets</span>
-                      </button>
-                    )}
-                    <a
-                      href="https://consignmentops.averretail.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-violet-50 hover:text-violet-900 transition text-left"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5 text-violet-600" />
-                      <span>Open Consignment App</span>
-                    </a>
-                  </div>
-
-                  <div className="pt-1 border-t border-slate-100 px-2">
+                <div className="px-1.5 py-1">
+                  {onOpenPresets && (
                     <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer text-left"
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        onOpenPresets();
+                      }}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                      title="OM Logistics rate cards, fuel surcharge, ODA matrix and courier presets"
                     >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Sign Out</span>
+                      <Sliders className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Rate presets</span>
                     </button>
-                  </div>
+                  )}
+                  <a
+                    href="https://consignmentops.averretail.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 text-slate-500" />
+                    <span>Open Consignment App</span>
+                  </a>
                 </div>
-              )}
-            </div>
+                <div className="border-t border-slate-100 px-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    <span>Sign out</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ── ROW 2: Platform Channels Selector Bar (ConsignmentOps Dark Channel Bar) ── */}
-      <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 border-b border-indigo-900/40 px-3 sm:px-5 lg:px-8 shadow-md">
-        <div className="flex items-center justify-between py-1.5">
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-            {PLATFORMS.map((platform) => {
-              // When "ALL" is selected, all platform buttons glow up matching consignment app behavior
-              const isActive = selectedPlatform === "ALL" || selectedPlatform === platform.code;
-              const count =
-                platform.code === "ALL"
-                  ? totalOrdersCount
-                  : channelCounts[platform.code] || 0;
-
-              return (
-                <button
-                  key={platform.code}
-                  onClick={() => onSelectPlatform(platform.code)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all duration-200 border cursor-pointer ${
-                    isActive
-                      ? `${platform.activeClass} ${platform.ringClass}`
-                      : "bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border-slate-700/60"
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full border border-white ${
-                      isActive ? "bg-white shadow-xs" : platform.dotColor
-                    }`}
-                  />
-                  <span>{platform.name}</span>
-                  {count > 0 && (
-                    <span
-                      className={`text-[10px] font-extrabold px-1.5 py-0.2 rounded-full ${
-                        isActive
-                          ? "bg-black/30 text-white"
-                          : "bg-slate-800 text-slate-300"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+      {/* Row 2: channel filter */}
+      <div className="border-t border-slate-100">
+        <div className="ui-page flex items-center gap-1.5 overflow-x-auto py-2 scrollbar-none">
+          {PLATFORMS.map((platform) => {
+            const active = selectedPlatform === platform.code;
+            const count = platform.code === "ALL" ? totalOrdersCount : channelCounts[platform.code] || 0;
+            return (
+              <button
+                key={platform.code}
+                type="button"
+                onClick={() => onSelectPlatform(platform.code)}
+                aria-pressed={active}
+                className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  active
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${platform.dot}`} />
+                <span>{platform.name}</span>
+                {count > 0 && (
+                  <span className={`text-[10px] font-semibold tabular-nums ${active ? "text-white/70" : "text-slate-400"}`}>{count}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     </header>

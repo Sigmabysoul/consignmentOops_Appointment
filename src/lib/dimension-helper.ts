@@ -535,6 +535,13 @@ export interface CartonSummary {
   totalWeightKg: number | null;
   /** Every group has L, W and H. */
   allDimensionsKnown: boolean;
+  /** Σ boxCount × L × W × H in cubic metres (3 dp), counted over groups with full dimensions; null if none. */
+  totalCbm: number | null;
+}
+
+/** "0.624 CBM" (3 dp: a single small carton is a few hundredths of a cubic metre). */
+export function formatCbm(cbm: number | null | undefined): string {
+  return typeof cbm === "number" ? `${cbm.toFixed(3)} CBM` : "—";
 }
 
 export function summarizeCartons(orderOrGroups: any): CartonSummary {
@@ -544,11 +551,15 @@ export function summarizeCartons(orderOrGroups: any): CartonSummary {
   const totalBoxes = groups.reduce((s, g) => s + g.boxCount, 0);
   const weighed = groups.filter((g) => typeof g.totalWeightKg === "number");
   const totalCenti = weighed.reduce((s, g) => s + toCenti(g.totalWeightKg as number), 0);
+  const sized = groups.filter((g) => g.lengthCm !== null && g.widthCm !== null && g.heightCm !== null);
+  // Summed in cm³ first, converted once: no per-box rounding drift.
+  const cm3 = sized.reduce((s, g) => s + g.boxCount * (g.lengthCm as number) * (g.widthCm as number) * (g.heightCm as number), 0);
   return {
     groups,
     totalBoxes,
     totalWeightKg: weighed.length ? fromCenti(totalCenti) : null,
-    allDimensionsKnown: groups.length > 0 && groups.every((g) => g.lengthCm !== null && g.widthCm !== null && g.heightCm !== null),
+    allDimensionsKnown: groups.length > 0 && sized.length === groups.length,
+    totalCbm: sized.length ? Number((cm3 / 1_000_000).toFixed(3)) : null,
   };
 }
 

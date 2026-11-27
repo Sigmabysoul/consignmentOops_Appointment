@@ -48,6 +48,8 @@ export interface OmDeliveryInput {
   appointmentDelivery?: boolean;
   rovCover?: RovCoverType;
   invoiceValue?: number;
+  /** Total carton volume (m³). Carriers that bill volumetric weight use it; OM bills actual weight. */
+  volumeCbm?: number | null;
 }
 
 export interface OmEstimateLineItem {

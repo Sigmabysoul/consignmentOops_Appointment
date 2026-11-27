@@ -154,56 +154,52 @@ export function OmWhatsAppBookingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-      />
+      <div className="ui-overlay transition-opacity" onClick={onClose} />
 
       {/* Main Dialog Window */}
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-10 flex flex-col max-h-[92vh] animate-scale-in text-slate-800">
-        {/* ── Modal Header (WhatsApp Brand Style) ── */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-emerald-700 via-teal-700 to-emerald-800 text-white flex items-center justify-between border-b border-emerald-600 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center border border-white/25 shadow-xs">
-              <MessageSquare className="w-5 h-5 text-white" />
+      <div className="ui-dialog max-w-2xl z-10 animate-scale-in">
+        {/* ── Modal Header ── */}
+        <div className="ui-dialog-header">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 shrink-0 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+              <MessageSquare className="w-5 h-5 text-emerald-600" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-sm sm:text-base tracking-tight text-white">
-                  OM Logistics — WhatsApp Pickup Booking
-                </h3>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold text-slate-900">OM Logistics pickup booking</h3>
                 <ChannelBadge channel={order.channel} size="sm" />
               </div>
-              <div className="text-[11px] text-emerald-100 font-medium flex items-center gap-2">
-                <span>RO/PO: <strong className="font-mono text-white">{order.roPoNumber}</strong></span>
-                <span>•</span>
-                <span>Pickup: <strong>{order.pickupDate ? formatDateDisplay(order.pickupDate) : "Today"}</strong></span>
+              <div className="ui-muted mt-0.5 flex flex-wrap items-center gap-x-2">
+                <span>
+                  RO/PO <span className="ui-mono font-medium text-slate-700">{order.roPoNumber}</span>
+                </span>
+                <span className="text-slate-300">·</span>
+                <span>
+                  Pickup <span className="font-medium text-slate-700">{order.pickupDate ? formatDateDisplay(order.pickupDate) : "Today"}</span>
+                </span>
+                <span className="text-slate-300">·</span>
+                <span>Sent over WhatsApp</span>
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
-            title="Close"
-          >
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} className="ui-icon-btn shrink-0" title="Close">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* ── Modal Body ── */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
-          {/* Top Inputs: Value Input & WhatsApp Number */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+        <div className="flex-1 overflow-y-auto bg-slate-50/60 p-4 sm:p-5 space-y-4">
+          {/* Value and WhatsApp number */}
+          <div className="ui-card ui-card-body grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Shipment Value Input */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1 text-slate-900">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                  Shipment Value (₹)
+              <label className="ui-label flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <DollarSign className="w-3.5 h-3.5 text-slate-400" />
+                  Shipment value (₹)
                 </span>
-                <span className="text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 text-[10px] font-medium text-amber-700">
                   Required
                 </span>
               </label>
@@ -214,48 +210,42 @@ export function OmWhatsAppBookingModal({
                 value={declaredValue}
                 onChange={(e) => setDeclaredValue(e.target.value)}
                 autoFocus
-                className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 shadow-2xs"
+                className="ui-input tabular-nums font-medium"
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Directly updates the Value row in the WhatsApp draft.
-              </span>
+              <span className="ui-muted mt-1 block">Updates the Value row in the WhatsApp draft.</span>
             </div>
 
             {/* OM Logistics Phone Number */}
             <div>
-              <label className="block text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1 text-slate-900">
-                  <Phone className="w-3.5 h-3.5 text-teal-600" />
-                  OM Logistics WhatsApp #
+              <label className="ui-label flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-slate-400" />
+                  OM Logistics WhatsApp number
                 </span>
-                <span className="text-[10px] text-slate-400 font-normal">
-                  (Editable)
-                </span>
+                <span className="text-[10px] font-normal text-slate-400">Editable</span>
               </label>
               <input
                 type="text"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="e.g. 9477070699"
-                className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 shadow-2xs"
+                className="ui-input ui-mono font-medium"
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Tested with {phoneNumber || "9477070699"}. Auto-prepends country code +91.
+              <span className="ui-muted mt-1 block">
+                Tested with {phoneNumber || "9477070699"}. Country code +91 is added automatically.
               </span>
             </div>
           </div>
 
           {/* WhatsApp Message Preview Box */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <span>Message Draft Preview</span>
-                <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.2 rounded-full font-semibold">
-                  WhatsApp Format
-                </span>
+          <section className="ui-card">
+            <div className="ui-card-header">
+              <span className="ui-card-title">
+                Message preview
+                <span className="ui-chip">WhatsApp format</span>
               </span>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -266,22 +256,22 @@ export function OmWhatsAppBookingModal({
                       setIsEditingDraft(false);
                     }
                   }}
-                  className="text-xs text-violet-700 hover:text-violet-900 font-semibold flex items-center gap-1 transition cursor-pointer"
+                  className="ui-btn-ghost ui-btn-sm"
                 >
                   <Edit3 className="w-3 h-3" />
-                  <span>{isEditingDraft ? "Auto Format" : "Edit Text"}</span>
+                  <span>{isEditingDraft ? "Auto format" : "Edit text"}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="text-xs text-slate-600 hover:text-slate-900 font-semibold flex items-center gap-1 transition cursor-pointer"
+                  className="ui-btn-ghost ui-btn-sm"
                   title="Copy message to clipboard"
                 >
                   {copied ? (
                     <>
                       <Check className="w-3 h-3 text-emerald-600" />
-                      <span className="text-emerald-600 font-bold">Copied!</span>
+                      <span className="text-emerald-700">Copied</span>
                     </>
                   ) : (
                     <>
@@ -293,15 +283,15 @@ export function OmWhatsAppBookingModal({
               </div>
             </div>
 
-            {/* Styled WhatsApp Chat Bubble Preview */}
-            <div className="bg-[#efeae2] p-3 sm:p-4 rounded-2xl border border-[#d1d7db] shadow-inner font-sans">
-              <div className="max-w-full bg-white rounded-xl p-3.5 shadow-xs text-xs text-slate-800 leading-relaxed border-l-4 border-emerald-500">
+            {/* Chat bubble preview */}
+            <div className="p-3 sm:p-4 bg-[#efeae2] rounded-b-xl">
+              <div className="rounded-lg bg-white p-3.5 text-xs leading-relaxed text-slate-800 shadow-sm">
                 {isEditingDraft ? (
                   <textarea
                     rows={11}
                     value={manualDraftText}
                     onChange={(e) => setManualDraftText(e.target.value)}
-                    className="w-full text-xs font-mono bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-900"
+                    className="ui-input font-mono text-xs"
                   />
                 ) : (
                   <pre className="whitespace-pre-wrap font-sans text-xs text-slate-800 leading-relaxed select-text">
@@ -310,43 +300,33 @@ export function OmWhatsAppBookingModal({
                 )}
               </div>
             </div>
-          </div>
+          </section>
         </div>
 
         {/* ── Modal Footer ── */}
-        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-          <div className="text-[11px] text-slate-500">
-            Clicking will open WhatsApp Web with this drafted message pre-filled.
-          </div>
+        <div className="ui-dialog-footer flex-wrap">
+          <div className="ui-muted">Opens WhatsApp Web with this message filled in and assigns OM Logistics.</div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-xl transition cursor-pointer shadow-2xs"
-            >
+            <button type="button" onClick={onClose} className="ui-btn-ghost">
               Cancel
             </button>
 
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-xl transition cursor-pointer shadow-2xs flex items-center gap-1.5"
-            >
+            <button type="button" onClick={handleCopy} className="ui-btn-secondary">
               <Copy className="w-3.5 h-3.5 text-slate-500" />
-              <span>Copy Text</span>
+              <span>Copy text</span>
             </button>
 
             <button
               type="button"
               disabled={isUpdating}
               onClick={handleSendWhatsApp}
-              className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition cursor-pointer shadow-md flex items-center gap-2 active:scale-95 disabled:opacity-50"
+              className="ui-btn-success"
             >
               {isUpdating ? (
                 <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               ) : (
-                <MessageSquare className="w-4 h-4 fill-white" />
+                <MessageSquare className="w-3.5 h-3.5" />
               )}
               <span>Open in WhatsApp Web</span>
               <ExternalLink className="w-3.5 h-3.5 opacity-80" />
